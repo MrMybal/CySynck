@@ -11,6 +11,7 @@
 #include <sstream>
 #include <stdexcept>
 #include "backup.hpp"
+#include "backup_data.hpp"
 #include "diff.hpp"
 #ifdef _WIN32
 #define NOMINMAX
@@ -527,6 +528,9 @@ Json Core::snapshots(const std::string &value) const {
     return output;
 }
 Json Core::backup(const Json &p, const std::string &reason) {
+    auto storage_policy = p.value("backup_storage", "auto");
+    if (storage_policy != "auto" && storage_policy != "whole")
+        throw std::runtime_error("Choose backup_storage auto or whole");
     hook("before_backup", p);
     auto previous = snapshots(p.at("id"));
     auto order = std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -538,17 +542,38 @@ Json Core::backup(const Json &p, const std::string &reason) {
                      {"created_ns", order}, {"reason", reason},      {"files", Json::object()},
                      {"bytes", 0}};
     uintmax_t total = 0;
+    Json block_stats = {
+        {"block_size", backup_block_size}, {"chunked_files", 0}, {"new_block_bytes", 0},
+        {"reused_block_bytes", 0},         {"new_blocks", 0},    {"reused_blocks", 0}};
     for (auto &[name, path] : project_files(p)) {
-        auto entry = capture(path);
+        Json entry;
+        auto size = fs::file_size(path);
+        if (storage_policy == "auto" && size >= backup_block_threshold &&
+            size <= backup_block_size * backup_max_blocks) {
+            auto blocks = capture_blocks(state_, path);
+            entry = blocks.entry;
+            block_stats["chunked_files"] = block_stats["chunked_files"].get<uintmax_t>() + 1;
+            for (auto [key, value] : {std::pair{"new_block_bytes", blocks.written_bytes},
+                                      {"reused_block_bytes", blocks.reused_bytes},
+                                      {"new_blocks", blocks.written_blocks},
+                                      {"reused_blocks", blocks.reused_blocks}})
+                block_stats[key] = block_stats[key].get<uintmax_t>() + value;
+        } else
+            entry = capture(path);
         total += entry.at("size").get<uintmax_t>();
         manifest["files"][name] = entry;
     }
+    manifest["format"] = 2;
+    manifest["block_storage"] = block_stats;
     manifest["bytes"] = total;
     manifest["file_count"] = manifest["files"].size();
     auto directory = state_ / "snapshots" / p.at("id").get<std::string>();
     auto manifestPath = directory / (manifest.at("id").get<std::string>() + ".json");
     validate_snapshot(manifest, manifestPath, p.at("id"));
-    atomic_write(manifestPath, manifest.dump(), true);
+    auto encoded = manifest.dump();
+    if (encoded.size() > 64 * 1024 * 1024)
+        throw std::runtime_error("Snapshot manifest exceeds the 64 MiB catalog limit");
+    atomic_write(manifestPath, encoded, true);
     auto list = snapshots(p.at("id"));
     for (size_t i = p.at("backup_keep").get<size_t>(); i < list.size(); ++i)
         fs::remove(directory / (list[i]["id"].get<std::string>() + ".json"));
@@ -596,16 +621,11 @@ Json Core::diff(const Json &p, const Json &data) {
     auto relative = data.at("path").get<std::string>();
     auto path = project_child(fs::u8path(p.at("root").get<std::string>()), relative);
     auto previous = baseline(snapshots(p.at("id")), data);
-    fs::path old;
-    std::string digest;
+    Json result;
     if (previous["files"].contains(relative)) {
-        plain_directory(state_ / "objects");
-        digest = previous["files"][relative]["sha256"];
-        old = state_ / "objects" / digest;
-        if (!fs::exists(old))
-            throw std::runtime_error("Snapshot object is missing; verify this backup");
-    }
-    auto result = compare_paths(old, path, relative, digest);
+        result = compare_backup(state_, previous["files"][relative], path, relative);
+    } else
+        result = compare_paths({}, path, relative);
     result["baseline"] = previous["id"];
     return result;
 }
@@ -837,6 +857,10 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
         if (!p.at("paused").is_boolean() || !p.at("backup_before_sync").is_boolean() ||
             !p.at("excludes").is_array())
             throw std::runtime_error("Invalid project settings");
+        auto backupStorage = p.value("backup_storage", "auto");
+        if (backupStorage != "auto" && backupStorage != "whole")
+            throw std::runtime_error("Choose backup_storage auto or whole");
+        p["backup_storage"] = backupStorage;
         for (auto &pattern : p["excludes"])
             if (!pattern.is_string() || pattern.get<std::string>().empty())
                 throw std::runtime_error("Invalid exclusion glob");

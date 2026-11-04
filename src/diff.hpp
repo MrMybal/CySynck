@@ -8,4 +8,6 @@ Json inspect_conflict(const Json &project, const std::string &relative);
 Json conflict_identity(const std::string &relative);
 Json compare_paths(const fs::path &left, const fs::path &right, const std::string &target,
                    const std::string &expected_left_hash = {});
+Json compare_backup(const fs::path &state, const Json &entry, const fs::path &right,
+                    const std::string &target);
 } // namespace cysynck

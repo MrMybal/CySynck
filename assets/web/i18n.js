@@ -2,6 +2,14 @@
 // English is the source language. Keep API identifiers and user content unchanged.
 globalThis.CySynckI18n = (() => {
   const french = {
+    "Reuse blocks for large files": "Réutiliser les blocs des gros fichiers",
+    "Blocks of 4 MiB are reused for files from 8 MiB to 256 GiB.": "Les blocs de 4 Mio sont réutilisés pour les fichiers de 8 Mio à 256 Gio.",
+    "Save backup storage policy": "Enregistrer le stockage des sauvegardes",
+    "Backup storage policy saved": "Mode de stockage des sauvegardes enregistré",
+    "Block data: {written} bytes written · {reused} bytes reused": "Blocs : {written} octets écrits · {reused} octets réutilisés",
+    "{objects} block objects · {files} chunked file versions": "{objects} objets de blocs · {files} versions de fichiers par blocs",
+    "{bytes} deduplicated bytes": "{bytes} octets dédupliqués",
+    "Deduplication size unavailable": "Taille de déduplication indisponible",
     "Direct transfers": "Transferts directs",
     "This peer needs an update or legacy mode.": "Ce pair nécessite une mise à jour ou le mode ancien pair.",
     "Resume uses a frozen copy of the source. Both peers need an active VPN and receiver.": "La reprise utilise une copie figée de la source. Les deux pairs doivent avoir un VPN et un récepteur actifs.",

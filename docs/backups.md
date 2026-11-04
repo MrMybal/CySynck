@@ -1,5 +1,10 @@
 # Sauvegardes et stockage
 
+Depuis la version 0.11, le mode par défaut `auto` conserve les gros fichiers par blocs de 4 Mio
+réutilisables entre versions et projets. Le mode `whole` garde les objets entiers.
+Les manifests et restaurations existants restent compatibles. Voir le
+[guide du stockage par blocs](block-backups.md) (anglais) pour les limites et les nouveaux compteurs.
+
 Chaque snapshot conserve un manifest complet et des objets de contenu SHA-256 dédupliqués
 entre tous les projets d'un même profil. La rétention `backup_keep` retire les manifests
 les plus anciens après publication d'une nouvelle sauvegarde. Les objets inutilisés sont
@@ -14,8 +19,9 @@ cysynck restore-plan PROJECT_ID SNAPSHOT_ID /srv/restored-copy
 cysynck restore PROJECT_ID SNAPSHOT_ID /srv/restored-copy
 ```
 
-La vérification relit chaque objet distinct, contrôle son SHA-256 et la taille attendue
-par chaque fichier. `ok`, `issues`, `objects_checked` et `checked_at` décrivent le résultat.
+La vérification relit les objets, contrôle leurs SHA-256 et tailles, puis le SHA-256 complet
+des fichiers assemblés par blocs. Les recettes identiques partagent leurs résultats.
+Les champs `ok`, `issues`, `objects_checked` et `checked_at` décrivent le résultat.
 Un résultat `ok: false` est un rapport valide, pas une erreur du programme : un script doit
 examiner ce champ. Les erreurs de manifest, permissions ou arguments font échouer la commande.
 La vérification n'est pas une signature : un tiers disposant des droits d'écriture sur l'état

@@ -69,6 +69,14 @@ static void localize() {
     c::registerTranslations(
         "fr",
         {{"Direct transfers", "Transferts directs"},
+         {"Reuse blocks for large files", "Réutiliser les blocs des gros fichiers"},
+         {"Blocks of 4 MiB are reused for files from 8 MiB to 256 GiB.",
+          "Les blocs de 4 Mio sont réutilisés pour les fichiers de 8 Mio à 256 Gio."},
+         {"Block data written", "Données de blocs écrites"},
+         {"Block data reused", "Données de blocs réutilisées"},
+         {"Deduplicated data", "Données dédupliquées"},
+         {"Block objects", "Objets de blocs"},
+         {"Chunked file versions", "Versions de fichiers par blocs"},
          {"This peer needs an update or legacy mode.",
           "Ce pair nécessite une mise à jour ou le mode ancien pair."},
          {"Refresh transfers", "Actualiser les transferts"},
@@ -458,6 +466,7 @@ class App {
     int comparison_source = 0, resolution_choice = 0;
     bool history_loaded = false;
     bool received_loaded = false;
+    bool reuse_blocks = true;
     bool send_legacy = false;
     int mode = 0, interval = 60, keep = 30;
     std::string name, root, exchange, shared_id;
@@ -524,6 +533,7 @@ class App {
             interval = p["backup_interval_minutes"];
             keep = p["backup_keep"];
             before = p["backup_before_sync"];
+            reuse_blocks = p.value("backup_storage", "auto") == "auto";
             try {
                 snapshots = core.request("GET", "/api/projects/" + selected + "/snapshots");
             } catch (const std::exception &e) {
@@ -655,6 +665,7 @@ class App {
         interval = p["backup_interval_minutes"];
         keep = p["backup_keep"];
         before = p["backup_before_sync"];
+        reuse_blocks = p.value("backup_storage", "auto") == "auto";
         refresh();
     }
     void set_view(const std::string &s) { view = s; }
@@ -1621,6 +1632,15 @@ class App {
                 restore_id = s["id"];
                 backup_check = restore_preview = nullptr;
             }
+            if (s.at("id") == restore_id && s.contains("block_storage")) {
+                const auto &stats = s.at("block_storage");
+                c::textDim("%s: %llu KiB / %s: %llu KiB", c::tr("Block data written").c_str(),
+                           static_cast<unsigned long long>(
+                               stats.at("new_block_bytes").get<uintmax_t>() / 1024),
+                           c::tr("Block data reused").c_str(),
+                           static_cast<unsigned long long>(
+                               stats.at("reused_block_bytes").get<uintmax_t>() / 1024));
+            }
         }
         if (!restore_id.empty()) {
             c::space(12);
@@ -1701,16 +1721,24 @@ class App {
         c::space(10);
         c::beginCard("storage-summary", c::tr("Storage").c_str());
         if (c::beginProperties("storage-totals")) {
-            for (auto [key, label] :
-                 {std::pair{"stored_bytes", "Stored"}, {"reclaimable_bytes", "Reclaimable"}}) {
+            for (auto [key, label] : {std::pair{"stored_bytes", "Stored"},
+                                      {"reclaimable_bytes", "Reclaimable"},
+                                      {"deduplicated_bytes", "Deduplicated data"}}) {
                 c::property(c::tr(label).c_str());
+                if (std::string(key) == "deduplicated_bytes" &&
+                    !storage_state.at("deduplication_complete").get<bool>()) {
+                    text(c::tr("Unavailable"));
+                    continue;
+                }
                 auto bytes = storage_state.at(key).get<uintmax_t>();
                 text(bytes < 1024 ? std::to_string(bytes) + " B"
                                   : std::to_string(bytes / 1024) + " KiB");
             }
             for (auto [key, label] : {std::pair{"snapshots", "Backups"},
                                       {"unused_objects", "Unused objects"},
-                                      {"missing_objects", "Missing objects"}}) {
+                                      {"missing_objects", "Missing objects"},
+                                      {"block_objects", "Block objects"},
+                                      {"chunked_files", "Chunked file versions"}}) {
                 c::property(c::tr(label).c_str());
                 text(std::to_string(storage_state.at(key).get<uintmax_t>()));
             }
@@ -1792,14 +1820,19 @@ class App {
             ImGui::InputInt("##keep", &keep);
             c::property(c::tr("Backup before sync").c_str());
             c::toggleSwitch("##before", &before);
+            c::property(c::tr("Reuse blocks for large files").c_str());
+            c::toggleSwitch("##reuse-blocks", &reuse_blocks);
             c::endProperties();
         }
         c::textDim("%s",
                    c::tr("0 disables scheduling. Keep the desktop or server running.").c_str());
+        ImGui::TextWrapped(
+            "%s", c::tr("Blocks of 4 MiB are reused for files from 8 MiB to 256 GiB.").c_str());
         if (button("Save", true)) {
             auto id = selected;
             auto data = Json{{"backup_interval_minutes", interval},
                              {"backup_keep", keep},
+                             {"backup_storage", reuse_blocks ? "auto" : "whole"},
                              {"backup_before_sync", before}};
             submit([this, id, data] { return core.request("PUT", "/api/projects/" + id, data); },
                    [this](const Json &) { refresh(); });
@@ -2168,6 +2201,8 @@ class App {
             ImGui::InputInt("##new-interval", &interval);
             c::property(c::tr("Snapshots to keep").c_str());
             ImGui::InputInt("##new-keep", &keep);
+            c::property(c::tr("Reuse blocks for large files").c_str());
+            c::toggleSwitch("##new-blocks", &reuse_blocks);
             c::endProperties();
         }
         c::textDim("%s", c::tr("Use a separate exchange directory and the same "
@@ -2180,6 +2215,7 @@ class App {
                 {"mode", overview["modes"][mode]["id"]},
                 {"exchange_path", overview["modes"][mode]["id"] == "git-bundles" ? exchange : ""},
                 {"backup_interval_minutes", interval},
+                {"backup_storage", reuse_blocks ? "auto" : "whole"},
                 {"backup_keep", keep}};
             if (!shared_id.empty())
                 data["id"] = shared_id;

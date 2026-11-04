@@ -5,6 +5,7 @@ initLanguages();
 let token = "", selected = "", transferLoad = 0;
 try { token = sessionStorage.getItem("cysynck-token") || ""; } catch (_) { /* Storage may be disabled. */ }
 let storagePlan = null, servicePreview = null;
+let backupStorageDirty = false;
 function serviceInput() {
   return {platform: $("service-platform").value, executable: $("service-executable").value,
     target_state: $("service-state").value, port: Number($("service-port").value)};
@@ -125,6 +126,8 @@ async function refresh() {
 }
 async function select(project) {
   if (selected !== project.id) {
+    backupStorageDirty = false;
+    $("backup-storage-result").replaceChildren();
     $("changes").replaceChildren();
     $("conflicts").replaceChildren();
     showDiff({patch: ""});
@@ -151,10 +154,36 @@ async function select(project) {
   $("detail").hidden = false;
   $("project-name").textContent = project.name;
   $("project-root").textContent = project.root + " · " + project.mode;
+  if (!backupStorageDirty) $("backup-blocks").checked = (project.backup_storage || "auto") === "auto";
   const snapshots = await api("projects/" + selected + "/snapshots");
   if (selected !== project.id) return;
-  $("snapshots").replaceChildren(...snapshots.map(s => label("div", "{created} · {count} files · {id}", {created: s.created.slice(0, 19), count: s.file_count, id: s.id}, "snapshot")));
+  $("snapshots").replaceChildren(...snapshots.map(s => {
+    const card = text("div", "", "snapshot");
+    card.append(label("div", "{created} · {count} files · {id}", {created: s.created.slice(0, 19), count: s.file_count, id: s.id}));
+    if (s.block_storage) card.append(label("p", "Block data: {written} bytes written · {reused} bytes reused", {written: s.block_storage.new_block_bytes, reused: s.block_storage.reused_block_bytes}));
+    return card;
+  }));
 }
+$("backup-blocks").addEventListener("change", () => {
+  backupStorageDirty = true;
+  $("backup-storage-result").replaceChildren();
+});
+$("backup-storage-form").addEventListener("submit", event => {
+  event.preventDefault();
+  const project = selected, enabled = $("backup-blocks").checked;
+  if (!project) return;
+  const button = event.currentTarget.querySelector("button");
+  safe(async () => {
+    button.disabled = true;
+    try {
+      const updated = await api("projects/" + project, "PUT", {backup_storage: enabled ? "auto" : "whole"});
+      if (selected !== project || $("backup-blocks").checked !== enabled) return;
+      selectedProject = updated;
+      backupStorageDirty = false;
+      $("backup-storage-result").replaceChildren(label("span", "Backup storage policy saved"));
+    } finally { button.disabled = false; }
+  });
+});
 async function action(name) {
   if (!selected) return;
   const project = selected;
@@ -405,6 +434,8 @@ $("inspect-storage").addEventListener("click", () => safe(async () => {
     label("div", "{snapshots} backups · {bytes} bytes stored", {snapshots: result.snapshots, bytes: result.stored_bytes}),
     label("div", "{objects} unused objects · {bytes} reclaimable bytes", {objects: result.unused_objects, bytes: result.reclaimable_bytes}),
     label("div", "{objects} missing objects", {objects: result.missing_objects}));
+  $("storage-output").append(label("div", "{objects} block objects · {files} chunked file versions", {objects: result.block_objects, files: result.chunked_files}));
+  $("storage-output").append(label("div", result.deduplication_complete ? "{bytes} deduplicated bytes" : "Deduplication size unavailable", {bytes: result.deduplicated_bytes}));
   for (const error of result.errors) $("storage-output").append(text("div", (error.path || "") + ": " + error.error));
   $("prune-storage").disabled = !result.can_prune || result.unused_objects === 0;
 }));

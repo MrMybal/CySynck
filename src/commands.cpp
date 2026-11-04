@@ -25,7 +25,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.10 (C++20)
+        return {{"help", R"(CySynck 0.11 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | events | api-token
   doctor [--probe true]  (test tool versions and engine connection only with --probe)
@@ -39,8 +39,8 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   engine share PROJECT_ID DEVICE_ID
   project list
   project add NAME ROOT [--mode sendreceive|sendonly|receiveonly|backup|git-bundles]
-      [--id SHARED_ID] [--exchange-path DIR] [--interval MINUTES] [--keep COUNT]
-  project set ID [--interval MINUTES] [--keep COUNT]
+      [--id SHARED_ID] [--exchange-path DIR] [--interval MINUTES] [--keep COUNT] [--storage auto|whole]
+  project set ID [--interval MINUTES] [--keep COUNT] [--storage auto|whole]
   backup ID | snapshots ID | changes ID [--snapshot ID]
   diff ID RELATIVE_PATH [--snapshot ID]
   compare ID LEFT_RELATIVE_PATH RIGHT_RELATIVE_PATH
@@ -70,7 +70,7 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   serve [--host 127.0.0.1] [--port 8484]
 Desktop: cysynck-desktop [--state DIR] [--plugin LIBRARY] [--background|--foreground] [--no-tray]
 Secrets: CYSYNCK_SYNCTHING_API_KEY, CYSYNCK_API_TOKEN, CYSYNCK_MESH_TOKEN.
-VPN up/down requires administrator/root. No automatic NAT traversal in 0.10.)"}};
+VPN up/down requires administrator/root. No automatic NAT traversal in 0.11.)"}};
     if (args[0] == "service") {
         if (args.size() < 2 || (args[1] != "plan" && args[1] != "export"))
             throw std::runtime_error("Use service plan|export");
@@ -176,6 +176,8 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.10.)"}}
                 p["backup_interval_minutes"] = std::stoi(flags["--interval"]);
             if (flags.contains("--keep"))
                 p["backup_keep"] = std::stoi(flags["--keep"]);
+            if (flags.contains("--storage"))
+                p["backup_storage"] = flags.at("--storage");
             return core.request("POST", "/api/projects", p);
         }
         if (args.size() > 1 && args[1] == "set") {
@@ -185,6 +187,8 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.10.)"}}
                 data["backup_interval_minutes"] = std::stoi(flags["--interval"]);
             if (flags.contains("--keep"))
                 data["backup_keep"] = std::stoi(flags["--keep"]);
+            if (flags.contains("--storage"))
+                data["backup_storage"] = flags.at("--storage");
             return core.request("PUT", "/api/projects/" + args[2], data);
         }
         throw std::runtime_error("Unknown project command");

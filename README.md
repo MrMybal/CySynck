@@ -9,7 +9,7 @@ A project-based synchronization and backup companion written in **C++20**, power
 One shared core powers the native desktop app, CLI, local Web console and integration SDK.
 Build a headless server without graphical dependencies. No Python or .NET runtime is required.
 
-**Status: 0.10.0, under active development.** Windows x64 is validated locally. The headless
+**Status: 0.11.0, under active development.** Windows x64 is validated locally. The headless
 Linux core, CLI and test binaries also cross-compile from Windows with Zig.
 Native Linux and macOS execution still needs validation on those platforms.
 The Unreal bridge is an integration example and has not yet been compiled inside Unreal.
@@ -19,7 +19,7 @@ those fixes and the new package smoke checks still need another native CI run.
 
 ## Features
 
-| Area | Available in 0.10 |
+| Area | Available in 0.11 |
 | --- | --- |
 | Projects | Separate folders, settings and modes; overlapping project roots are rejected |
 | Sync modes | Two-way, send only, receive only, local backup and Git bundle exchange |
@@ -28,7 +28,7 @@ those fixes and the new package smoke checks still need another native CI run.
 | Startup | Explicit per-profile login registration; disabled by default |
 | Diagnostics | Project paths, required/optional tools, explicit version and Syncthing connection checks |
 | Services | Reviewed per-profile systemd/LaunchAgent export, with installation instructions |
-| Backups | Deduplicated SHA-256 objects, scheduling, retention, integrity checks and restore preview |
+| Backups | Whole-file and 4 MiB block deduplication, scheduling, retention, integrity checks and restore preview |
 | Storage | Explicit cleanup of unused objects, with a preview and checks across all retained manifests |
 | Diffs | Snapshot or two-file comparison, side-by-side and unified views, statistics and Git-compatible patches |
 | Conflicts | Version selection or manual text merge, checked preview, preserved sources and exportable recovery history |
@@ -40,6 +40,11 @@ those fixes and the new package smoke checks still need another native CI run.
 | Resumable transfers | Verified 1 MiB chunks, frozen source, durable progress, manual resume and legacy peer option |
 | Received files | Durable inbox catalog, integrity verification and export to a separate directory |
 | Integration | C++ library, C ABI with UTF-8 JSON and an Unreal/Blueprint bridge example |
+
+Large-file backup storage now reuses unchanged blocks across snapshots and projects. The
+default policy uses 4 MiB blocks for files from 8 MiB to 256 GiB; `project set ID --storage whole`
+keeps whole-file storage. Existing snapshots remain readable. See [block backups](docs/block-backups.md)
+for the format, statistics and cleanup rules.
 
 ## Languages
 
@@ -325,7 +330,7 @@ Detailed guides are currently in French:
 
 Planned work includes native Linux/macOS validation, signed installers and updates,
 optional VPN rendezvous/relay support, Git LFS and CyRevision compatibility, larger-scale
-block backups and larger direct payloads.
+content-defined block backups, larger project trees and larger direct payloads.
 
 Syncthing and CyRevision source code is not incorporated into this project.
 Dependency versions, licenses and external references are listed in [THIRD_PARTY.md](THIRD_PARTY.md).

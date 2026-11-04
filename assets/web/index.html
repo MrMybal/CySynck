@@ -51,6 +51,12 @@
       <button data-action="status" data-i18n>Engine status</button>
     </div>
     <p data-i18n>Synchronize requests a scan. Syncthing continues to manage background transfers.</p>
+    <form id="backup-storage-form">
+      <label><input type="checkbox" id="backup-blocks" checked><span data-i18n>Reuse blocks for large files</span></label>
+      <p data-i18n>Blocks of 4 MiB are reused for files from 8 MiB to 256 GiB.</p>
+      <button data-i18n>Save backup storage policy</button>
+      <span id="backup-storage-result" aria-live="polite"></span>
+    </form>
     <div id="changes"></div>
     <h3 data-i18n>Conflict copies</h3><div id="conflicts"></div><pre id="output"></pre>
     <h3 data-i18n>Differences</h3>

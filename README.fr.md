@@ -12,7 +12,12 @@ par profil pour le desktop et dans le navigateur pour le Web.
 
 ## Démarrer
 
-La version 0.10 ajoute les transferts directs reprenables : blocs de 1 Mio vérifiés par SHA-256,
+La version 0.11 ajoute la déduplication des sauvegardes par blocs de 4 Mio pour les fichiers
+de 8 Mio à 256 Gio. Les blocs inchangés sont réutilisés entre versions et projets ; les anciennes
+sauvegardes restent lisibles. Le mode est réglable dans le CLI, le desktop et le Web.
+Voir le [guide du stockage par blocs](docs/block-backups.md) (anglais).
+
+La version 0.10 a ajouté les transferts directs reprenables : blocs de 1 Mio vérifiés par SHA-256,
 copie source figée et progression conservée après interruption. Le CLI, la vue Réseau du desktop
 et la console Web permettent de reprendre un transfert. La limite reste de 100 Mio par fichier.
 Voir le [guide des transferts](docs/transfers.md) (anglais).
@@ -34,7 +39,7 @@ Linux : `dist/bin/cysynck-desktop`. macOS : `open dist/CySynck.app`.
 Le CLI reste disponible avec `dist/bin/cysynck help` sur ces deux plateformes.
 Les scripts `scripts/build.ps1` et `scripts/build.sh` exécutent ces étapes.
 
-La version 0.10.0 prépare des archives `.tar.gz` pour Linux et ZIP pour Windows/macOS.
+La version 0.11.0 prépare des archives `.tar.gz` pour Linux et ZIP pour Windows/macOS.
 Le bundle macOS contient son cœur, ses ressources Web et ses licences. Voir le
 [guide des paquets et de compilation croisée Linux](docs/packaging.md) (anglais).
 

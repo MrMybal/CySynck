@@ -1,5 +1,15 @@
 # Development milestones
 
+## Delivered in 0.11
+
+Large-file backups now use fixed 4 MiB blocks by default for files from 8 MiB to 256 GiB.
+Snapshots share blocks across projects and versions; whole-file storage remains selectable.
+Verification checks both block and complete-file SHA-256. Restoration, bounded diff previews
+and explicit cleanup support mixed old/new manifests. CLI, desktop and Web expose the policy
+and storage counters in English/French. Dedicated fixtures cover a mixed 513-file Unicode tree,
+corruption and repair, hostile recipes, shared retention, linked namespaces and concurrent cleanup.
+See [block backups](block-backups.md).
+
 ## Delivered in 0.10
 
 Direct files now use restart-safe journals and 1 MiB SHA-256 chunks. Manual resume reconciles
@@ -39,7 +49,7 @@ macOS notarization, signed Windows installers and automatic updates remain separ
 ## Next functional milestones
 
 - Extend resumable direct transfers beyond 100 MiB and exercise them on native Linux/macOS.
-- Extend backup storage with block-level deduplication and test larger project trees.
+- Evaluate content-defined block boundaries and benchmark much larger project trees.
 - Expand Git collaboration with LFS and verify CyRevision interoperability.
 - Design and test WireGuard rendezvous/NAT traversal against real network configurations;
   Syncthing discovery and relays do not themselves provide that transport.

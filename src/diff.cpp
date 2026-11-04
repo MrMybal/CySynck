@@ -1,4 +1,5 @@
 #include "diff.hpp"
+#include "backup_data.hpp"
 #include "file_time.hpp"
 #include <algorithm>
 #include <chrono>
@@ -214,9 +215,7 @@ Json inspect_conflict(const Json &p, const std::string &relative) {
         throw std::runtime_error("Conflict copy is missing or is not a regular file");
     return item;
 }
-Json compare_paths(const fs::path &left, const fs::path &right, const std::string &target,
-                   const std::string &expected_left_hash) {
-    auto a = read_side(left, expected_left_hash), b = read_side(right);
+static Json compare_sides(const Side &a, const Side &b, const std::string &target) {
     Json result = {{"path", target},           {"before_info", a.info},
                    {"after_info", b.info},     {"binary", true},
                    {"patch_available", false}, {"identical", nullptr},
@@ -257,6 +256,28 @@ Json compare_paths(const fs::path &left, const fs::path &right, const std::strin
     result["removed_lines"] = removed;
     result["hunks"] = hunks;
     result["approximate"] = approximate;
+    return result;
+}
+Json compare_paths(const fs::path &left, const fs::path &right, const std::string &target,
+                   const std::string &expected_left_hash) {
+    return compare_sides(read_side(left, expected_left_hash), read_side(right), target);
+}
+Json compare_backup(const fs::path &state, const Json &entry, const fs::path &right,
+                    const std::string &target) {
+    check_backup_layout(state, entry);
+    Side before;
+    before.info = {{"exists", true},
+                   {"bytes", entry.at("size")},
+                   {"sha256", nullptr},
+                   {"expected_sha256", entry.at("sha256")}};
+    if (entry.at("size").get<uintmax_t>() <= preview_limit) {
+        stream_backup_file(state, entry, [&](const char *bytes, size_t size) {
+            before.bytes.append(bytes, size);
+        });
+        before.info["sha256"] = entry.at("sha256");
+    }
+    auto result = compare_sides(before, read_side(right), target);
+    result["storage"] = block_entry(entry) ? "blocks-v1" : "whole";
     return result;
 }
 Json Core::compare(const Json &p, const Json &data) {
