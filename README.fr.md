@@ -53,7 +53,7 @@ Le pont Unreal est fourni comme exemple d'intégration et n'a pas été compilé
 
 ## Fonctions disponibles
 
-| Fonction | Comportement de la version 0.7 |
+| Fonction | Comportement de la version 0.8 |
 | --- | --- |
 | Projets | Dossiers et paramètres séparés ; refus des racines qui se chevauchent |
 | Modes | Bidirectionnel, envoi seul, réception seule, sauvegarde locale, échange Git |
@@ -69,6 +69,7 @@ Le pont Unreal est fourni comme exemple d'intégration et n'a pas été compilé
 | Extensions | Bibliothèques natives chargées explicitement, ABI C versionnée, modes supplémentaires et événements |
 | VPN | Identité WireGuard locale, profils publics échangés via Syncthing, appairage par clé, configuration et activation par les outils officiels |
 | Tchat/fichiers | Canal direct sur l'adresse VPN, autorisations par projet, secret d'appairage, historique local, contrôle SHA-256 des fichiers reçus |
+| Fichiers reçus | Catalogue indépendant de l'historique, vérification d'intégrité et export dans un nouveau dossier séparé |
 | Intégration | Bibliothèque C++, API C stable et exemple de module Unreal/Blueprint |
 
 ## Premier projet
@@ -300,6 +301,11 @@ Elle ne transforme pas un relais Syncthing en relais WireGuard.
 L'activation du tunnel exige les droits système adaptés. Aucun tunnel ni route n'est créé
 au simple démarrage de CySynck. Le canal direct écoute uniquement sur l'adresse VPN configurée.
 Cette version limite chaque fichier direct à 100 Mio et la boîte de réception à 1 Gio.
+
+La vue **Réseau → Ouvrir les fichiers reçus** permet de consulter la boîte de réception,
+vérifier un fichier et exporter sa copie sans supprimer l'original reçu. Le Web et le CLI
+offrent les mêmes opérations : `received list`, `received verify` et `received export`.
+Voir [le guide de la boîte de réception](docs/inbox.md) (anglais).
 
 ## API, extensions et Unreal
 

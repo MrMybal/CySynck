@@ -47,7 +47,7 @@ StartupBackend native_startup_backend() {
 #elif defined(__APPLE__)
     return StartupBackend::macos;
 #else
-    return StartupBackend::linux;
+    return StartupBackend::freedesktop;
 #endif
 }
 fs::path user_startup_directory() {
@@ -168,7 +168,7 @@ static std::string desktop_quote(const std::string &value) {
 }
 std::string LoginStartup::contents() const {
     auto args = arguments();
-    if (backend_ == StartupBackend::linux) {
+    if (backend_ == StartupBackend::freedesktop) {
         if (args[0].find('=') != std::string::npos)
             throw std::runtime_error("Desktop entry executable paths cannot contain '='");
         std::string command;
@@ -305,7 +305,7 @@ bool LoginStartup::owned() const {
         return shortcut(path).marker == marker_;
 #endif
     auto text = read_file(path, 128 * 1024);
-    if (backend_ == StartupBackend::linux)
+    if (backend_ == StartupBackend::freedesktop)
         return text.starts_with("# " + marker_ + "\n");
     return text.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!-- " + marker_ +
                             " -->\n");

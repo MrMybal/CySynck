@@ -25,7 +25,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.7 (C++20)
+        return {{"help", R"(CySynck 0.8 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | events | api-token
   desktop startup status|enable|disable  (local desktop installation only)
@@ -60,10 +60,12 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   vpn revoke ID PEER_ID
   chat send ID PEER_ID TEXT | chat history ID | chat serve
   send-file ID PEER_ID RELATIVE_PATH
+  received list ID | received verify ID TRANSFER_ID
+  received export ID TRANSFER_ID NEW_DIRECTORY
   serve [--host 127.0.0.1] [--port 8484]
 Desktop: cysynck-desktop [--state DIR] [--plugin LIBRARY] [--background|--foreground] [--no-tray]
 Secrets: CYSYNCK_SYNCTHING_API_KEY, CYSYNCK_API_TOKEN, CYSYNCK_MESH_TOKEN.
-VPN up/down requires administrator/root. No automatic NAT traversal in 0.7.)"}};
+VPN up/down requires administrator/root. No automatic NAT traversal in 0.8.)"}};
     if (args[0] == "overview" || args[0] == "modes") {
         require(1);
         auto result = core.request("GET", "/api/overview");
@@ -192,6 +194,26 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.7.)"}};
         } else
             require(2);
         return core.request("POST", "/api/network/" + command, data);
+    }
+    if (args[0] == "received") {
+        if (args.size() < 3)
+            throw std::runtime_error("Expected received list, verify or export and project ID");
+        auto command = args[1];
+        Json data = Json::object();
+        if (command == "list")
+            require(3);
+        else if (command == "verify") {
+            require(4);
+            data = {{"transfer", args[3]}};
+        } else if (command == "export") {
+            require(5);
+            data = {{"transfer", args[3]}, {"destination", args[4]}};
+        } else
+            throw std::runtime_error("Unknown received file command");
+        return core.request("POST",
+                            "/api/projects/" + args[2] + "/received-" +
+                                (command == "list" ? "files" : command),
+                            data);
     }
     if (args[0] == "chat") {
         if (args.size() < 2)

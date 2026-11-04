@@ -906,6 +906,9 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
         result = restore_plan(p, data);
     else if (action == "verify")
         result = verify(p, data);
+    else if (action == "received-files" || action == "received-verify" ||
+             action == "received-export")
+        result = direct_inbox(p, action, data);
     else if (action == "git-status" || action == "export" || action == "inbox" ||
              action == "import")
         result = git_action(p, action, data);

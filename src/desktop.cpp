@@ -70,6 +70,20 @@ static void localize() {
         "fr",
         {{"Overview", "Vue d'ensemble"},
          {"Projects", "Projets"},
+         {"Received files", "Fichiers reçus"},
+         {"Open received files", "Ouvrir les fichiers reçus"},
+         {"Back to network", "Retour au réseau"},
+         {"No received files", "Aucun fichier reçu"},
+         {"Verify received file", "Vérifier le fichier reçu"},
+         {"Export received file", "Exporter le fichier reçu"},
+         {"Received file verified", "Fichier reçu vérifié"},
+         {"Received file exported", "Fichier reçu exporté"},
+         {"Last verification succeeded", "Dernière vérification réussie"},
+         {"Payload unavailable", "Fichier reçu indisponible"},
+         {"Unindexed inbox files are preserved and require manual review.",
+          "Les fichiers reçus sans référence sont conservés et nécessitent un examen manuel."},
+         {"Export creates a new separate directory and preserves the received copy.",
+          "L'export crée un nouveau dossier séparé et conserve la copie reçue."},
          {"New project", "Nouveau projet"},
          {"Changes", "Différences"},
          {"Conflicts", "Conflits"},
@@ -356,18 +370,20 @@ class App {
     cysynck::desktop::LoginStartup &startup;
     std::future<Json> pending;
     std::function<void(const Json &)> callback;
-    Json overview, events, snapshots = Json::array(), changed = Json::array(), diff, git_state,
-                           network_state, incoming = Json::array(), messages = Json::array(),
-                           engine_state, engine_devices, startup_state, backup_check,
-                           restore_preview, storage_state, conflict_state, conflict_diff,
-                           resolution_preview, resolution_preview_input, resolution_history;
+    Json overview, events,
+        snapshots = Json::array(), changed = Json::array(), diff, git_state, network_state,
+        incoming = Json::array(), messages = Json::array(), engine_state, engine_devices,
+        startup_state, backup_check, restore_preview, storage_state, conflict_state, conflict_diff,
+        resolution_preview, resolution_preview_input, resolution_history, received_state;
     std::string view = "Overview", selected, theme = "mid-grey", language = "en", error, output,
                 query, baseline, comparison_snapshot, destination, restore_id, compare_left,
                 compare_right, selected_conflict, merged_content, selected_resolution,
-                resolution_destination, command = "project list";
+                resolution_destination, selected_received, received_destination, received_verified,
+                command = "project list";
     bool create = false, before = true, storage_inspected = false, conflicts_loaded = false;
     int comparison_source = 0, resolution_choice = 0;
     bool history_loaded = false;
+    bool received_loaded = false;
     int mode = 0, interval = 60, keep = 30;
     std::string name, root, exchange, shared_id;
     std::string vpn_name, vpn_address = "10.77.0.1", vpn_endpoint, chat_peer, chat_text, send_path;
@@ -530,6 +546,11 @@ class App {
         diff = nullptr;
         incoming = Json::array();
         messages = Json::array();
+        received_state = nullptr;
+        received_loaded = false;
+        selected_received.clear();
+        received_destination.clear();
+        received_verified.clear();
         baseline.clear();
         comparison_snapshot.clear();
         snapshots = Json::array();
@@ -639,7 +660,7 @@ class App {
                          ImGuiWindowFlags_NoSavedSettings);
         ImGui::BeginChild("navigation", c::dp(245, 0));
         c::heading("CySynck", 1);
-        c::textDim("0.7 / C++20");
+        c::textDim("0.8 / C++20");
         c::space(12);
         if (c::sidebarItem("", c::trLabel("Overview").c_str(), view == "Overview"))
             view = "Overview";
@@ -661,7 +682,8 @@ class App {
                           "Activity", "Storage", "Command line", "Settings", "Application"})
             if (c::sidebarItem("", c::trLabel(page).c_str(),
                                view == page ||
-                                   (std::string(page) == "Conflicts" && view == "Recovery")))
+                                   (std::string(page) == "Conflicts" && view == "Recovery") ||
+                                   (std::string(page) == "Network" && view == "Received files")))
                 view = page;
         c::space(12);
         int lang = language == "fr";
@@ -719,6 +741,8 @@ class App {
             conflicts_view();
         else if (view == "Recovery")
             recovery_view();
+        else if (view == "Received files")
+            received_view();
         else if (view == "Backups")
             backup_view();
         else if (view == "Git exchange")
@@ -1603,7 +1627,100 @@ class App {
         text(output);
         c::endCard();
     }
+    void received_view() {
+        if (button("Back to network"))
+            view = "Network";
+        ImGui::SameLine();
+        auto load = [this] {
+            received_loaded = true;
+            received_verified.clear();
+            action("received-files", Json::object(), [this](const Json &result) {
+                received_state = result;
+                bool found = false;
+                for (const auto &file : result.at("files"))
+                    found |= file.at("id") == selected_received;
+                if (!found)
+                    selected_received = result.at("files").empty()
+                                            ? ""
+                                            : result.at("files")[0].at("id").get<std::string>();
+            });
+        };
+        if (button("Refresh"))
+            load();
+        if (!received_loaded && !busy())
+            load();
+        c::space(8);
+        c::callout(c::Tone::info,
+                   c::tr("Export creates a new separate directory and preserves the received copy.")
+                       .c_str());
+        if (received_state.is_null())
+            return;
+        for (const auto &issue : received_state.at("errors"))
+            ImGui::TextWrapped("%s: %s", issue.value("id", "").c_str(),
+                               issue.at("error").get<std::string>().c_str());
+        if (!received_state.at("unindexed").empty()) {
+            c::callout(
+                c::Tone::warning,
+                c::tr("Unindexed inbox files are preserved and require manual review.").c_str());
+            for (const auto &filename : received_state.at("unindexed"))
+                text(filename);
+        }
+        if (received_state.at("files").empty()) {
+            c::emptyState(c::tr("No received files").c_str(), "");
+            return;
+        }
+        ImGui::BeginChild("received-list", c::dp(300, 0), ImGuiChildFlags_Borders);
+        Json current;
+        for (const auto &file : received_state.at("files")) {
+            auto id = file.at("id").get<std::string>();
+            if (ImGui::Selectable((file.at("name").get<std::string>() + "###" + id).c_str(),
+                                  id == selected_received))
+                selected_received = id;
+            if (id == selected_received)
+                current = file;
+        }
+        ImGui::EndChild();
+        ImGui::SameLine();
+        ImGui::BeginChild("received-detail", ImVec2(0, 0));
+        if (!current.is_null()) {
+            c::beginCard("received-item", current.at("name").get<std::string>().c_str());
+            text(current.at("created").get<std::string>() + " / " +
+                 current.at("peer").get<std::string>());
+            text(std::to_string(current.at("bytes").get<uintmax_t>()) + " B");
+            c::textMono("SHA-256: %s", current.at("sha256").get<std::string>().c_str());
+            if (!current.at("available").get<bool>())
+                c::callout(c::Tone::error, c::tr("Payload unavailable").c_str());
+            if (received_verified == selected_received)
+                c::badge(c::tr("Last verification succeeded").c_str(), c::Tone::success);
+            ImGui::BeginDisabled(busy() || !current.at("available").get<bool>());
+            if (button("Verify received file")) {
+                auto id = selected_received;
+                received_verified.clear();
+                action("received-verify", {{"transfer", id}}, [this, id](const Json &) {
+                    received_verified = id;
+                    c::notify(c::tr("Received file verified").c_str(), c::Tone::success);
+                });
+            }
+            if (c::beginProperties("received-export-fields")) {
+                field("Destination", received_destination);
+                c::endProperties();
+            }
+            ImGui::BeginDisabled(received_destination.empty());
+            if (button("Export received file", true))
+                action("received-export",
+                       {{"transfer", selected_received}, {"destination", received_destination}},
+                       [this](const Json &) {
+                           c::notify(c::tr("Received file exported").c_str(), c::Tone::success);
+                       });
+            ImGui::EndDisabled();
+            ImGui::EndDisabled();
+            c::endCard();
+        }
+        ImGui::EndChild();
+    }
     void network_view() {
+        if (!project().is_null() && button("Open received files", true))
+            view = "Received files";
         c::callout(c::Tone::info, c::tr("WireGuard requires its official tools and "
                                         "administrator/root rights.")
                                       .c_str());

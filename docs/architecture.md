@@ -81,7 +81,7 @@ Routes principales :
 | `/api/cli` | POST avec `{ "args": ["project", "list"] }` |
 
 Un accès distant se fait par tunnel SSH : le CLI accepte `--server http://127.0.0.1:8484`
-et lit le token dans `CYSYNCK_API_TOKEN`. Le desktop v0.7 utilise un cœur local.
+et lit le token dans `CYSYNCK_API_TOKEN`. Le desktop v0.8 utilise un cœur local.
 
 Les plans de résolution lient le profil, le projet, les chemins, les empreintes complètes,
 la taille, la date et les permissions simples, ainsi que le choix de contenu. Ils sont

@@ -9,13 +9,15 @@ A project-based synchronization and backup companion written in **C++20**, power
 One shared core powers the native desktop app, CLI, local Web console and integration SDK.
 Build a headless server without graphical dependencies. No Python or .NET runtime is required.
 
-**Status: 0.7, under active development.** Windows x64 is validated locally. Linux, macOS
+**Status: 0.8, under active development.** Windows x64 is validated locally. Linux, macOS
 and headless Linux build jobs are provided; their results must be checked on GitHub.
 The Unreal bridge is an integration example and has not yet been compiled inside Unreal.
+The initial GitHub run passed on Windows and exposed Linux and macOS configuration issues.
+The 0.8 sources address those blockers; those fixes still need another native CI run.
 
 ## Features
 
-| Area | Available in 0.7 |
+| Area | Available in 0.8 |
 | --- | --- |
 | Projects | Separate folders, settings and modes; overlapping project roots are rejected |
 | Sync modes | Two-way, send only, receive only, local backup and Git bundle exchange |
@@ -31,6 +33,7 @@ The Unreal bridge is an integration example and has not yet been compiled inside
 | Plugins | Explicitly loaded native libraries, versioned C ABI, additional modes and events |
 | VPN | WireGuard identities, public profile exchange through Syncthing, peer trust and official tunnel tools |
 | Direct chat and files | VPN transport, project permissions, pairing secret, local history and SHA-256 verification |
+| Received files | Durable inbox catalog, integrity verification and export to a separate directory |
 | Integration | C++ library, C ABI with UTF-8 JSON and an Unreal/Blueprint bridge example |
 
 ## Languages
@@ -213,6 +216,18 @@ WireGuard packets. Restrictive networks may still need reachable endpoints or ad
 Tunnel activation requires the relevant system permissions. Starting CySynck does not create
 routes or activate a tunnel. Direct chat and file receivers bind to the configured VPN address.
 The current direct-transfer limit is **100 MiB per file**, with a **1 GiB inbox**, without resumable transfers.
+
+Received files are available under **Network → Open received files** on the desktop and in the
+Web console. Their receipts survive chat history retention. Export checks the full SHA-256
+and preserves the received source:
+
+```sh
+cysynck received list PROJECT_ID
+cysynck received verify PROJECT_ID TRANSFER_ID
+cysynck received export PROJECT_ID TRANSFER_ID /srv/new-export
+```
+
+See [received files](docs/inbox.md) for the export layout, legacy receipts and limits.
 
 ## Background app and integration
 

@@ -71,9 +71,9 @@ static int run(const std::vector<std::string> &args) {
         auto plugin = root / fs::u8path("Extensions éspace %/example.plugin");
         atomic_write(plugin, "test fixture, never loaded");
         LaunchSpec spec{copy, core.state(), {plugin}};
-        for (auto backend : {StartupBackend::linux, StartupBackend::macos}) {
+        for (auto backend : {StartupBackend::freedesktop, StartupBackend::macos}) {
             auto entries =
-                root / (backend == StartupBackend::linux ? "xdg-autostart" : "LaunchAgents");
+                root / (backend == StartupBackend::freedesktop ? "xdg-autostart" : "LaunchAgents");
             LoginStartup entry(spec, entries, backend);
             check(!entry.status().at("registered").get<bool>(),
                   "A profile must not register itself by default");
@@ -180,7 +180,7 @@ static int run(const std::vector<std::string> &args) {
         rejects(
             [&] {
                 LoginStartup invalid({copy, root / fs::u8path("bad\npath"), {}}, root / "entries",
-                                     StartupBackend::linux);
+                                     StartupBackend::freedesktop);
             },
             "Startup paths cannot inject new entry lines");
         std::cout << "PASS " << checks << " startup checks; fixtures: " << path_string(root)

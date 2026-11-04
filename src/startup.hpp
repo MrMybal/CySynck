@@ -2,7 +2,7 @@
 #include <cysynck/core.hpp>
 
 namespace cysynck::desktop {
-enum class StartupBackend { windows, linux, macos };
+enum class StartupBackend { windows, freedesktop, macos };
 struct LaunchSpec {
     fs::path executable, state;
     std::vector<fs::path> plugins;

@@ -6,7 +6,7 @@ Syncthing transporte ces profils comme les autres fichiers du dossier partagé.
 Les appareils doivent déjà être autorisés dans Syncthing pour cet échange.
 
 Un réseau n'exige pas de serveur VPN central si les appareils peuvent se joindre
-en UDP : LAN, IPv6 joignable ou redirection de port. CySynck 0.7 n'implémente pas
+en UDP : LAN, IPv6 joignable ou redirection de port. CySynck 0.8 n'implémente pas
 encore le hole punching, STUN/ICE ou un relais de paquets WireGuard.
 La découverte Syncthing peut elle-même utiliser ses services de découverte et de relais.
 Le mode actuel ne promet donc pas une découverte Internet sans aucune infrastructure.

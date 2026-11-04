@@ -1,4 +1,9 @@
-# Desktop 0.7
+# Desktop 0.8
+
+La vue **Réseau → Ouvrir les fichiers reçus** liste les transferts directs conservés dans
+l'état privé. Elle permet une vérification SHA-256 et un export vers un nouveau dossier
+séparé. Le catalogue reste disponible après rétention de l'historique du tchat.
+Voir [la boîte de réception](inbox.md) pour les limites et les anciens profils.
 
 L'interface et la logique de session sont en C++20 et utilisent le même cœur que le CLI.
 Le backend de la barre de menus macOS utilise un petit pont Objective-C++ vers AppKit ;

@@ -78,10 +78,12 @@ async function select(project) {
     clearResolutionPreview();
     $("resolution-panel").hidden = true;
     $("recovery-records").replaceChildren();
+    $("received-records").replaceChildren();
   }
   selected = project.id;
   selectedProject = project;
   $("recovery-panel").hidden = false;
+  $("received-panel").hidden = false;
   $("resolution-pause").disabled = project.paused;
   $("resolution-apply").disabled = !resolutionPreview || !resolutionPreview.spaceAvailable || !project.paused || !!project.resolution_pending;
   $("detail").hidden = false;
@@ -206,6 +208,47 @@ async function loadRecovery() {
   for (const error of result.errors) $("recovery-records").append(text("p", error.path + ": " + error.error));
 }
 $("recovery-load").addEventListener("click", () => safe(loadRecovery));
+async function loadReceived() {
+  const project = selected;
+  if (!project) return;
+  const result = await api("projects/" + project + "/received-files", "POST", {});
+  if (selected !== project) return;
+  $("received-records").replaceChildren();
+  if (!result.files.length) $("received-records").append(label("p", "No received files"));
+  for (const file of result.files) {
+    const card = text("div", "", "snapshot");
+    card.append(text("p", file.name + " · " + file.bytes + " B · " + file.peer), text("p", file.created + " · " + file.id), text("p", "SHA-256: " + file.sha256));
+    if (!file.available) card.append(label("p", "Payload unavailable"));
+    const verify = label("button", "Verify received file");
+    const destination = document.createElement("input");
+    destination.setAttribute("data-i18n-placeholder", "New separate folder on the server");
+    destination.setAttribute("data-i18n-aria", "New separate folder on the server");
+    const exportButton = label("button", "Export received file");
+    const status = text("p", "");
+    verify.disabled = !file.available;
+    exportButton.disabled = true;
+    destination.addEventListener("input", () => { exportButton.disabled = !file.available || !destination.value.trim(); });
+    verify.addEventListener("click", () => safe(async () => {
+      status.replaceChildren();
+      await api("projects/" + project + "/received-verify", "POST", {transfer: file.id});
+      if (project === selected) status.append(label("span", "Received file verified"));
+    }));
+    exportButton.addEventListener("click", () => safe(async () => {
+      status.replaceChildren();
+      const exported = await api("projects/" + project + "/received-export", "POST", {transfer: file.id, destination: destination.value});
+      if (project === selected) status.append(label("span", "Received file exported"), text("span", " · " + exported.path));
+    }));
+    card.append(verify, destination, exportButton, status);
+    $("received-records").append(card);
+    CySynckI18n.apply(card);
+  }
+  for (const issue of result.errors) $("received-records").append(text("p", issue.id + ": " + issue.error));
+  if (result.unindexed.length) {
+    $("received-records").append(label("p", "Unindexed inbox files are preserved and require manual review."));
+    for (const name of result.unindexed) $("received-records").append(text("p", name));
+  }
+}
+$("received-load").addEventListener("click", () => safe(loadReceived));
 $("compare-files").addEventListener("submit", event => {
   event.preventDefault();
   safe(async () => {

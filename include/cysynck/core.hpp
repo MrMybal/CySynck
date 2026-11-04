@@ -11,7 +11,7 @@
 namespace cysynck {
 using Json = nlohmann::json;
 namespace fs = std::filesystem;
-inline constexpr const char *version = "0.7.0";
+inline constexpr const char *version = "0.8.0";
 fs::path default_state();
 std::string path_string(const fs::path &path);
 bool path_is_link(const fs::path &path);
@@ -97,6 +97,7 @@ class Core {
     Json git_action(const Json &project, const std::string &action, const Json &data);
     Json sync_action(Json &project, const std::string &action, const Json &data);
     Json network_action(const std::string &action, const Json &data);
+    Json direct_inbox(const Json &project, const std::string &action, const Json &data);
     void hook(const std::string &event, const Json &context);
     Json request_plugin_mode(const Json &project);
     void event(const std::string &project, const std::string &kind, const std::string &message);

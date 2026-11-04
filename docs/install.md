@@ -1,4 +1,4 @@
-# Installation Windows 0.7
+# Installation Windows 0.8
 
 Le paquet contient le CLI, le desktop, le SDK et `Install-CySynck.ps1`. L'application et son
 cœur restent en C++20 ; PowerShell sert uniquement au déploiement. Cette version fournit

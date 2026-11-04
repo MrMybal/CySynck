@@ -1,4 +1,5 @@
 #include <cysynck/core.hpp>
+#include "inbox.hpp"
 #include <fstream>
 #include <httplib.h>
 #include <regex>
@@ -359,31 +360,38 @@ Json Core::direct_receive(const Json &data, const std::string &remote, const std
     auto peer = trusted_peer(registry_, projectId, peerId);
     if (peer.at("address") != remote)
         throw std::runtime_error("Sender address does not match pinned VPN identity");
+    bool file = data.value("file", false);
+    auto receipts = received_records(registry_, projectId);
+    if (receipts.contains(messageId)) {
+        auto receipt = received_record(receipts.at(messageId), projectId, messageId);
+        if (!file || receipt.at("peer") != peerId || receipt.at("name") != data.at("name") ||
+            receipt.at("sha256") != data.at("sha256") ||
+            receipt.at("bytes").get<uintmax_t>() != bytes.size() ||
+            sha256(bytes) != receipt.at("sha256").get<std::string>())
+            throw std::runtime_error("Transfer ID was already used with different content");
+        verify_received(received_path(state_, projectId, messageId), receipt);
+        return {{"id", messageId}, {"delivered", true}, {"duplicate", true}};
+    }
     for (auto &m : registry_["messages"])
         if (m.at("id") == messageId) {
-            if (m.at("peer") != peerId || m.at("project") != projectId)
+            if (m.at("peer") != peerId || m.at("project") != projectId || file ||
+                m.at("kind") != "chat" || m.at("body").at("text") != data.at("text"))
                 throw std::runtime_error("Duplicate message ID");
             return {{"id", messageId}, {"delivered", true}, {"duplicate", true}};
         }
     Json body;
-    bool file = data.value("file", false);
     if (file) {
         if (bytes.size() > 100 * 1024 * 1024 ||
             sha256(bytes) != data.at("sha256").get<std::string>())
             throw std::runtime_error("File too large or checksum mismatch");
         auto name = data.at("name").get<std::string>();
-        if (name.empty() || name.size() > 255 ||
-            name.find_first_of("/\\\r\n") != std::string::npos ||
-            name.find('\0') != std::string::npos)
-            throw std::runtime_error("Invalid filename");
-        uintmax_t used = 0;
-        if (fs::exists(state_ / "inbox"))
-            for (auto &entry : fs::recursive_directory_iterator(state_ / "inbox"))
-                if (entry.is_regular_file())
-                    used += entry.file_size();
+        received_name(name);
+        if (receipts.size() >= 10000)
+            throw std::runtime_error("Received file catalog limit (10000 per project) reached");
+        auto used = inbox_used(state_);
         if (used + bytes.size() > 1024ull * 1024 * 1024)
             throw std::runtime_error("Received file quota (1 GiB) reached");
-        auto destination = state_ / "inbox" / projectId / (messageId + ".received");
+        auto destination = received_path(state_, projectId, messageId);
         if (fs::exists(destination))
             throw std::runtime_error("Transfer ID already exists");
         atomic_write(destination, bytes, true);
@@ -391,6 +399,14 @@ Json Core::direct_receive(const Json &data, const std::string &remote, const std
                 {"bytes", bytes.size()},
                 {"sha256", data.at("sha256")},
                 {"path", path_string(destination)}};
+        auto receipt = body;
+        receipt.erase("path");
+        receipt["id"] = messageId;
+        receipt["project"] = projectId;
+        receipt["peer"] = peerId;
+        receipt["created"] = timestamp();
+        receipts[messageId] = receipt;
+        registry_["received_files"][projectId] = receipts;
     } else {
         auto text = data.at("text").get<std::string>();
         if (text.empty() || text.size() > 16000)
