@@ -4,6 +4,9 @@
 #include <fstream>
 #include <stdexcept>
 #include <thread>
+#include "process_stream.hpp"
+#include <exception>
+#include <atomic>
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
@@ -53,11 +56,14 @@ static std::wstring quote(const std::string &value) {
     return result;
 }
 #endif
-ProcessResult process(const std::vector<std::string> &args, const fs::path &cwd,
-                      const std::string &input, int timeout) {
+static ProcessResult run_process(const std::vector<std::string> &args, const fs::path &cwd,
+                                 const std::string &input, int timeout, const ProcessSink *sink) {
     if (args.empty())
         throw std::runtime_error("No process command");
+    if (timeout < 1 || timeout > 86400)
+        throw std::runtime_error("Process timeout must be between 1 and 86400 seconds");
     ProcessResult result{};
+    std::exception_ptr outputError, errorError;
     constexpr size_t cap = 8 * 1024 * 1024;
 #ifdef _WIN32
     SECURITY_ATTRIBUTES security{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
@@ -95,8 +101,16 @@ ProcessResult process(const std::vector<std::string> &args, const fs::path &cwd,
     HANDLE job = CreateJobObjectW(nullptr, nullptr);
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
     limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-    if (job)
-        SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof(limits));
+    if (job &&
+        !SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof(limits))) {
+        CloseHandle(job);
+        job = nullptr;
+    }
+    if (sink && !job) {
+        for (auto handle : {outRead, outWrite, errRead, errWrite, inRead, inWrite})
+            CloseHandle(handle);
+        throw std::runtime_error("Cannot isolate streamed process");
+    }
     bool created = CreateProcessW(nullptr, command.data(), nullptr, nullptr, TRUE,
                                   CREATE_NO_WINDOW | CREATE_SUSPENDED, nullptr,
                                   cwd.empty() ? nullptr : cwd.c_str(), &startup, &info);
@@ -116,21 +130,48 @@ ProcessResult process(const std::vector<std::string> &args, const fs::path &cwd,
         CloseHandle(job);
         job = nullptr;
     }
+    if (sink && !job) {
+        TerminateProcess(info.hProcess, 1);
+        WaitForSingleObject(info.hProcess, INFINITE);
+        for (auto handle : {info.hThread, info.hProcess, outRead, errRead, inWrite})
+            CloseHandle(handle);
+        throw std::runtime_error("Cannot isolate streamed process");
+    }
     ResumeThread(info.hThread);
     CloseHandle(info.hThread);
-    auto read = [&](HANDLE handle, std::string &output) {
+    auto stop = [&] {
+        if (job)
+            TerminateJobObject(job, 1);
+        else
+            TerminateProcess(info.hProcess, 1);
+    };
+    auto read = [&](HANDLE handle, std::string &output, bool stdoutStream,
+                    std::exception_ptr &failure) {
         std::array<char, 16384> buffer{};
-        DWORD count;
-        while (
-            ReadFile(handle, buffer.data(), static_cast<DWORD>(buffer.size()), &count, nullptr) &&
-            count) {
-            if (output.size() < cap)
-                output.append(buffer.data(), std::min<size_t>(count, cap - output.size()));
+        try {
+            DWORD count;
+            while (true) {
+                if (!ReadFile(handle, buffer.data(), static_cast<DWORD>(buffer.size()), &count,
+                              nullptr)) {
+                    if (GetLastError() != ERROR_BROKEN_PIPE)
+                        throw std::runtime_error("Process pipe read failed");
+                    break;
+                }
+                if (!count)
+                    break;
+                if (stdoutStream && sink)
+                    (*sink)(buffer.data(), count);
+                else if (output.size() < cap)
+                    output.append(buffer.data(), std::min<size_t>(count, cap - output.size()));
+            }
+        } catch (...) {
+            failure = std::current_exception();
+            stop();
         }
         CloseHandle(handle);
     };
-    std::thread output(read, outRead, std::ref(result.out)),
-        error(read, errRead, std::ref(result.error));
+    std::thread output(read, outRead, std::ref(result.out), true, std::ref(outputError)),
+        error(read, errRead, std::ref(result.error), false, std::ref(errorError));
     std::thread writer([&] {
         DWORD written;
         size_t offset = 0;
@@ -143,24 +184,22 @@ ProcessResult process(const std::vector<std::string> &args, const fs::path &cwd,
         CloseHandle(inWrite);
     });
     bool timedOut = WaitForSingleObject(info.hProcess, timeout * 1000) == WAIT_TIMEOUT;
-    if (timedOut) {
-        if (job)
-            TerminateJobObject(job, 1);
-        else
-            TerminateProcess(info.hProcess, 1);
-    }
+    if (timedOut)
+        stop();
     WaitForSingleObject(info.hProcess, INFINITE);
     DWORD code;
     GetExitCodeProcess(info.hProcess, &code);
+    // Retain handles until readers finish; a sink may still fail while draining stdout.
+    // Terminate owned descendants first so inherited pipe handles cannot keep joins blocked.
     if (job)
-        CloseHandle(job);
-    CloseHandle(info.hProcess);
+        TerminateJobObject(job, 1);
     writer.join();
     output.join();
     error.join();
+    if (job)
+        CloseHandle(job);
+    CloseHandle(info.hProcess);
     result.code = static_cast<int>(code);
-    if (timedOut)
-        throw std::runtime_error("Process timed out: " + args.front());
 #else
     int outPipe[2], errPipe[2], inPipe[2];
     if (pipe(outPipe))
@@ -198,19 +237,42 @@ ProcessResult process(const std::vector<std::string> &args, const fs::path &cwd,
         execvp(argv[0], argv.data());
         _exit(127);
     }
+    setpgid(pid, pid);
     close(outPipe[1]);
     close(errPipe[1]);
     close(inPipe[0]);
-    auto read = [&](int fd, std::string &text) {
+    std::atomic<bool> ownsLeader{true};
+    auto stop = [&] {
+        if (ownsLeader.load()) {
+            kill(-pid, SIGKILL);
+            kill(pid, SIGKILL);
+        }
+    };
+    auto read = [&](int fd, std::string &text, bool stdoutStream, std::exception_ptr &failure) {
         std::array<char, 16384> buffer;
-        ssize_t count;
-        while ((count = ::read(fd, buffer.data(), buffer.size())) > 0)
-            if (text.size() < cap)
-                text.append(buffer.data(), std::min<size_t>(count, cap - text.size()));
+        try {
+            while (true) {
+                auto count = ::read(fd, buffer.data(), buffer.size());
+                if (count < 0) {
+                    if (errno == EINTR)
+                        continue;
+                    throw std::runtime_error("Process pipe read failed");
+                }
+                if (!count)
+                    break;
+                if (stdoutStream && sink)
+                    (*sink)(buffer.data(), static_cast<size_t>(count));
+                else if (text.size() < cap)
+                    text.append(buffer.data(), std::min<size_t>(count, cap - text.size()));
+            }
+        } catch (...) {
+            failure = std::current_exception();
+            stop();
+        }
         close(fd);
     };
-    std::thread output(read, outPipe[0], std::ref(result.out)),
-        error(read, errPipe[0], std::ref(result.error));
+    std::thread output(read, outPipe[0], std::ref(result.out), true, std::ref(outputError)),
+        error(read, errPipe[0], std::ref(result.error), false, std::ref(errorError));
     std::thread writer([&] {
         sigset_t signals;
         sigemptyset(&signals);
@@ -219,6 +281,8 @@ ProcessResult process(const std::vector<std::string> &args, const fs::path &cwd,
         size_t offset = 0;
         while (offset < input.size()) {
             auto n = write(inPipe[1], input.data() + offset, input.size() - offset);
+            if (n < 0 && errno == EINTR)
+                continue;
             if (n <= 0)
                 break;
             offset += n;
@@ -228,23 +292,58 @@ ProcessResult process(const std::vector<std::string> &args, const fs::path &cwd,
     int code = 0;
     auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeout);
     bool timedOut = false;
-    while (waitpid(pid, &code, WNOHANG) == 0) {
+    bool waitFailed = false;
+    while (true) {
+        siginfo_t status{};
+        auto waited = waitid(P_PID, static_cast<id_t>(pid), &status, WEXITED | WNOHANG | WNOWAIT);
+        if (waited < 0) {
+            if (errno == EINTR)
+                continue;
+            if (errno == ECHILD)
+                ownsLeader.store(false);
+            waitFailed = true;
+            break;
+        }
+        if (status.si_pid == pid)
+            break;
         if (std::chrono::steady_clock::now() > deadline) {
-            kill(-pid, SIGKILL);
-            waitpid(pid, &code, 0);
             timedOut = true;
             break;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
+    // Leave the leader waitable until readers stop: its PID cannot be recycled while
+    // their failure handlers may still cancel the owned process group.
+    if (sink || timedOut || waitFailed)
+        stop();
     writer.join();
     output.join();
     error.join();
+    pid_t reaped;
+    do {
+        reaped = waitpid(pid, &code, 0);
+    } while (reaped < 0 && errno == EINTR);
     result.code = WIFEXITED(code) ? WEXITSTATUS(code) : 128;
+    if (waitFailed || reaped != pid)
+        throw std::runtime_error("Cannot wait for owned process");
+#endif
+    if (outputError)
+        std::rethrow_exception(outputError);
+    if (errorError)
+        std::rethrow_exception(errorError);
     if (timedOut)
         throw std::runtime_error("Process timed out: " + args.front());
-#endif
     return result;
+}
+ProcessResult process(const std::vector<std::string> &args, const fs::path &cwd,
+                      const std::string &input, int timeout) {
+    return run_process(args, cwd, input, timeout, nullptr);
+}
+ProcessResult process_stream(const std::vector<std::string> &args, const ProcessSink &sink,
+                             const fs::path &cwd, const std::string &input, int timeout) {
+    if (!sink)
+        throw std::runtime_error("A process output sink is required");
+    return run_process(args, cwd, input, timeout, &sink);
 }
 
 DiskLock::DiskLock(const fs::path &state, const std::string &filename, bool wait) {

@@ -1,6 +1,6 @@
 # Extract an imported Git revision
 
-CySynck 0.17 extracts the complete file tree of an imported peer branch, or a selected commit
+CySynck extracts the complete file tree of an imported peer branch, or a selected commit
 reachable from that branch, into a separate new directory. The result is a file snapshot;
 Git metadata and history stay in the source repository. Branch application, merging and
 rebasing remain explicit Git operations. Extraction works before the first local commit and
@@ -49,7 +49,7 @@ and requires no LFS cache. The extraction policy is explicit and independent of 
 bundle-export policy saved on the project.
 
 - At most 10,000 files and 4,096 distinct LFS assets.
-- Ordinary Git blobs: at most 4 MiB each, within the bounded subprocess capture size.
+- Ordinary Git blobs: at most 1 GiB each from 0.18 (4 MiB in 0.17), streamed through bounded buffers.
 - LFS assets: at most 4 GiB each; complete expanded output: at most 16 GiB.
 - Linked files and submodules block extraction and require separate handling.
 - Relative paths must be valid UTF-8 and safe on the target platform. Repository metadata
@@ -60,9 +60,13 @@ bundle-export policy saved on the project.
 - Complete non-shallow history and no partial-clone/promisor configuration are required.
   Repository-specific `GIT_*` environment redirections must be unset.
 
-The preview verifies LFS availability/integrity. Ordinary blob content is checked as it is
-copied; each output file is then verified with SHA-256. A missing or corrupted object can
-therefore interrupt application even after a successful metadata preview.
+The preview verifies LFS availability/integrity. Ordinary blob stdout is consumed in chunks
+of at most 16 KiB, with the reviewed size enforced before writing and SHA-256 calculated as
+bytes arrive. After closing the file, Git's [`hash-object --no-filters`](https://git-scm.com/docs/git-hash-object)
+checks the exact blob identity without writing objects or invoking checkout filters. The
+complete output is also read back for SHA-256 verification. A missing or corrupted object can
+therefore interrupt application even after a successful metadata preview. Each Git helper has
+a 120-second timeout; an error preserves the partial output and incomplete receipt.
 
 ## Receipts and interrupted copies
 
@@ -89,4 +93,4 @@ Authenticated `POST /api/projects/ID/git-extract` accepts:
 Optional `commit` selects a reachable revision. Application adds `apply:true` and the preview's
 `plan` while retaining all original inputs. The established C++ and UTF-8 JSON C ABI expose
 the same route without changing the ABI version. The package smoke test exercises preview,
-LFS extraction and receipt creation through an independent C consumer.
+LFS extraction, a regular Git blob larger than 8 MiB and receipt creation through an independent C consumer.

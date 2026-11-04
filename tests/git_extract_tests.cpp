@@ -2,6 +2,7 @@
 #include "git_lfs.hpp"
 #include <functional>
 #include <iostream>
+#include <fstream>
 using namespace cysynck;
 static int checks = 0;
 static void check(bool ok, const char *message) {
@@ -54,6 +55,31 @@ static std::string tree(const Json &p, const std::string &name, const std::strin
         data += static_cast<char>(std::stoul(hash.substr(i, 2), nullptr, 16));
     auto id = offline_git(p, {"hash-object", "--literally", "-t", "tree", "-w", "--stdin"}, data);
     id.erase(id.find_first_of("\r\n"));
+    return id;
+}
+// A stored zlib block containing only an object header exercises large size metadata
+// without allocating its claimed payload. These deliberately incomplete objects never extract.
+static std::string sized_blob(const Json &p, uint64_t bytes, char digit) {
+    auto payload = "blob " + std::to_string(bytes) + std::string(1, '\0');
+    std::string encoded("\x78\x01\x01", 3);
+    auto length = static_cast<unsigned>(payload.size());
+    for (auto value : {length, length ^ 65535u}) {
+        encoded += static_cast<char>(value & 255);
+        encoded += static_cast<char>((value >> 8) & 255);
+    }
+    encoded += payload;
+    uint32_t a = 1, b = 0;
+    for (unsigned char c : payload) {
+        a = (a + c) % 65521;
+        b = (b + a) % 65521;
+    }
+    auto sum = (b << 16) | a;
+    for (int shift = 24; shift >= 0; shift -= 8)
+        encoded += static_cast<char>(sum >> shift);
+    auto id = std::string(40, digit);
+    auto path = fs::u8path(p.at("root").get<std::string>()) / ".git/objects" / id.substr(0, 2) /
+                id.substr(2);
+    atomic_write(path, encoded);
     return id;
 }
 int main() {
@@ -338,10 +364,16 @@ int main() {
         makeRevision(tree(b, "CON", small));
         rejects([&] { request(special); }, "Reserved Windows device names are refused");
 #endif
-        auto big = object(b, std::string(4 * 1024 * 1024 + 1, 'b'));
+        auto big = sized_blob(b, 1024ull * 1024 * 1024 + 1, 'f');
         makeRevision(tree(b, "big.bin", big));
         check(!request(special).at("can_extract").get<bool>(),
               "Oversized ordinary Git blobs are explicitly blocked");
+        auto maximum = sized_blob(b, 1024ull * 1024 * 1024, 'e');
+        makeRevision(tree(b, "maximum.bin", maximum));
+        auto maximumPlan = request(special);
+        check(maximumPlan.at("can_extract") &&
+                  maximumPlan.at("files")[0].at("bytes") == 1024ull * 1024 * 1024,
+              "The 1 GiB metadata boundary uses 64-bit sizes without allocating that payload");
         auto boundaryBytes = std::string(4 * 1024 * 1024, 'a');
         auto boundary = object(b, boundaryBytes);
         makeRevision(tree(b, "boundary.bin", boundary));
@@ -349,7 +381,43 @@ int main() {
         special.update({{"apply", true}, {"plan", boundaryPlan.at("plan")}});
         request(special);
         check(sha256_file(run / "special/boundary.bin") == sha256(boundaryBytes),
-              "The exact ordinary blob limit extracts without process truncation");
+              "The previous 4 MiB boundary still extracts exactly");
+        if (fs::space(run).available < 512ull * 1024 * 1024)
+            throw std::runtime_error("Large Git fixture requires 512 MiB of free space");
+        auto largeSource = run / "large-source.bin";
+        std::vector<char> block(1024 * 1024);
+        for (size_t i = 0; i < block.size(); ++i)
+            block[i] = static_cast<char>(i * 37);
+        {
+            std::ofstream file(largeSource, std::ios::binary);
+            for (int i = 0; i < 101; ++i)
+                file.write(block.data(), block.size());
+            file.write(block.data(), 19);
+            file.flush();
+            if (!file)
+                throw std::runtime_error("Cannot create large Git fixture");
+        }
+        auto largeOid =
+            git(b, {"hash-object", "-w", "--no-filters", "--", path_string(largeSource)});
+        makeRevision(tree(b, "large été.bin", largeOid));
+        auto largeQuery = query;
+        largeQuery.update({{"branch", "fixture"},
+                           {"destination", path_string(run / "large-output")},
+                           {"lfs", false}});
+        auto largePlan = request(largeQuery);
+        check(largePlan.at("can_extract") && largePlan.at("bytes") == 101ull * 1024 * 1024 + 19,
+              "A real 101 MiB Git blob previews beyond the subprocess capture bound");
+        auto objectsBefore = git(b, {"count-objects", "-v"});
+        largeQuery.update({{"apply", true}, {"plan", largePlan.at("plan")}});
+        auto largeDone = request(largeQuery);
+        auto largeOutput = run / "large-output" / fs::u8path("large été.bin");
+        check(fs::file_size(largeOutput) == 101ull * 1024 * 1024 + 19 &&
+                  sha256_file(largeSource) == sha256_file(largeOutput),
+              "Large binary Git blobs stream without truncation or byte conversion");
+        check(
+            largeDone.at("files")[0].at("sha256") == sha256_file(largeOutput) &&
+                git(b, {"count-objects", "-v"}) == objectsBefore,
+            "Large extraction receipts contain the full checksum without creating source objects");
         auto emptyTree = offline_git(b, {"hash-object", "-w", "-t", "tree", "--stdin"});
         emptyTree.erase(emptyTree.find_first_of("\r\n"));
         makeRevision(emptyTree);

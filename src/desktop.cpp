@@ -91,8 +91,8 @@ static void localize() {
           "préservés."},
          {"Extraction complete", "Extraction terminée"},
          {"Extraction blocked", "Extraction bloquée"},
-         {"File snapshot limits: 4 MiB per Git blob, 4 GiB per LFS asset, 16 GiB total.",
-          "Limites de la copie : 4 Mio par blob Git, 4 Gio par asset LFS, 16 Gio au total."},
+         {"File snapshot limits: 1 GiB per Git blob, 4 GiB per LFS asset, 16 GiB total.",
+          "Limites de la copie : 1 Gio par blob Git, 4 Gio par asset LFS, 16 Gio au total."},
          {"Initial branch", "Branche initiale"},
          {"Git object format", "Format des objets Git"},
          {"Preview Git setup", "Prévisualiser l'initialisation Git"},
@@ -2152,7 +2152,7 @@ class App {
             ImGui::TextWrapped(
                 "%s",
                 c::tr(
-                    "File snapshot limits: 4 MiB per Git blob, 4 GiB per LFS asset, 16 GiB total.")
+                    "File snapshot limits: 1 GiB per Git blob, 4 GiB per LFS asset, 16 GiB total.")
                     .c_str());
             if (c::beginProperties("git-extract-properties")) {
                 field("New extraction directory", git_extract_destination);

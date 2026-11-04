@@ -1,5 +1,6 @@
 #pragma once
 #include <cysynck/core.hpp>
+#include "process_stream.hpp"
 
 namespace cysynck {
 // Offline exchange uses canonical Git LFS v1 objects; it never runs a filter or a fetch.
@@ -17,4 +18,6 @@ std::string offline_git(const Json &project, const std::vector<std::string> &arg
                         const std::string &input = {});
 ProcessResult offline_git_result(const Json &project, const std::vector<std::string> &args,
                                  const std::string &input = {});
+void offline_git_stream(const Json &project, const std::vector<std::string> &args,
+                        const ProcessSink &sink, int timeout_seconds = 120);
 } // namespace cysynck

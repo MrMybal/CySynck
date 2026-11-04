@@ -9,7 +9,7 @@ A project-based synchronization and backup companion written in **C++20**, power
 One shared core powers the native desktop app, CLI, local Web console and integration SDK.
 Build a headless server without graphical dependencies. No Python or .NET runtime is required.
 
-**Status: 0.17.0, under active development.** Windows x64 is validated locally. The headless
+**Status: 0.18.0, under active development.** Windows x64 is validated locally. The headless
 Linux core, CLI and test binaries also cross-compile from Windows with Zig.
 Native Linux and macOS execution still needs validation on those platforms.
 The Unreal bridge is an integration example and has not yet been compiled inside Unreal.
@@ -19,7 +19,7 @@ those fixes and the new package smoke checks still need another native CI run.
 
 ## Features
 
-| Area | Available in 0.17 |
+| Area | Available in 0.18 |
 | --- | --- |
 | Projects | Separate folders, settings and modes; overlapping project roots are rejected |
 | Sync modes | Two-way, send only, receive only, local backup and Git bundle exchange |
@@ -44,7 +44,8 @@ those fixes and the new package smoke checks still need another native CI run.
 Imported revisions can now be extracted into a new folder after a reviewed preview, including
 verified LFS assets from the approved local cache. The source repository and local changes
 stay intact, and private receipts record complete or interrupted copies. Ordinary Git blobs
-are limited to 4 MiB each; LFS assets support 4 GiB each, within a 16 GiB output limit.
+now stream through bounded buffers up to 1 GiB each; LFS assets support 4 GiB each, within
+a 16 GiB output limit. Copying verifies the exact Git object ID and complete-file SHA-256.
 See [Git revision extraction](docs/git-extraction.md).
 
 New Git projects can initialize their repository through a reviewed preview in the CLI, SDK,

@@ -545,7 +545,7 @@ function showGitExtraction(project,review,comparison,container) {
   apply.type="button";apply.disabled=true;
   form.append(destinationLabel,lfsLabel,preview,apply);
   card.append(label("h4","Extract Git revision"),label("p","Copies the complete selected revision. Local Git files and changes are preserved."),text("p",comparison.commit?comparison.commit.oid:review.head),form,output);container.append(card);
-  card.insertBefore(label("p","File snapshot limits: 4 MiB per Git blob, 4 GiB per LFS asset, 16 GiB total."),form);
+  card.insertBefore(label("p","File snapshot limits: 1 GiB per Git blob, 4 GiB per LFS asset, 16 GiB total."),form);
   let plan=null,request=0;
   const input=()=>({...gitContext(review),commit:comparison.commit?comparison.commit.oid:review.head,destination:destination.value,lfs:lfs.checked});
   const current=()=>selected===project && card.isConnected;

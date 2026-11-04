@@ -10,6 +10,7 @@
 #include <set>
 #include <regex>
 #include <sstream>
+#include <picosha2.h>
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
@@ -17,7 +18,7 @@
 
 namespace cysynck {
 namespace {
-constexpr uintmax_t blob_limit = 4 * 1024 * 1024;
+constexpr uintmax_t blob_limit = 1024ull * 1024 * 1024;
 constexpr uintmax_t total_limit = 16ull * 1024 * 1024 * 1024;
 struct PathLess {
     bool operator()(const std::string &a, const std::string &b) const {
@@ -130,8 +131,7 @@ Json inspect(const fs::path &state, const Json &projects, const Json &project, c
             auto bytes = number(size);
             entry["blob_bytes"] = entry["bytes"] = bytes;
             if (bytes > blob_limit)
-                throw std::runtime_error(
-                    "Ordinary Git blobs are limited to 4 MiB per file; use LFS for larger assets");
+                throw std::runtime_error("Ordinary Git blobs are limited to 1 GiB per file");
             if (hydrate && bytes < 1024) {
                 auto pointer = git_lfs_pointer(blob(project, entry));
                 if (!pointer.is_null()) {
@@ -231,9 +231,22 @@ Json extract_git_revision(const fs::path &state, const Json &projects, const Jso
             };
             std::string expected;
             if (entry.at("lfs").is_null()) {
-                auto bytes = blob(project, entry);
-                expected = sha256(bytes);
-                write(bytes.data(), bytes.size());
+                picosha2::hash256_one_by_one hash;
+                uintmax_t copied = 0;
+                const auto length = entry.at("blob_bytes").get<uintmax_t>();
+                offline_git_stream(project, {"cat-file", "blob", entry.at("oid")},
+                                   [&](const char *bytes, size_t count) {
+                                       if (count > length - copied)
+                                           throw std::runtime_error(
+                                               "Git blob exceeded its reviewed size");
+                                       write(bytes, count);
+                                       hash.process(bytes, bytes + count);
+                                       copied += count;
+                                   });
+                if (copied != length)
+                    throw std::runtime_error("Git blob ended before its reviewed size");
+                hash.finish();
+                expected = picosha2::get_hash_hex_string(hash);
             } else {
                 auto store = lfs_local_store(project);
                 if (Json(path_string(store)) != result.at("lfs_storage"))
@@ -259,6 +272,10 @@ Json extract_git_revision(const fs::path &state, const Json &projects, const Jso
             if (std::fflush(output.get()))
                 throw std::runtime_error("Cannot flush extracted file");
             output.reset();
+            if (entry.at("lfs").is_null() &&
+                entry.at("oid") != trim(offline_git(project, {"hash-object", "--no-filters", "--",
+                                                              path_string(destination)})))
+                throw std::runtime_error("Extracted Git blob identity mismatch");
             if (fs::file_size(destination) != entry.at("bytes").get<uintmax_t>() ||
                 sha256_file(destination) != expected)
                 throw std::runtime_error("Extracted file checksum mismatch");

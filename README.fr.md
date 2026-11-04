@@ -12,6 +12,12 @@ par profil pour le desktop et dans le navigateur pour le Web.
 
 ## Démarrer
 
+La version 0.18 porte l'extraction des fichiers Git ordinaires à **1 Gio par fichier**, grâce
+à une lecture en flux avec des blocs bornés. La copie vérifie l'identité de l'objet Git et
+l'empreinte SHA-256 complète. Les assets LFS gardent leur limite de 4 Gio chacun, avec 16 Gio
+de sortie au total. Les erreurs d'écriture et délais dépassés arrêtent le sous-processus de
+lecture ; les copies interrompues gardent leur reçu incomplet. Voir [l'extraction Git](docs/git-extraction.md).
+
 La version 0.17 ajoute l'extraction d'une branche importée ou d'un commit choisi vers un nouveau
 dossier. L'aperçu vérifie les assets LFS du cache local ; un reçu conserve les empreintes et
 l'état de la copie. Les fichiers Git ordinaires sont limités à 4 Mio chacun, les assets LFS

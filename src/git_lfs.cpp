@@ -90,8 +90,8 @@ Json git_lfs_pointer(const std::string &bytes) {
         return nullptr;
     return {{"sha256", objects.begin()->first}, {"size", objects.begin()->second}};
 }
-ProcessResult offline_git_result(const Json &project, const std::vector<std::string> &args,
-                                 const std::string &input) {
+static std::vector<std::string> offline_command(const Json &project,
+                                                const std::vector<std::string> &args) {
     std::vector<std::string> command{"git",
                                      "--no-pager",
                                      "--no-replace-objects",
@@ -108,7 +108,17 @@ ProcessResult offline_git_result(const Json &project, const std::vector<std::str
                                      "-C",
                                      project.at("root").get<std::string>()};
     command.insert(command.end(), args.begin(), args.end());
-    return process(command, {}, input, 120);
+    return command;
+}
+ProcessResult offline_git_result(const Json &project, const std::vector<std::string> &args,
+                                 const std::string &input) {
+    return process(offline_command(project, args), {}, input, 120);
+}
+void offline_git_stream(const Json &project, const std::vector<std::string> &args,
+                        const ProcessSink &sink, int timeout_seconds) {
+    auto result = process_stream(offline_command(project, args), sink, {}, {}, timeout_seconds);
+    if (result.code)
+        throw std::runtime_error("Offline Git streaming failed; check repository completeness");
 }
 std::string offline_git(const Json &project, const std::vector<std::string> &args,
                         const std::string &input) {

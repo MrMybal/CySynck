@@ -226,7 +226,11 @@ if(NOT sdk_extracted_hash STREQUAL sdk_oid OR EXISTS "${sdk_extraction}/.git" OR
 endif()
 sdk_git("${sdk_git_receiver}" update-ref refs/heads/main "${sdk_initial_head}")
 file(WRITE "${sdk_git_root}/review.cpp" "int sdk_value = 42;\n")
-sdk_git("${sdk_git_root}" add review.cpp)
+string(REPEAT "q" 12582931 sdk_large)
+file(WRITE "${sdk_git_root}/large.bin" "${sdk_large}")
+unset(sdk_large)
+file(SHA256 "${sdk_git_root}/large.bin" sdk_large_hash)
+sdk_git("${sdk_git_root}" add review.cpp large.bin)
 sdk_git("${sdk_git_root}" commit -m "Review fixture")
 run_response("${c_consumer}" c_git_export_next "${WORK_DIR}/C profil été" POST /api/projects/git-lfs/export "{}")
 string(JSON sdk_next_bundle GET "${c_git_export_next}" id)
@@ -236,7 +240,7 @@ run_response("${c_consumer}" c_git_review "${WORK_DIR}/C receiver été" POST /a
   "{\"peer\":\"${sdk_peer}\",\"branch\":\"main\"}")
 string(JSON sdk_relation GET "${c_git_review}" relation)
 string(JSON sdk_changed LENGTH "${c_git_review}" files)
-if(NOT sdk_relation STREQUAL "fast_forward" OR NOT sdk_changed EQUAL 1)
+if(NOT sdk_relation STREQUAL "fast_forward" OR NOT sdk_changed EQUAL 2)
   message(FATAL_ERROR "Packaged C ABI branch review must inspect the imported committed trees")
 endif()
 run_response("${c_consumer}" c_git_diff "${WORK_DIR}/C receiver été" POST /api/projects/git-lfs/git-review-file
@@ -270,6 +274,16 @@ run_response("${c_consumer}" c_git_commit_file "${WORK_DIR}/C receiver été" PO
 string(JSON sdk_commit_after GET "${c_git_commit_file}" after)
 if(NOT sdk_commit_after STREQUAL "int sdk_value = 42;\n" OR EXISTS "${sdk_git_receiver}/review.cpp")
   message(FATAL_ERROR "Packaged per-commit file review must return exact committed bytes")
+endif()
+file(TO_CMAKE_PATH "${WORK_DIR}/Git large extracted été" sdk_large_extraction)
+run_response("${c_consumer}" c_git_large "${WORK_DIR}/C receiver été" POST /api/projects/git-lfs/git-extract
+  "{\"peer\":\"${sdk_peer}\",\"branch\":\"main\",\"destination\":\"${sdk_large_extraction}\"}")
+string(JSON sdk_large_plan GET "${c_git_large}" plan)
+run_response("${c_consumer}" c_git_large "${WORK_DIR}/C receiver été" POST /api/projects/git-lfs/git-extract
+  "{\"peer\":\"${sdk_peer}\",\"branch\":\"main\",\"destination\":\"${sdk_large_extraction}\",\"apply\":true,\"plan\":\"${sdk_large_plan}\"}")
+file(SHA256 "${sdk_large_extraction}/large.bin" sdk_large_received)
+if(NOT sdk_large_received STREQUAL sdk_large_hash OR EXISTS "${sdk_git_receiver}/large.bin")
+  message(FATAL_ERROR "Packaged C ABI must stream large Git blobs without truncation or changing the source worktree")
 endif()
 run_response("${c_consumer}" c_git_storage "${WORK_DIR}/C profil été" POST /api/projects/git-lfs/git-storage
   "{\"exports\":[\"${sdk_bundle}\"]}")

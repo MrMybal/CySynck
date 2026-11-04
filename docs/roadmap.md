@@ -1,5 +1,20 @@
 # Development milestones
 
+## Delivered in 0.18
+
+Ordinary Git revision files stream through bounded subprocess buffers, raising their per-file
+limit from 4 MiB to 1 GiB. Output is checked against the reviewed byte count, raw Git object ID
+and SHA-256. Git hashes the output without filters or object writes. LFS keeps its 4 GiB asset
+limit and expanded output remains bounded to 16 GiB. The same route powers the CLI, SDK and
+bilingual interfaces.
+
+The internal process runner delivers stdout chunks without accumulating them, drains bounded
+stderr concurrently and propagates sink failures after canceling owned children. Windows uses
+process jobs; POSIX streaming uses owned process groups and defers reaping until readers finish.
+Existing capture callers keep their 8 MiB bound. Fixtures exercise real 101 MiB Git extraction,
+SHA-1/SHA-256 identities, input/output pressure, cancellation, timeouts and descendant cleanup.
+See [Git extraction](git-extraction.md) and [process streaming](process-streaming.md).
+
 ## Delivered in 0.17
 
 An imported branch head or selected reachable commit can be extracted as a file snapshot in

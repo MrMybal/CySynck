@@ -25,7 +25,7 @@ globalThis.CySynckI18n = (() => {
     "Expand verified LFS assets": "Extraire les assets LFS vérifiés",
     "Copies the complete selected revision. Local Git files and changes are preserved.": "Copie toute la révision sélectionnée. Les fichiers Git locaux et les modifications sont préservés.",
     "Extraction complete": "Extraction terminée", "Extraction blocked": "Extraction bloquée",
-    "File snapshot limits: 4 MiB per Git blob, 4 GiB per LFS asset, 16 GiB total.": "Limites de la copie : 4 Mio par blob Git, 4 Gio par asset LFS, 16 Gio au total.",
+    "File snapshot limits: 1 GiB per Git blob, 4 GiB per LFS asset, 16 GiB total.": "Limites de la copie : 1 Gio par blob Git, 4 Gio par asset LFS, 16 Gio au total.",
     "{files} files · {bytes} bytes · {assets} LFS files": "{files} fichiers · {bytes} octets · {assets} fichiers LFS",
     "Initial branch": "Branche initiale", "Git object format": "Format des objets Git",
     "Preview Git setup": "Prévisualiser l'initialisation Git",
