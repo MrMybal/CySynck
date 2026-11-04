@@ -10,11 +10,17 @@ Le cœur, le CLI et les identifiants d'API sont en anglais. Les interfaces deskt
 démarrent en anglais et proposent le français comme deuxième langue. Le choix est mémorisé
 par profil pour le desktop et dans le navigateur pour le Web.
 
+La version 0.24 permet de fusionner des branches Git divergentes sans conflit, après un aperçu
+du résultat complet dans un dépôt temporaire privé. L'application explicite crée un commit à
+deux parents, vérifie les fichiers et l'index, et conserve les données locales sans collision.
+Le CLI, le SDK et les interfaces CyUI/Web en anglais-français partagent ce parcours et ses reçus
+de récupération. Voir le [guide de fusion vérifiée](docs/git-divergent-merge.md).
+
 La version 0.23 ajoute une revue Git à trois versions : ancêtre commun, branche locale et
 branche importée. Chaque fichier texte pris en charge propose un résultat combiné ou des
 conflits balisés. Les trois contenus commités sont consultables séparément dans CyUI et le Web,
 en anglais/français, avec les mêmes opérations dans le CLI et le SDK. La revue conserve
-l'index, les fichiers et les références ; la fusion des branches divergentes reste manuelle.
+l'index, les fichiers et les références ; l'intégration utilise le parcours vérifié présenté ci-dessus.
 Voir le [guide de revue à trois versions](docs/git-merge-review.md).
 
 L'intégration des branches importées propose désormais une avance rapide dans le projet

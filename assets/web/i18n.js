@@ -2,6 +2,14 @@
 // English is the source language. Keep API identifiers and user content unchanged.
 globalThis.CySynckI18n = (() => {
   const french = {
+    "Merge diverged branch": "Fusionner les branches divergentes",
+    "Preview repository merge": "Prévisualiser la fusion du dépôt",
+    "Apply reviewed merge": "Appliquer la fusion vérifiée",
+    "Creates a reviewed two-parent commit for a conflict-free repository merge. Unrelated local data is preserved.": "Crée un commit vérifié à deux parents pour une fusion du dépôt sans conflit. Les données locales sans collision sont conservées.",
+    "Reviewed result tree": "Arbre résultant vérifié",
+    "Merge author": "Auteur de la fusion",
+    "Repository merge conflicts": "Conflits de fusion du dépôt",
+    "Merge commit": "Commit de fusion",
     "Three-way Git review": "Revue Git à trois versions",
     "Compares committed files with their common ancestor. Proposals do not apply a repository merge or include working changes and rename detection.": "Compare les fichiers commités à leur ancêtre commun. Les propositions n’appliquent aucune fusion au dépôt et n’incluent ni les changements de travail ni la détection des renommages.",
     "Review three-way changes": "Examiner les trois versions",

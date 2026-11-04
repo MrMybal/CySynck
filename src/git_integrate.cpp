@@ -142,7 +142,7 @@ void metadata(const Git &git, const fs::path &root) {
         throw std::runtime_error("Linked Git working trees require manual integration");
 }
 Json tree(const Git &git, const std::string &commit,
-          std::map<std::string, std::string, GitPathLess> &paths) {
+          std::map<std::string, std::string, GitPathLess> &paths, bool merging = false) {
     Json entries = Json::array();
     if (commit.empty())
         return entries;
@@ -188,18 +188,265 @@ Json tree(const Git &git, const std::string &commit,
                 throw std::runtime_error("Git integration contains a file/directory collision");
     }
     if (!names.empty()) {
-        auto attrs = records(git.get({"check-attr", "--source=" + commit, "-z", "--stdin", "filter",
-                                      "text", "eol", "working-tree-encoding", "ident", "crlf"},
-                                     names));
-        if (attrs.size() != entries.size() * 18)
+        std::vector<std::string> args{
+            "check-attr", "--source=" + commit,    "-z",    "--stdin", "filter", "text",
+            "eol",        "working-tree-encoding", "ident", "crlf"};
+        if (merging)
+            args.push_back("merge");
+        auto attrs = records(git.get(args, names));
+        if (attrs.size() != entries.size() * (merging ? 21 : 18))
             throw std::runtime_error("Incomplete Git integration attributes");
         for (size_t i = 0; i < attrs.size(); i += 3)
-            if (attrs[i + 2] != "unspecified" && attrs[i + 2] != "unset")
-                throw std::runtime_error("Git integration excludes checkout filters, encodings and "
-                                         "text conversions; use separate extraction");
+            if (attrs[i + 2] != "unspecified" &&
+                !(attrs[i + 1] == "merge" ? attrs[i + 2] == "set" : attrs[i + 2] == "unset"))
+                throw std::runtime_error(
+                    "Git integration excludes checkout filters, encodings and "
+                    "text conversions or custom merge rules; use manual Git handling");
     }
     return entries;
 }
+bool object_id(const std::string &value) {
+    return (value.size() == 40 || value.size() == 64) &&
+           value.find_first_not_of("0123456789abcdef") == value.npos;
+}
+void merge_environment() {
+    for (auto key : {"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_AUTHOR_DATE", "GIT_COMMITTER_NAME",
+                     "GIT_COMMITTER_EMAIL", "GIT_COMMITTER_DATE"})
+        if (!env(key).empty())
+            throw std::runtime_error(
+                "Reviewed merges require GIT_AUTHOR_* and GIT_COMMITTER_* overrides to be unset");
+}
+Json merge_identity(const Git &git) {
+    Json identity;
+    for (auto key : {"name", "email"}) {
+        auto value = git.run({"config", "--get", std::string("user.") + key});
+        auto text = trim(value.out);
+        if (value.code || text.empty() || text.size() > 1024 ||
+            text.find_first_of("<>\r\n\0", 0, 5) != text.npos ||
+            (std::string(key) == "email" && text.find_first_of(" \t") != text.npos))
+            throw std::runtime_error(
+                "Configure a valid Git user.name and user.email before a reviewed merge");
+        identity[key] = text;
+    }
+    (void)identity.dump();
+    return identity;
+}
+std::string common_ancestor(const Git &git, const Json &base, const Json &head) {
+    auto found = git.run({"merge-base", "--all", base, head});
+    if (found.code != 0 && found.code != 1)
+        throw std::runtime_error("Cannot inspect reviewed merge ancestry");
+    auto value = trim(found.out);
+    if (!object_id(value))
+        throw std::runtime_error("Reviewed merge requires exactly one common ancestor");
+    return value;
+}
+void merge_rules(const Git &git) {
+    auto driver = git.run({"config", "--get", "merge.default"});
+    if ((driver.code != 0 && driver.code != 1) || !trim(driver.out).empty())
+        throw std::runtime_error("Custom default merge drivers require manual Git handling");
+    auto attributes = project_child(fs::u8path(git.project.at("root").get<std::string>()),
+                                    ".git/info/attributes");
+    if (fs::exists(attributes) && (!fs::is_regular_file(attributes) || fs::file_size(attributes)))
+        throw std::runtime_error("Local .git/info/attributes require manual Git merging");
+}
+void overlapping_text(const Git &git, const Json &ancestor, const Json &local, const Json &peer) {
+    std::map<std::string, Json> base_files, local_files;
+    for (const auto &file : ancestor)
+        base_files[file.at("path")] = file;
+    for (const auto &file : local)
+        local_files[file.at("path")] = file;
+    uintmax_t total = 0;
+    for (const auto &right : peer) {
+        auto name = right.at("path").get<std::string>();
+        auto left = local_files.find(name), original = base_files.find(name);
+        if (left == local_files.end() || left->second.at("oid") == right.at("oid"))
+            continue;
+        if (original != base_files.end() && (original->second.at("oid") == left->second.at("oid") ||
+                                             original->second.at("oid") == right.at("oid")))
+            continue;
+        for (const auto &file : {original == base_files.end() ? Json(nullptr) : original->second,
+                                 left->second, right}) {
+            if (file.is_null())
+                continue;
+            auto size = file.at("bytes").get<uintmax_t>();
+            if (size > 512 * 1024 || total + size > 16 * 1024 * 1024)
+                throw std::runtime_error(
+                    "Overlapping Git merge text exceeds 512 KiB per side or 16 MiB total: " + name);
+            auto content = git.get({"cat-file", "blob", file.at("oid")});
+            if (content.size() != size || content.find('\0') != content.npos)
+                throw std::runtime_error("Overlapping binary Git changes require manual merging: " +
+                                         name);
+            try {
+                (void)Json(content).dump();
+            } catch (const std::exception &) {
+                throw std::runtime_error(
+                    "Overlapping non-UTF-8 Git changes require manual merging: " + name);
+            }
+            total += size;
+        }
+    }
+}
+void verify_merge_commit(const Git &git, const std::string &commit, const Json &review) {
+    auto bytes = git.get({"cat-file", "commit", commit});
+    auto split = bytes.find("\n\n");
+    if (split == bytes.npos ||
+        bytes.substr(split + 2) != review.at("merge_message").get<std::string>() + "\n")
+        throw std::runtime_error("Receipt merge commit message differs from its reviewed message");
+    std::istringstream headers(bytes.substr(0, split));
+    std::string line, tree_id;
+    std::vector<std::string> parents;
+    bool author = false, committer = false;
+    auto identity = review.at("merge_identity").at("name").get<std::string>() + " <" +
+                    review.at("merge_identity").at("email").get<std::string>() + "> ";
+    while (std::getline(headers, line)) {
+        if (line.starts_with("tree ") && tree_id.empty())
+            tree_id = line.substr(5);
+        else if (line.starts_with("parent "))
+            parents.push_back(line.substr(7));
+        else if (line.starts_with("author " + identity) && !author)
+            author = true;
+        else if (line.starts_with("committer " + identity) && !committer)
+            committer = true;
+        else
+            throw std::runtime_error(
+                "Receipt merge commit identity or headers differ from the reviewed commit");
+    }
+    if (!author || !committer || Json(tree_id) != review.at("result_tree") ||
+        parents != std::vector<std::string>{review.at("base"), review.at("head")})
+        throw std::runtime_error("Receipt merge commit has unexpected parents or tree");
+}
+struct MergeWorkspace {
+    fs::path state;
+    std::string relative;
+    Json project;
+    std::unique_ptr<Git> reader;
+    explicit MergeWorkspace(const fs::path &profile, const Git &source) : state(profile) {
+        auto parent = project_child(state, "git-merge-work");
+        plain_directory(parent);
+        fs::create_directories(parent);
+        secure_state_path(parent, true);
+        relative = "git-merge-work/" + random_id();
+        auto path = project_child(state, relative);
+        if (!fs::create_directory(path))
+            throw std::runtime_error("Cannot reserve private Git merge workspace");
+        secure_state_path(path, true);
+        project = source.project;
+        project["root"] = path_string(path);
+        try {
+            auto format = trim(source.get({"rev-parse", "--show-object-format"}));
+            if (format != "sha1" && format != "sha256")
+                throw std::runtime_error("Unsupported Git merge object format");
+            offline_git(project, {"init", "--bare", "--template=", "--object-format=" + format});
+            auto objects = path_string(project_child(
+                fs::u8path(source.project.at("root").get<std::string>()), ".git/objects"));
+            if (objects.find_first_of("\r\n\0", 0, 3) != objects.npos)
+                throw std::runtime_error(
+                    "Git merge object storage path cannot contain line breaks");
+            atomic_write(path / "objects/info/alternates", objects + "\n", true);
+            reader = std::make_unique<Git>(project);
+            auto &settings = reader->settings;
+            for (auto option :
+                 {"merge.renames=false", "merge.directoryRenames=false", "merge.renormalize=false",
+                  "merge.default=text", "diff.algorithm=myers", "rerere.enabled=false",
+                  "rerere.autoupdate=false"}) {
+                settings.push_back("-c");
+                settings.push_back(option);
+            }
+            // Never execute configured external drivers, including conditional global config.
+            auto drivers = offline_git_result(project, {"config", "--null", "--name-only",
+                                                        "--get-regexp", "^merge\\..*\\.driver$"});
+            if (drivers.code != 0 && drivers.code != 1)
+                throw std::runtime_error("Cannot inspect private merge drivers");
+            for (const auto &key : records(drivers.out)) {
+                settings.push_back("-c");
+                settings.push_back(key + "=");
+            }
+        } catch (...) {
+            cleanup();
+            throw;
+        }
+    }
+    MergeWorkspace(const MergeWorkspace &) = delete;
+    MergeWorkspace &operator=(const MergeWorkspace &) = delete;
+    ~MergeWorkspace() { cleanup(); }
+    void cleanup() noexcept {
+        try {
+            auto root = project_child(state, relative);
+            if (!fs::exists(root))
+                return;
+            std::vector<std::string> paths;
+            for (const auto &entry : fs::recursive_directory_iterator(root)) {
+                auto name = relative + "/" + path_string(entry.path().lexically_relative(root));
+                auto checked = project_child(state, name);
+                if (paths.size() >= 50000 ||
+                    (!fs::is_directory(checked) && !fs::is_regular_file(checked)))
+                    throw std::runtime_error("Unexpected private Git workspace entry");
+                paths.push_back(name);
+            }
+            std::sort(paths.rbegin(), paths.rend());
+            for (const auto &name : paths) {
+                auto path = project_child(state, name);
+                if (fs::is_regular_file(path))
+                    fs::permissions(path, fs::perms::owner_write, fs::perm_options::add);
+                fs::remove(path);
+            }
+            fs::remove(root);
+        } catch (...) { /* Preserve unexpected entries; cleanup never follows links or recurses for
+                           deletion. */
+        }
+    }
+    Json calculate(const Json &base, const Json &head, const std::string &ancestor,
+                   std::map<std::string, std::string, GitPathLess> &paths) {
+        auto merged = reader->run({"merge-tree", "--write-tree", "--name-only", "--no-messages",
+                                   "-z", "--merge-base=" + ancestor, base, head});
+        if (merged.code != 0 && merged.code != 1)
+            throw std::runtime_error(
+                "Git repository merge preview failed; check Git version and local storage");
+        auto fields = records(merged.out);
+        if (fields.empty() || !object_id(fields.front()))
+            throw std::runtime_error("Invalid Git merge tree identity");
+        Json conflicts = Json::array();
+        for (size_t i = 1; i < fields.size(); ++i) {
+            if (fields[i].empty())
+                continue;
+            if (conflicts.size() >= 10000 || fields[i].size() > 4096)
+                throw std::runtime_error("Git merge conflict listing exceeds its bound");
+            (void)Json(fields[i]).dump();
+            conflicts.push_back(fields[i]);
+        }
+        if (merged.code == 0 && !conflicts.empty())
+            throw std::runtime_error("Inconsistent clean Git merge output");
+        return {{"result_tree", fields.front()},
+                {"merge_clean", merged.code == 0},
+                {"conflicts", conflicts},
+                {"files_after",
+                 merged.code == 0 ? tree(*reader, fields.front(), paths, true) : Json::array()}};
+    }
+    std::string import_commit(const Git &target, const Json &review) {
+        auto identity = review.at("merge_identity");
+        auto commit = trim(reader->get(
+            {"-c", "user.name=" + identity.at("name").get<std::string>(), "-c",
+             "user.email=" + identity.at("email").get<std::string>(), "-c", "commit.gpgsign=false",
+             "-c", "i18n.commitEncoding=UTF-8", "commit-tree", "--no-gpg-sign",
+             review.at("result_tree"), "-p", review.at("base"), "-p", review.at("head")},
+            review.at("merge_message").get<std::string>() + "\n"));
+        if (!object_id(commit))
+            throw std::runtime_error("Invalid reviewed Git merge commit");
+        reader->get({"update-ref", "refs/heads/result", commit});
+        auto bundle = project_child(state, relative + "/result.bundle");
+        reader->get({"bundle", "create", path_string(bundle), "refs/heads/result",
+                     "^" + review.at("base").get<std::string>(),
+                     "^" + review.at("head").get<std::string>()});
+        if (fs::file_size(bundle) > 64 * 1024 * 1024)
+            throw std::runtime_error("Private Git merge bundle exceeds 64 MiB");
+        target.get({"bundle", "verify", path_string(bundle)});
+        auto imported = trim(target.get({"bundle", "unbundle", path_string(bundle)}));
+        if (imported != commit + " refs/heads/result")
+            throw std::runtime_error("Reviewed Git merge object import mismatch");
+        verify_merge_commit(target, commit, review);
+        return commit;
+    }
+};
 Json local_data(const fs::path &root, const Json &current, const Json &before, const Json &after) {
     std::set<std::string, GitPathLess> tracked, directories, incoming;
     std::map<std::string, std::string, GitPathLess> paths;
@@ -297,11 +544,13 @@ Json local_data(const fs::path &root, const Json &current, const Json &before, c
             {"bytes", bytes},
             {"fingerprint", sha256(entries.dump())}};
 }
-Json inspect(const fs::path &state, const Json &project, const Json &data) {
+Json inspect(const fs::path &state, const Json &project, const Json &data, bool merging = false) {
     if (data.contains("commit"))
         throw std::runtime_error(
             "Git integration applies an imported branch head; selected commits use extraction");
     Git git(project);
+    if (merging)
+        merge_environment();
     auto root = fs::absolute(fs::u8path(project.at("root").get<std::string>()));
     metadata(git, root);
     auto result = git_revision_context(project, data);
@@ -309,6 +558,7 @@ Json inspect(const fs::path &state, const Json &project, const Json &data) {
                    {"root", path_string(root)},
                    {"applied", false},
                    {"can_integrate", false},
+                   {"integration_kind", merging ? "merge" : "fast_forward"},
                    {"local_data", nullptr},
                    {"plan", nullptr},
                    {"errors", Json::array()}});
@@ -322,7 +572,35 @@ Json inspect(const fs::path &state, const Json &project, const Json &data) {
         (void)project_child(root / ".git", "logs/" + ref);
     }
     auto base = result.at("base").is_null() ? "" : result.at("base").get<std::string>();
-    if (base.empty())
+    if (merging) {
+        result.update({{"result_commit", nullptr},
+                       {"result_tree", nullptr},
+                       {"merge_base", nullptr},
+                       {"merge_clean", false},
+                       {"conflicts", Json::array()},
+                       {"merge_identity", nullptr}});
+        result["relation"] = "not_diverged";
+        if (base.empty())
+            block("Use fast-forward integration for a branch without a local commit");
+        else {
+            auto forward = git.run({"merge-base", "--is-ancestor", base, result.at("head")});
+            auto backward = git.run({"merge-base", "--is-ancestor", result.at("head"), base});
+            if (forward.code > 1 || backward.code > 1)
+                throw std::runtime_error("Cannot inspect reviewed merge ancestry");
+            if (forward.code == 0 || backward.code == 0)
+                block("Reviewed merge requires divergent branches; use fast-forward integration or "
+                      "keep the local branch");
+            else {
+                result["relation"] = "diverged";
+                try {
+                    result["merge_base"] =
+                        common_ancestor(git, result.at("base"), result.at("head"));
+                } catch (const std::exception &error) {
+                    block(error.what());
+                }
+            }
+        }
+    } else if (base.empty())
         result["relation"] = "unborn";
     else if (result.at("base") == result.at("head")) {
         result["relation"] = "identical";
@@ -341,8 +619,28 @@ Json inspect(const fs::path &state, const Json &project, const Json &data) {
     std::map<std::string, std::string, GitPathLess> paths;
     Json before = Json::array(), after = Json::array();
     try {
-        before = tree(git, base, paths);
-        after = tree(git, result.at("head"), paths);
+        if (merging)
+            merge_rules(git);
+        before = tree(git, base, paths, merging);
+        auto incoming = tree(git, result.at("head"), paths, merging);
+        if (merging) {
+            result["merge_identity"] = merge_identity(git);
+            result["merge_message"] = "Merge imported branch " +
+                                      result.at("tracking_ref").get<std::string>() +
+                                      "\n\nCySynck reviewed merge.";
+            if (!result.at("merge_base").is_null()) {
+                auto ancestor = tree(git, result.at("merge_base"), paths, true);
+                overlapping_text(git, ancestor, before, incoming);
+                MergeWorkspace workspace(state, git);
+                result.update(workspace.calculate(result.at("base"), result.at("head"),
+                                                  result.at("merge_base"), paths));
+                after = result.at("files_after");
+                if (!result.at("merge_clean").get<bool>())
+                    block("The repository merge has conflicts; resolve them with manual Git "
+                          "handling");
+            }
+        } else
+            after = incoming;
         auto index = git.get({"ls-files", "--stage", "-z"});
         if (!base.empty()) {
             std::string expected;
@@ -422,6 +720,27 @@ Json read_receipt(const fs::path &state, const Json &project, const std::string 
         !record.at("files_before").is_array() || record.at("files_before").size() > 10000 ||
         !record.at("files_after").is_array() || record.at("files_after").size() > 10000)
         throw std::runtime_error("Git integration receipt identity or schema mismatch");
+    auto kind = record.value("integration_kind", std::string("fast_forward"));
+    if (kind != "fast_forward" && kind != "merge")
+        throw std::runtime_error("Unknown Git integration receipt kind");
+    if (kind == "merge") {
+        for (auto key : {"merge_base", "result_tree"})
+            if (!record.at(key).is_string() || !object_id(record.at(key)))
+                throw std::runtime_error("Invalid reviewed merge receipt tree or ancestor");
+        if (record.at("base").is_null() ||
+            (!record.at("result_commit").is_null() &&
+             (!record.at("result_commit").is_string() || !object_id(record.at("result_commit")))) ||
+            (record.at("status") == "complete" && record.at("result_commit").is_null()))
+            throw std::runtime_error("Invalid reviewed merge receipt commit");
+        for (auto key : {"name", "email"})
+            if (!record.at("merge_identity").at(key).is_string() ||
+                record.at("merge_identity").at(key).get_ref<const std::string &>().empty() ||
+                record.at("merge_identity").at(key).get_ref<const std::string &>().size() > 1024)
+                throw std::runtime_error("Invalid reviewed merge receipt identity");
+        if (!record.at("merge_message").is_string() ||
+            record.at("merge_message").get_ref<const std::string &>().size() > 4096)
+            throw std::runtime_error("Invalid reviewed merge receipt message");
+    }
     for (auto key : {"peer", "branch", "local_ref"})
         if (!record.at(key).is_string() || record.at(key).get_ref<const std::string &>().empty() ||
             record.at(key).get_ref<const std::string &>().size() > 1024)
@@ -449,8 +768,10 @@ Json read_receipt(const fs::path &state, const Json &project, const std::string 
 }
 Json receipt_summary(const Json &record) {
     Json summary = Json::object();
-    for (auto key : {"id", "created", "status", "applied", "peer", "branch", "base", "head",
-                     "local_ref", "receipt_path", "acknowledged_at", "local_data", "error"})
+    for (auto key :
+         {"id", "created", "status", "applied", "peer", "branch", "base", "head", "local_ref",
+          "receipt_path", "acknowledged_at", "local_data", "error", "integration_kind",
+          "merge_base", "result_commit", "result_tree", "merge_identity"})
         if (record.contains(key))
             summary[key] = record.at(key);
     summary["needs_attention"] =
@@ -539,7 +860,26 @@ Json check_git_integration(const fs::path &state, const Json &project, const Jso
         result["current_base"] = current.at("base");
         result["current_ref"] = current.at("local_ref");
         result["config_hash"] = git.config_hash;
-        if (current.at("base") == record.at("head"))
+        bool merging = record.value("integration_kind", std::string("fast_forward")) == "merge";
+        Json after_commit = record.at("head");
+        if (merging) {
+            after_commit = record.at("result_commit");
+            if (after_commit.is_null() && !current.at("base").is_null() &&
+                current.at("base") != record.at("base")) {
+                auto parents =
+                    trim(git.get({"rev-list", "--parents", "-n", "1", current.at("base"), "--"}));
+                auto expected = current.at("base").get<std::string>() + " " +
+                                record.at("base").get<std::string>() + " " +
+                                record.at("head").get<std::string>();
+                if (parents == expected &&
+                    trim(git.get(
+                        {"rev-parse", current.at("base").get<std::string>() + "^{tree}"})) ==
+                        record.at("result_tree").get<std::string>())
+                    after_commit = current.at("base");
+            }
+            result["resolved_result_commit"] = after_commit;
+        }
+        if (!after_commit.is_null() && current.at("base") == after_commit)
             result["position"] = "after";
         else if (current.at("base") == record.at("base"))
             result["position"] = "before";
@@ -549,9 +889,33 @@ Json check_git_integration(const fs::path &state, const Json &project, const Jso
             throw std::runtime_error(
                 "The current Git branch or commit differs from both receipt states");
         std::map<std::string, std::string, GitPathLess> paths;
-        auto before = tree(
-            git, record.at("base").is_null() ? "" : record.at("base").get<std::string>(), paths);
-        auto after = tree(git, record.at("head"), paths);
+        if (merging)
+            merge_rules(git);
+        auto before =
+            tree(git, record.at("base").is_null() ? "" : record.at("base").get<std::string>(),
+                 paths, merging);
+        Json after;
+        if (merging) {
+            auto incoming = tree(git, record.at("head"), paths, true);
+            auto ancestor = common_ancestor(git, record.at("base"), record.at("head"));
+            if (Json(ancestor) != record.at("merge_base"))
+                throw std::runtime_error("Receipt merge ancestor differs from its commit history");
+            auto original = tree(git, ancestor, paths, true);
+            overlapping_text(git, original, before, incoming);
+            MergeWorkspace workspace(state, git);
+            auto calculated =
+                workspace.calculate(record.at("base"), record.at("head"), ancestor, paths);
+            if (!calculated.at("merge_clean").get<bool>() ||
+                calculated.at("result_tree") != record.at("result_tree"))
+                throw std::runtime_error(
+                    "Receipt result differs from the recomputed repository merge");
+            after = calculated.at("files_after");
+            if (!after_commit.is_null() &&
+                (result.at("position") == "after" || record.at("status") == "complete")) {
+                verify_merge_commit(git, after_commit, record);
+            }
+        } else
+            after = tree(git, record.at("head"), paths);
         if (before != record.at("files_before") || after != record.at("files_after"))
             throw std::runtime_error("Receipt file listings do not match their Git commit objects");
         const auto &expected = result.at("position") == "after" ? after : before;
@@ -624,8 +988,9 @@ Json acknowledge_git_integration(const fs::path &state, const Json &project, con
     atomic_write(receipt_path(state, project, id), record.dump(2), true);
     return receipt_summary(record);
 }
-Json integrate_git_branch(const fs::path &state, const Json &project, const Json &data) {
-    auto result = inspect(state, project, data);
+Json integrate_git_branch(const fs::path &state, const Json &project, const Json &data,
+                          bool merging) {
+    auto result = inspect(state, project, data, merging);
     if (!data.value("apply", false))
         return result;
     if (!result.at("can_integrate").get<bool>() || !data.contains("plan") ||
@@ -643,7 +1008,7 @@ Json integrate_git_branch(const fs::path &state, const Json &project, const Json
             fs::remove(path, error);
         }
     } unlock{lock};
-    auto checked = inspect(state, project, data);
+    auto checked = inspect(state, project, data, merging);
     if (checked.at("plan") != result.at("plan"))
         throw std::runtime_error("Git integration changed while acquiring the lock; preview again");
     auto receipts = project_child(state, "git-integrations/" + project.at("id").get<std::string>());
@@ -663,15 +1028,33 @@ Json integrate_git_branch(const fs::path &state, const Json &project, const Json
         if (git.config_hash != result.at("config_hash").get<std::string>())
             throw std::runtime_error("Git configuration changed during integration");
         (void)git_revision_context(project, result);
+        Json destination = result.at("head");
+        if (merging) {
+            merge_rules(git);
+            std::map<std::string, std::string, GitPathLess> paths;
+            (void)tree(git, result.at("base"), paths, true);
+            (void)tree(git, result.at("head"), paths, true);
+            (void)tree(git, result.at("merge_base"), paths, true);
+            MergeWorkspace workspace(state, git);
+            auto merged = workspace.calculate(result.at("base"), result.at("head"),
+                                              result.at("merge_base"), paths);
+            if (!merged.at("merge_clean").get<bool>() ||
+                merged.at("result_tree") != result.at("result_tree") ||
+                merged.at("files_after") != result.at("files_after"))
+                throw std::runtime_error("Git repository merge result changed; preview again");
+            destination = workspace.import_commit(git, result);
+            record["result_commit"] = destination;
+            atomic_write(fs::u8path(receipt), record.dump(2), true);
+            (void)git_revision_context(project, result);
+        }
         auto merged = git.run({"merge", "--ff-only", "--no-squash", "--no-edit", "--no-stat",
                                "--no-autostash", "--no-overwrite-ignore", "--no-verify",
-                               "--no-verify-signatures", "--no-gpg-sign", result.at("head")});
+                               "--no-verify-signatures", "--no-gpg-sign", destination});
         if (merged.code)
             throw std::runtime_error("Git fast-forward failed; inspect Git status and the "
                                      "preserved integration receipt");
         auto local = git_local_head(project);
-        if (local.at("base") != result.at("head") ||
-            local.at("local_ref") != result.at("local_ref"))
+        if (local.at("base") != destination || local.at("local_ref") != result.at("local_ref"))
             throw std::runtime_error("Git HEAD changed unexpectedly during integration");
         auto root = fs::u8path(project.at("root").get<std::string>());
         for (const auto &file : result.at("files_after")) {
@@ -696,6 +1079,8 @@ Json integrate_git_branch(const fs::path &state, const Json &project, const Json
                        result.at("files_after")) != result.at("local_data"))
             throw std::runtime_error(
                 "Local data changed during integration; inspect the repository and receipt");
+        if (git_local_head(project) != local)
+            throw std::runtime_error("Git HEAD changed during post-integration verification");
         record.update({{"applied", true},
                        {"status", "complete"},
                        {"plan", nullptr},

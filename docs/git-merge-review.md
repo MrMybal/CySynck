@@ -46,7 +46,8 @@ the proposed committed mode; no permissions are applied.
 
 A clean proposal only describes this path. It does not certify that the branches can merge as
 a repository, resolve renames, combine multiple merge bases, run tests or validate LFS assets.
-Divergent repository integration still needs manual Git handling. Existing reviewed
+Divergent repository integration can use the separate [reviewed merge operation](git-divergent-merge.md)
+from 0.24 when the full repository result is conflict-free. Existing reviewed
 [fast-forward integration](git-integration.md) remains available for eligible histories.
 
 ## Bounds and Git attributes

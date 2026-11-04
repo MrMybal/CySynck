@@ -69,7 +69,18 @@ static void field(const char *label, std::string &value) {
 static void localize() {
     c::registerTranslations(
         "fr",
-        {{"Three-way Git review", "Revue Git à trois versions"},
+        {{"Merge diverged branch", "Fusionner les branches divergentes"},
+         {"Preview repository merge", "Prévisualiser la fusion du dépôt"},
+         {"Apply reviewed merge", "Appliquer la fusion vérifiée"},
+         {"Creates a reviewed two-parent commit for a conflict-free repository merge. Unrelated "
+          "local data is preserved.",
+          "Crée un commit vérifié à deux parents pour une fusion du dépôt sans conflit. Les "
+          "données locales sans collision sont conservées."},
+         {"Reviewed result tree", "Arbre résultant vérifié"},
+         {"Merge author", "Auteur de la fusion"},
+         {"Repository merge conflicts", "Conflits de fusion du dépôt"},
+         {"Merge commit", "Commit de fusion"},
+         {"Three-way Git review", "Revue Git à trois versions"},
          {"Compares committed files with their common ancestor. Proposals do not apply a "
           "repository merge or include working changes and rename detection.",
           "Compare les fichiers commités à leur ancêtre commun. Les propositions n’appliquent "
@@ -2229,6 +2240,9 @@ class App {
                      record.at("peer").get<std::string>() + " / " +
                      record.at("branch").get<std::string>());
                 text(id);
+                if (record.contains("result_commit") && record.at("result_commit").is_string())
+                    text(c::tr("Merge commit") + ": " +
+                         record.at("result_commit").get<std::string>());
                 text(c::tr(record.at("status") == "complete" ? "Integration complete"
                                                              : "Integration incomplete"));
                 if (record.contains("acknowledged_at"))
@@ -2509,33 +2523,45 @@ class App {
                 git_commit_state.is_null() ? git_review_state : git_commit_state;
             if (git_commit_state.is_null()) {
                 git_merge_view();
-                c::beginCard("git-integrate", c::tr("Integrate imported branch").c_str());
+                bool merging = git_review_state.at("relation") == "diverged";
+                auto integration_action = merging ? "git-merge" : "git-integrate";
+                c::beginCard(
+                    "git-integrate",
+                    c::tr(merging ? "Merge diverged branch" : "Integrate imported branch").c_str());
                 ImGui::TextWrapped(
                     "%s",
-                    c::tr("Updates the local branch, index and tracked files. Unrelated local "
-                          "files are preserved; LFS and checkout filters use separate extraction.")
+                    c::tr(
+                        merging
+                            ? "Creates a reviewed two-parent commit for a conflict-free repository "
+                              "merge. Unrelated local data is preserved."
+                            : "Updates the local branch, index and tracked files. Unrelated local "
+                              "files are preserved; LFS and checkout filters use separate "
+                              "extraction.")
                         .c_str());
                 auto integrateQuery = git_context();
                 text(git_review_state.at("head"));
-                if (button("Preview integration")) {
+                ImGui::BeginDisabled(busy());
+                if (button(merging ? "Preview repository merge" : "Preview integration")) {
                     git_integrate_state = git_integrate_input = nullptr;
-                    action("git-integrate", integrateQuery, [this, integrateQuery](const Json &r) {
-                        if (current_git_context(r)) {
-                            git_integrate_state = r;
-                            git_integrate_input = integrateQuery;
-                        }
-                    });
+                    action(integration_action, integrateQuery,
+                           [this, integrateQuery](const Json &r) {
+                               if (current_git_context(r)) {
+                                   git_integrate_state = r;
+                                   git_integrate_input = integrateQuery;
+                               }
+                           });
                 }
+                ImGui::EndDisabled();
                 ImGui::SameLine();
-                ImGui::BeginDisabled(git_integrate_state.is_null() ||
+                ImGui::BeginDisabled(busy() || git_integrate_state.is_null() ||
                                      git_integrate_input != integrateQuery ||
                                      !git_integrate_state.value("can_integrate", false) ||
                                      git_integrate_state.value("applied", false));
-                if (button("Apply fast-forward", true)) {
+                if (button(merging ? "Apply reviewed merge" : "Apply fast-forward", true)) {
                     integrateQuery.update(
                         {{"apply", true}, {"plan", git_integrate_state.at("plan")}});
                     git_integrate_input = nullptr;
-                    action("git-integrate", integrateQuery, [this](const Json &r) {
+                    action(integration_action, integrateQuery, [this](const Json &r) {
                         git_integrate_state = r;
                         git_review_state = git_review_diff = git_history_state = git_commit_state =
                             nullptr;
@@ -2543,6 +2569,26 @@ class App {
                     });
                 }
                 ImGui::EndDisabled();
+                if (merging && !git_integrate_state.is_null() &&
+                    git_integrate_state.value("integration_kind", std::string("fast_forward")) ==
+                        "merge") {
+                    const auto &merge = git_integrate_state;
+                    if (merge.at("result_tree").is_string())
+                        text(c::tr("Reviewed result tree") + ": " +
+                             merge.at("result_tree").get<std::string>());
+                    if (merge.at("merge_identity").is_object())
+                        text(c::tr("Merge author") + ": " +
+                             merge.at("merge_identity").at("name").get<std::string>() + " <" +
+                             merge.at("merge_identity").at("email").get<std::string>() + ">");
+                    if (!merge.at("conflicts").empty()) {
+                        text(c::tr("Repository merge conflicts"));
+                        ImGui::BeginChild("repository-merge-conflicts", c::dp(0, 160),
+                                          ImGuiChildFlags_Borders);
+                        for (const auto &path : merge.at("conflicts"))
+                            text(path.get<std::string>());
+                        ImGui::EndChild();
+                    }
+                }
                 if (!git_integrate_state.is_null() &&
                     !git_integrate_state.at("local_data").is_null()) {
                     const auto &local = git_integrate_state.at("local_data");

@@ -1,5 +1,14 @@
 # Development milestones
 
+## Delivered in 0.24
+
+Reviewed integration now supports conflict-free divergent Git branches. A whole-repository
+preview computes a private result tree, then explicit application creates an unsigned two-parent
+commit and advances the local branch with verified file/index and local-data checks. Conflicts,
+unsafe paths, LFS and custom merge/checkout rules remain blocked. CLI, C/C++ SDK, CyUI and Web
+share the preview token and recovery receipts in English/French. Receipt checks recompute the
+merged tree and validate the actual merge commit. See [divergent Git merge](git-divergent-merge.md).
+
 ## Delivered in 0.23
 
 Three-way committed Git review compares both branches with a unique common ancestor. It
@@ -189,7 +198,7 @@ macOS notarization, signed Windows installers and automatic updates remain separ
 
 - Exercise multi-gigabyte resumable transfers and native Linux/macOS transport and services.
 - Benchmark content-defined backup storage on much larger project trees and real asset workloads.
-- Extend reviewed integration to LFS assets and divergent merges; extend LFS storage/locking support and verify CyRevision interoperability.
+- Extend reviewed integration to LFS assets and conflict resolution; extend LFS storage/locking support and verify CyRevision interoperability.
 - Design and test WireGuard rendezvous/NAT traversal against real network configurations;
   Syncthing discovery and relays do not themselves provide that transport.
 

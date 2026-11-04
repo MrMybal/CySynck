@@ -78,6 +78,10 @@ From 0.23, `git-merge-review` and `git-merge-file` expose three-way committed co
 bounded per-file proposals through the same C/C++ request interface. Pin both commits, the
 local ref and common ancestor; no apply action exists. See [three-way Git review](git-merge-review.md).
 
+From 0.24, `git-merge` adds reviewed divergent branch integration through the same C ABI version 1.
+Preview returns the complete result tree and identity; explicit application uses its plan token
+and returns a two-parent `result_commit` with a recovery receipt. See [reviewed merge](git-divergent-merge.md).
+
 Backup storage policies also use the existing ABI: create or update a project with
 `{"backup_storage":"cdc"}`, then use `backup`, `verify`, `restore-plan` and `restore`.
 CDC recipes require core 0.22 or later. See [backup storage](block-backups.md) for bounds,

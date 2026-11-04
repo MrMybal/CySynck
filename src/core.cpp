@@ -910,10 +910,12 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
         result = extract_git_revision(state_, registry_.at("projects"), p, data);
         if (result.value("applied", false))
             event(p.at("id"), "git", "Reviewed Git revision extracted to a new directory");
-    } else if (action == "git-integrate") {
-        result = integrate_git_branch(state_, p, data);
+    } else if (action == "git-integrate" || action == "git-merge") {
+        result = integrate_git_branch(state_, p, data, action == "git-merge");
         if (result.value("applied", false))
-            event(p.at("id"), "git", "Reviewed imported branch integrated by fast-forward");
+            event(p.at("id"), "git",
+                  action == "git-merge" ? "Reviewed divergent Git branches merged"
+                                        : "Reviewed imported branch integrated by fast-forward");
     } else if (action == "git-integrations")
         result = git_integrations(state_, p, data);
     else if (action == "git-integration-check")

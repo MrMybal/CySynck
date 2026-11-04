@@ -6,6 +6,9 @@ files. From 0.20, unrelated regular local files and ignored build outputs can re
 in the project. It also supports a new repository whose local branch has no first commit yet.
 It creates no merge commit and never rewinds or merges divergent history.
 
+From 0.24, the separate [`git merge` operation](git-divergent-merge.md) can integrate conflict-free
+divergent branches through a whole-repository preview and an explicit two-parent commit.
+
 ## Preview and apply
 
 Import and review a peer's bundle first. Then request a fresh integration preview:

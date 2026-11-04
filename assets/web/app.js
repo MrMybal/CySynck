@@ -488,6 +488,7 @@ async function loadGitReceipts(offset=0) {
   for(const record of result.records) {
     const card=text("div","","snapshot"),check=label("button","Check integration receipt"),output=text("div","");
     card.append(text("p",record.created+" / "+record.peer+" / "+record.branch),text("p",record.id),label("p",record.status==="complete"?"Integration complete":"Integration incomplete"),text("p",record.receipt_path));
+    if(record.result_commit)card.append(label("p","Merge commit"),text("p",record.result_commit));
     if(record.acknowledged_at)card.append(label("p","Recovery reviewed"),text("p",record.acknowledged_at));
     let request=0;
     const current=()=>selected===project && generation===gitReceiptsLoad && card.isConnected;
@@ -619,17 +620,23 @@ function showGitMergeReview(project,review,container) {
   }));
 }
 function showGitIntegration(project,review,container) {
-  const card=text("div","","snapshot"), preview=label("button","Preview integration"), apply=label("button","Apply fast-forward"), output=text("div","");
+  const merging=review.relation==="diverged",route=merging?"git-merge":"git-integrate";
+  const card=text("div","","snapshot"), preview=label("button",merging?"Preview repository merge":"Preview integration"), apply=label("button",merging?"Apply reviewed merge":"Apply fast-forward"), output=text("div","");
   apply.disabled=true;
-  card.append(label("h4","Integrate imported branch"),label("p","Updates the local branch, index and tracked files. Unrelated local files are preserved; LFS and checkout filters use separate extraction."),text("p",review.head),preview,apply,output);
+  card.append(label("h4",merging?"Merge diverged branch":"Integrate imported branch"),label("p",merging?"Creates a reviewed two-parent commit for a conflict-free repository merge. Unrelated local data is preserved.":"Updates the local branch, index and tracked files. Unrelated local files are preserved; LFS and checkout filters use separate extraction."),text("p",review.head),preview,apply,output);
   container.append(card);
   let plan=null,request=0;
   const current=()=>selected===project && card.isConnected;
   preview.addEventListener("click",()=>safe(async()=>{
     plan=null;apply.disabled=true;const generation=++request;
-    const query=gitContext(review),result=await api("projects/"+project+"/git-integrate","POST",query);
+    const query=gitContext(review),result=await api("projects/"+project+"/"+route,"POST",query);
     if(!current() || generation!==request)return;
     output.replaceChildren();
+    if(merging){
+      if(result.result_tree)output.append(label("p","Reviewed result tree"),text("p",result.result_tree));
+      if(result.merge_identity)output.append(label("p","Merge author"),text("p",result.merge_identity.name+" <"+result.merge_identity.email+">"));
+      if(result.conflicts.length)output.append(label("p","Repository merge conflicts"),text("pre",result.conflicts.join("\n")));
+    }
     if(result.local_data)output.append(label("p","Local files preserved: {files} · {bytes} bytes",result.local_data));
     if(result.errors.length){output.append(label("p","Integration blocked"));for(const reason of result.errors)output.append(label("p",reason));}
     if(result.can_integrate){plan={input:query,token:result.plan};apply.disabled=false;}
@@ -638,9 +645,9 @@ function showGitIntegration(project,review,container) {
     const saved=plan;if(!saved || !current())return;
     plan=null;apply.disabled=true;preview.disabled=true;++request;
     try {
-      const result=await api("projects/"+project+"/git-integrate","POST",{...saved.input,apply:true,plan:saved.token});
+      const result=await api("projects/"+project+"/"+route,"POST",{...saved.input,apply:true,plan:saved.token});
       if(!current())return;
-      $("git-result").textContent=t("Integration complete")+"\n"+result.receipt_path;
+      $("git-result").textContent=t("Integration complete")+"\n"+(result.result_commit?result.result_commit+"\n":"")+result.receipt_path;
       await loadGitReceipts();
       await loadGitExchange();
     } finally {preview.disabled=false;}

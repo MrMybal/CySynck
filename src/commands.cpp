@@ -26,7 +26,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.23 (C++20)
+        return {{"help", R"(CySynck 0.24 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | events | api-token
   doctor [--probe true]  (test tool versions and engine connection only with --probe)
@@ -63,6 +63,8 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
       [--base COMMIT|unborn --head COMMIT --local-ref REF]  (clean tracked files; unrelated local files preserved)
   git merge-review ID PEER_ID BRANCH  (committed three-way file overview; no application)
   git merge-file ID PEER_ID BRANCH PATH [--base COMMIT --head COMMIT --local-ref REF --merge-base COMMIT]
+  git merge ID PEER_ID BRANCH [--apply true --plan PREVIEW_TOKEN]
+      [--base COMMIT --head COMMIT --local-ref REF]  (reviewed conflict-free divergent merge)
   git integrations ID [--offset 0 --limit 20]
   git integration-check ID RECEIPT_ID
   git integration-acknowledge ID RECEIPT_ID --plan CHECK_TOKEN  (preserve receipt and Git files)
@@ -92,7 +94,7 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   serve [--host 127.0.0.1] [--port 8484]
 Desktop: cysynck-desktop [--state DIR] [--plugin LIBRARY] [--background|--foreground] [--no-tray]
 Secrets: CYSYNCK_SYNCTHING_API_KEY, CYSYNCK_API_TOKEN, CYSYNCK_MESH_TOKEN.
-VPN up/down requires administrator/root. No automatic NAT traversal in 0.20.)"}};
+VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
     if (args[0] == "service") {
         if (args.size() < 2 || (args[1] != "plan" && args[1] != "export"))
             throw std::runtime_error("Use service plan|export");
@@ -392,14 +394,15 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.20.)"}}
                 if (flag != "--base" && flag != "--head" && flag != "--local-ref" &&
                     flag != "--merge-base")
                     throw std::runtime_error("Unknown three-way Git review flag: " + flag);
-        if (command == "integrate")
+        if (command == "integrate" || command == "merge")
             for (const auto &[flag, value] : flags)
                 if (flag != "--base" && flag != "--head" && flag != "--local-ref" &&
                     flag != "--apply" && flag != "--plan")
                     throw std::runtime_error("Unknown Git integration flag: " + flag);
         if (command == "review" || command == "review-file" || command == "history" ||
             command == "commit" || command == "commit-file" || command == "extract" ||
-            command == "integrate" || command == "merge-review" || command == "merge-file") {
+            command == "integrate" || command == "merge" || command == "merge-review" ||
+            command == "merge-file") {
             require(command == "commit-file" ? 7
                     : command == "review-file" || command == "commit" || command == "extract" ||
                             command == "merge-file"
@@ -414,7 +417,7 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.20.)"}}
                 data["commit"] = args[5];
             if (command == "commit-file")
                 data["path"] = args[6];
-            if (command == "extract" || command == "integrate") {
+            if (command == "extract" || command == "integrate" || command == "merge") {
                 if (command == "extract")
                     data["destination"] = args[5];
                 if (command == "extract" && flags.contains("--commit"))
@@ -489,18 +492,18 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.20.)"}}
             if (flags.contains("--plan"))
                 data["plan"] = flags.at("--plan");
         }
-        return core.request("POST",
-                            "/api/projects/" + args[2] + "/" +
-                                (command == "status" ? "git-status"
-                                 : command == "review" || command == "review-file" ||
-                                         command == "branches" || command == "storage" ||
-                                         command == "history" || command == "commit" ||
-                                         command == "commit-file" || command == "setup" ||
-                                         command == "extract" || command == "integrate" ||
-                                         command == "merge-review" || command == "merge-file"
-                                     ? "git-" + command
-                                     : command),
-                            data);
+        return core.request(
+            "POST",
+            "/api/projects/" + args[2] + "/" +
+                (command == "status" ? "git-status"
+                 : command == "review" || command == "review-file" || command == "branches" ||
+                         command == "storage" || command == "history" || command == "commit" ||
+                         command == "commit-file" || command == "setup" || command == "extract" ||
+                         command == "integrate" || command == "merge" ||
+                         command == "merge-review" || command == "merge-file"
+                     ? "git-" + command
+                     : command),
+            data);
     }
     if (args[0] == "diff") {
         require(3);
