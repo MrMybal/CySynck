@@ -6,6 +6,23 @@ let token = "", selected = "", transferLoad = 0, gitLoad = 0;
 try { token = sessionStorage.getItem("cysynck-token") || ""; } catch (_) { /* Storage may be disabled. */ }
 let storagePlan = null, servicePreview = null;
 let backupStorageDirty = false;
+let gitSettingsDirty = false;
+$("git-settings").addEventListener("input", () => {gitSettingsDirty=true; $("git-settings-result").replaceChildren();});
+function gitSettingsInput() { return {git_lfs: $("git-policy").checked, git_lfs_storage: $("git-storage-path").value}; }
+$("git-settings").addEventListener("submit", event => {
+  event.preventDefault();
+  const project=selected, input=gitSettingsInput(), button=event.currentTarget.querySelector("button");
+  if (!project) return;
+  safe(async () => {
+    button.disabled=true;
+    try {
+      const result=await api("projects/"+project,"PUT",input);
+      if (selected!==project || JSON.stringify(input)!==JSON.stringify(gitSettingsInput())) return;
+      selectedProject=result; gitSettingsDirty=false;
+      $("git-settings-result").replaceChildren(label("span","Git settings saved"));
+    } finally {button.disabled=false;}
+  });
+});
 let transferLimitsDirty = false, transferLimitsRevision = 0;
 function transferLimitsInput() {
   return {file_limit_mib: Number($("transfer-file-mib").value),
@@ -157,6 +174,8 @@ async function refresh() {
 async function select(project) {
   if (selected !== project.id) {
     backupStorageDirty = false;
+    gitSettingsDirty = false;
+    $("git-settings-result").replaceChildren();
     $("backup-storage-result").replaceChildren();
     $("changes").replaceChildren();
     $("conflicts").replaceChildren();
@@ -180,6 +199,10 @@ async function select(project) {
   selected = project.id;
   selectedProject = project;
   $("git-panel").hidden = project.mode !== "git-bundles";
+  if (!gitSettingsDirty) {
+    $("git-policy").checked=project.git_lfs!==false;
+    $("git-storage-path").value=project.git_lfs_storage || "";
+  }
   $("recovery-panel").hidden = false;
   $("received-panel").hidden = false;
   $("transfer-panel").hidden = false;

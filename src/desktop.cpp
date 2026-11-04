@@ -69,6 +69,12 @@ static void localize() {
     c::registerTranslations(
         "fr",
         {{"Direct transfers", "Transferts directs"},
+         {"Use Git LFS during synchronization", "Utiliser Git LFS pendant la synchronisation"},
+         {"Approved LFS storage directory", "Dossier de stockage LFS autorisé"},
+         {"Leave empty for the default Git cache. A custom directory must already exist and match "
+          "Git lfs.storage.",
+          "Laissez vide pour le cache Git par défaut. Un dossier personnalisé doit déjà exister et "
+          "correspondre à Git lfs.storage."},
          {"Include Git LFS history", "Inclure l'historique Git LFS"},
          {"Git LFS objects", "Objets Git LFS"},
          {"Waiting for Git LFS objects", "En attente des objets Git LFS"},
@@ -487,6 +493,8 @@ class App {
     bool reuse_blocks = true;
     bool send_legacy = false;
     bool include_git_lfs = true;
+    bool git_lfs_policy = true;
+    std::string git_lfs_storage;
     bool transfer_limits_dirty = false;
     int transfer_file_mib = 1024, transfer_inbox_mib = 4096, transfer_outbox_mib = 4096;
     int mode = 0, interval = 60, keep = 30;
@@ -555,6 +563,8 @@ class App {
             keep = p["backup_keep"];
             before = p["backup_before_sync"];
             reuse_blocks = p.value("backup_storage", "auto") == "auto";
+            git_lfs_policy = p.value("git_lfs", true);
+            git_lfs_storage = p.value("git_lfs_storage", "");
             try {
                 snapshots = core.request("GET", "/api/projects/" + selected + "/snapshots");
             } catch (const std::exception &e) {
@@ -689,6 +699,8 @@ class App {
         keep = p["backup_keep"];
         before = p["backup_before_sync"];
         reuse_blocks = p.value("backup_storage", "auto") == "auto";
+        git_lfs_policy = p.value("git_lfs", true);
+        git_lfs_storage = p.value("git_lfs_storage", "");
         refresh();
     }
     void set_view(const std::string &s) { view = s; }
@@ -1868,18 +1880,32 @@ class App {
             c::toggleSwitch("##before", &before);
             c::property(c::tr("Reuse blocks for large files").c_str());
             c::toggleSwitch("##reuse-blocks", &reuse_blocks);
+            if (p.at("mode") == "git-bundles") {
+                c::property(c::tr("Use Git LFS during synchronization").c_str());
+                c::toggleSwitch("##git-lfs-policy", &git_lfs_policy);
+                field("Approved LFS storage directory", git_lfs_storage);
+            }
             c::endProperties();
         }
         c::textDim("%s",
                    c::tr("0 disables scheduling. Keep the desktop or server running.").c_str());
         ImGui::TextWrapped(
             "%s", c::tr("Blocks of 4 MiB are reused for files from 8 MiB to 256 GiB.").c_str());
+        if (p.at("mode") == "git-bundles")
+            ImGui::TextWrapped("%s",
+                               c::tr("Leave empty for the default Git cache. A custom directory "
+                                     "must already exist and match Git lfs.storage.")
+                                   .c_str());
         if (button("Save", true)) {
             auto id = selected;
             auto data = Json{{"backup_interval_minutes", interval},
                              {"backup_keep", keep},
                              {"backup_storage", reuse_blocks ? "auto" : "whole"},
                              {"backup_before_sync", before}};
+            if (p.at("mode") == "git-bundles") {
+                data["git_lfs"] = git_lfs_policy;
+                data["git_lfs_storage"] = git_lfs_storage;
+            }
             submit([this, id, data] { return core.request("PUT", "/api/projects/" + id, data); },
                    [this](const Json &) { refresh(); });
         }

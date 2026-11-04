@@ -63,7 +63,7 @@ Json Core::git_action(const Json &p, const std::string &action, const Json &data
         fs::create_directories(directory);
         auto bundle = random_id();
         auto temp = directory / (bundle + ".part"), destination = directory / (bundle + ".bundle");
-        bool withLfs = data.value("lfs", true);
+        bool withLfs = data.value("lfs", p.value("git_lfs", true));
         Json manifest;
         try {
             git(p, {"--no-replace-objects", "bundle", "create", path_string(temp),

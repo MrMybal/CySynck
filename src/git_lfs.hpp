@@ -6,6 +6,7 @@ namespace cysynck {
 Json lfs_inventory(const Json &project, const std::string &head);
 Json validate_lfs_manifest(const Json &manifest);
 fs::path lfs_local_store(const Json &project);
+fs::path approved_lfs_directory(const std::string &path);
 fs::path lfs_object_path(const fs::path &store, const std::string &digest);
 void verify_lfs_object(const fs::path &path, const Json &object);
 void copy_lfs_object(const fs::path &source, const fs::path &store, const Json &object);

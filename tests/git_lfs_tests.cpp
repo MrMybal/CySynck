@@ -191,6 +191,90 @@ int main() {
         rejects([&] { action(receiver, "import", selection); },
                 "Manifest object paths cannot escape the content store");
         atomic_write(manifestPath, bundle.dump());
+        rejects([&] { sender.request("PUT", "/api/projects/game", {{"git_lfs", "false"}}); },
+                "Git LFS policy requires a Boolean");
+        rejects(
+            [&] {
+                sender.request("PUT", "/api/projects/game",
+                               {{"git_lfs_storage", "relative-cache"}});
+            },
+            "Cache approval requires an absolute path");
+        rejects(
+            [&] {
+                sender.request("PUT", "/api/projects/game",
+                               {{"git_lfs_storage", path_string(run / "absent-cache")}});
+            },
+            "A missing cache cannot be approved");
+        rejects(
+            [&] {
+                sender.request("PUT", "/api/projects/game",
+                               {{"git_lfs_storage", path_string(rootA)}});
+            },
+            "A working tree cannot be approved as the LFS cache");
+        rejects(
+            [&] {
+                sender.request("PUT", "/api/projects/game",
+                               {{"git_lfs_storage", path_string(sender.state())}});
+            },
+            "Profile state cannot be approved as the LFS cache");
+        rejects(
+            [&] {
+                sender.request("PUT", "/api/projects/game",
+                               {{"git_lfs_storage", path_string(exchange)}});
+            },
+            "Exchange storage cannot be reused as a local LFS cache");
+        cli(sender, {"project", "set", "game", "--git-lfs", "false"});
+        check(action(sender, "export").at("version") == 1, "Saved policy controls default exports");
+        check(action(sender, "export", {{"lfs", true}}).at("version") == 2,
+              "Explicit per-operation option overrides saved policy");
+        cli(sender, {"project", "set", "game", "--git-lfs", "true"});
+        auto cacheA = run / "custom source été", cacheB = run / "custom receiver été";
+        fs::create_directories(cacheA);
+        fs::create_directories(cacheB);
+        atomic_write(object(cacheA / "objects", first), first, true);
+        atomic_write(object(cacheA / "objects", second), second, true);
+        git(a, {"config", "lfs.storage", path_string(fs::relative(cacheA, rootA / ".git"))});
+        rejects([&] { action(sender, "export"); }, "Unapproved custom source cache is refused");
+        a = cli(sender,
+                {"project", "set", "game", "--lfs-storage", path_string(fs::absolute(cacheA))});
+        check(lfs_local_store(a) == fs::canonical(cacheA) / "objects",
+              "Relative Git storage resolves against the common directory and matches approval");
+        auto custom = action(sender, "export");
+        git(b, {"config", "lfs.storage", path_string(fs::absolute(cacheB))});
+        rejects(
+            [&] {
+                action(receiver, "import",
+                       {{"peer", custom.at("peer")}, {"bundle", custom.at("id")}});
+            },
+            "Import cannot write to an unapproved custom cache");
+        b = cli(receiver,
+                {"project", "set", "game", "--lfs-storage", path_string(fs::absolute(cacheB))});
+        check(action(receiver, "import", {{"peer", custom.at("peer")}, {"bundle", custom.at("id")}})
+                  .at("lfs")
+                  .at("verified"),
+              "Import installs assets into the approved custom cache");
+        check(read_file(object(cacheB / "objects", second)) == second,
+              "Approved receiver cache contains exact binary assets");
+        if (process({"git", "lfs", "version"}).code == 0) {
+            auto customWorktree = run / "custom cache worktree";
+            git(b, {"lfs", "install", "--local", "--skip-smudge", "--skip-repo"});
+            git(b, {"worktree", "add", "--detach", path_string(customWorktree), initial});
+            fs::remove(object(localStore, first));
+            auto customProject = b;
+            customProject["root"] = path_string(customWorktree);
+            git(customProject, {"lfs", "checkout"});
+            check(sha256_file(customWorktree / "asset.uasset") == sha256(first),
+                  "Official Git LFS hydrates from the approved custom cache");
+            atomic_write(object(localStore, first), first, true);
+        }
+        auto approvedBefore = a;
+        git(a, {"config", "lfs.storage", path_string(fs::absolute(cacheB))});
+        rejects([&] { lfs_local_store(approvedBefore); },
+                "Changed Git storage cannot reuse an old approval");
+        git(a, {"config", "--unset", "lfs.storage"});
+        a = sender.request("PUT", "/api/projects/game", {{"git_lfs_storage", ""}});
+        git(b, {"config", "--unset", "lfs.storage"});
+        b = receiver.request("PUT", "/api/projects/game", {{"git_lfs_storage", ""}});
         auto before = action(sender, "inbox").size();
         fs::remove(object(sourceStore, first));
         rejects([&] { action(sender, "export", {{"lfs", true}}); },

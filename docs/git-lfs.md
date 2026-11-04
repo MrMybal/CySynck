@@ -1,4 +1,4 @@
-# Offline Git and Git LFS exchange (0.13)
+# Offline Git and Git LFS exchange
 
 Each device keeps its own Git repository. Syncthing transports an exchange directory containing
 Git bundles, SHA-256 manifests and Git LFS objects. A live `.git` directory is never synchronized.
@@ -33,8 +33,34 @@ and reads immutable objects with [Git's batch object interface](https://git-scm.
 Local objects are read from `<git-common-dir>/lfs/objects/aa/bb/SHA256`. Linked Git worktrees
 share that common cache. Git LFS itself is not required for CySynck's export/import; install it
 to track new assets and materialize them through Git in your normal workflow. `lfs.storage`
-overrides are currently refused rather than writing to an inferred custom/shared cache.
+overrides require an explicit per-project directory approval, as described below.
 Shallow repositories are refused; missing promisor objects are not downloaded during inspection.
+
+## Project policy and custom caches
+
+`git_lfs` is a Boolean project setting, enabled by default, used by manual export and the
+synchronize action. An explicit export `lfs` argument overrides that policy for one operation.
+The CLI, native project Settings and Web Git settings expose the same persisted values:
+
+```sh
+cysynck project set game-team --git-lfs true
+git -C /work/game config lfs.storage /work/game-lfs
+cysynck project set game-team --lfs-storage /work/game-lfs
+```
+
+Create the custom storage root first. `git_lfs_storage` must be its absolute path; CySynck
+uses its `objects/aa/bb/SHA256` subdirectory. The directory must be separate from all registered
+working trees, exchange directories and the profile state. It may be shared by explicitly
+configured projects; CySynck never prunes that local cache. Links and junctions in its path
+are refused. Future project roots cannot overlap an already approved cache.
+
+The effective local Git `lfs.storage` setting must resolve to that same directory. Relative
+Git values are resolved against the Git common directory, including linked worktrees;
+the behavior follows the [Git LFS configuration reference](https://github.com/git-lfs/git-lfs/blob/main/docs/man/git-lfs-config.adoc).
+CySynck does not change Git configuration. Changing Git's path, removing the directory or
+replacing it with a link invalidates the approval. Clear `git_lfs_storage` to return to the
+default cache after unsetting Git's override. Existing profiles without these settings keep
+LFS enabled and use the default Git cache.
 
 ## Publication, reception and import
 
@@ -80,7 +106,7 @@ cysynck git export game-team --lfs false
 
 That mode transports Git objects and pointer files; it does not transport their LFS payloads.
 The native/Web export checkbox also controls this per-operation choice. Automatic Git-mode
-synchronization always uses the new default. Use a separate compatible peer workflow for old clients.
+synchronization uses the saved project policy. Use a compatible peer workflow for old clients.
 
 - Up to 100,000 reachable Git objects inspected per export/import.
 - Up to 4,096 unique LFS objects, 4 GiB per object and 16 GiB total per bundle.

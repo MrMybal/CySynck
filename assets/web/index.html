@@ -91,6 +91,15 @@
   </section>
   <section id="git-panel" hidden>
       <h3 data-i18n>Git exchange</h3>
+      <details><summary data-i18n>Git project settings</summary>
+        <form id="git-settings">
+          <label><input type="checkbox" id="git-policy"><span data-i18n>Use Git LFS during synchronization</span></label>
+          <label><span data-i18n>Approved LFS storage directory</span><input id="git-storage-path"></label>
+          <p data-i18n>Leave empty for the default Git cache. A custom directory must already exist and match Git lfs.storage.</p>
+          <button data-i18n>Save Git settings</button>
+          <span id="git-settings-result" aria-live="polite"></span>
+        </form>
+      </details>
       <p data-i18n>Git and LFS imports preserve the working tree. Review and merge using Git.</p>
       <label><input type="checkbox" id="git-lfs" checked><span data-i18n>Include Git LFS history</span></label>
       <button id="git-export" data-i18n>Export committed branch</button>

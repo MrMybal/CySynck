@@ -62,6 +62,15 @@ std::string trim(std::string text) {
         text.pop_back();
     return text;
 }
+fs::path checked_directory(fs::path path) {
+    path = fs::absolute(path);
+    fs::path current;
+    for (const auto &part : path) {
+        current /= part;
+        plain_directory(current);
+    }
+    return fs::weakly_canonical(path);
+}
 } // namespace
 std::string offline_git(const Json &project, const std::vector<std::string> &args,
                         const std::string &input) {
@@ -170,20 +179,44 @@ Json validate_lfs_manifest(const Json &manifest) {
     return result;
 }
 fs::path lfs_local_store(const Json &project) {
-    // Custom/shared storage needs a separately reviewed path policy; never infer it from peer data.
-    auto configuration = offline_git(project, {"config", "--default=", "--get", "lfs.storage"});
-    if (!trim(configuration).empty())
-        throw std::runtime_error("Custom lfs.storage is not supported for offline exchange");
+    auto configuration =
+        trim(offline_git(project, {"config", "--path", "--default=", "--get", "lfs.storage"}));
     auto root = fs::u8path(project.at("root").get<std::string>());
     auto common = fs::u8path(trim(offline_git(project, {"rev-parse", "--git-common-dir"})));
     if (!common.is_absolute())
         common = root / common;
-    common = fs::absolute(common).lexically_normal();
-    if (path_is_link(common) || !fs::is_directory(common))
+    common = checked_directory(common);
+    if (!fs::is_directory(common))
         throw std::runtime_error("Git common directory is missing or linked");
-    auto store = project_child(common, "lfs/objects");
+    auto approval = project.value("git_lfs_storage", "");
+    fs::path storage;
+    if (configuration.empty()) {
+        if (!approval.empty())
+            throw std::runtime_error("Approved LFS storage does not match Git configuration");
+        storage = project_child(common, "lfs");
+    } else {
+        if (approval.empty())
+            throw std::runtime_error(
+                "Approve the custom lfs.storage directory in this project's settings");
+        auto approved = approved_lfs_directory(approval);
+        auto configured = fs::u8path(configuration);
+        storage = checked_directory(configured.is_absolute() ? configured : common / configured);
+        if (!fs::is_directory(storage) || !fs::equivalent(storage, approved))
+            throw std::runtime_error(
+                "Git lfs.storage changed; update the project's approved directory");
+    }
+    auto store = project_child(storage, "objects");
     plain_directory(store);
     return store;
+}
+fs::path approved_lfs_directory(const std::string &path) {
+    if (path.empty() || path.size() > 4096 || path.find('\0') != std::string::npos ||
+        !fs::u8path(path).is_absolute())
+        throw std::runtime_error("Approved LFS storage requires an absolute directory path");
+    auto checked = checked_directory(fs::u8path(path));
+    if (!fs::is_directory(checked))
+        throw std::runtime_error("Create the custom LFS storage directory before approving it");
+    return fs::canonical(checked);
 }
 fs::path lfs_object_path(const fs::path &store, const std::string &digest) {
     if (!hex(digest, 64))

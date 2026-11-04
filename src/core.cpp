@@ -13,6 +13,7 @@
 #include "backup.hpp"
 #include "backup_data.hpp"
 #include "diff.hpp"
+#include "git_lfs.hpp"
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
@@ -771,6 +772,13 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
         if (backupStorage != "auto" && backupStorage != "whole")
             throw std::runtime_error("Choose backup_storage auto or whole");
         p["backup_storage"] = backupStorage;
+        if (!p.value("git_lfs", Json(true)).is_boolean() ||
+            !p.value("git_lfs_storage", Json("")).is_string())
+            throw std::runtime_error("Invalid project Git settings");
+        p["git_lfs"] = p.value("git_lfs", true);
+        auto approved = p.value("git_lfs_storage", "");
+        p["git_lfs_storage"] =
+            approved.empty() ? "" : path_string(approved_lfs_directory(approved));
         for (auto &pattern : p["excludes"])
             if (!pattern.is_string() || pattern.get<std::string>().empty())
                 throw std::runtime_error("Invalid exclusion glob");
@@ -789,12 +797,32 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
                     throw std::runtime_error("Exchange and state directories overlap");
         if (paths.size() > 1 && (within(paths[0], paths[1]) || within(paths[1], paths[0])))
             throw std::runtime_error("Working tree and exchange must be separate");
+        if (!approved.empty()) {
+            auto cache = fs::u8path(p.at("git_lfs_storage").get<std::string>());
+            auto protectedPaths = paths;
+            protectedPaths.push_back(state_);
+            for (const auto &existing : registry_["projects"])
+                for (auto key : {"root", "exchange_path"})
+                    if (!existing.at(key).get<std::string>().empty())
+                        protectedPaths.push_back(fs::u8path(existing.at(key).get<std::string>()));
+            for (const auto &protectedPath : protectedPaths)
+                if (within(cache, protectedPath) || within(protectedPath, cache))
+                    throw std::runtime_error("Custom LFS storage must be separate from working "
+                                             "trees, exchange and profile state");
+        }
         for (auto &existing : registry_["projects"]) {
             if (existing["id"] == p["id"]) {
                 if (!update)
                     throw std::runtime_error("Project ID already exists");
                 continue;
             }
+            for (auto &a : paths)
+                if (!existing.value("git_lfs_storage", "").empty()) {
+                    auto cache = fs::u8path(existing.at("git_lfs_storage").get<std::string>());
+                    if (within(a, cache) || within(cache, a))
+                        throw std::runtime_error(
+                            "Project directories overlap an approved LFS cache");
+                }
             for (auto &a : paths)
                 for (auto &key : {"root", "exchange_path"})
                     if (!existing[key].get<std::string>().empty()) {

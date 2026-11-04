@@ -41,6 +41,7 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   project add NAME ROOT [--mode sendreceive|sendonly|receiveonly|backup|git-bundles]
       [--id SHARED_ID] [--exchange-path DIR] [--interval MINUTES] [--keep COUNT] [--storage auto|whole]
   project set ID [--interval MINUTES] [--keep COUNT] [--storage auto|whole]
+      [--git-lfs true|false] [--lfs-storage ABSOLUTE_DIRECTORY]
   backup ID | snapshots ID | changes ID [--snapshot ID]
   diff ID RELATIVE_PATH [--snapshot ID]
   compare ID LEFT_RELATIVE_PATH RIGHT_RELATIVE_PATH
@@ -180,6 +181,13 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.13.)"}}
                 p["backup_keep"] = std::stoi(flags["--keep"]);
             if (flags.contains("--storage"))
                 p["backup_storage"] = flags.at("--storage");
+            if (flags.contains("--git-lfs")) {
+                if (flags.at("--git-lfs") != "true" && flags.at("--git-lfs") != "false")
+                    throw std::runtime_error("Choose --git-lfs true|false");
+                p["git_lfs"] = flags.at("--git-lfs") == "true";
+            }
+            if (flags.contains("--lfs-storage"))
+                p["git_lfs_storage"] = flags.at("--lfs-storage");
             return core.request("POST", "/api/projects", p);
         }
         if (args.size() > 1 && args[1] == "set") {
@@ -191,6 +199,13 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.13.)"}}
                 data["backup_keep"] = std::stoi(flags["--keep"]);
             if (flags.contains("--storage"))
                 data["backup_storage"] = flags.at("--storage");
+            if (flags.contains("--git-lfs")) {
+                if (flags.at("--git-lfs") != "true" && flags.at("--git-lfs") != "false")
+                    throw std::runtime_error("Choose --git-lfs true|false");
+                data["git_lfs"] = flags.at("--git-lfs") == "true";
+            }
+            if (flags.contains("--lfs-storage"))
+                data["git_lfs_storage"] = flags.at("--lfs-storage");
             return core.request("PUT", "/api/projects/" + args[2], data);
         }
         throw std::runtime_error("Unknown project command");
