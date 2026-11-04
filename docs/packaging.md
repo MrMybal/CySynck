@@ -1,4 +1,4 @@
-# Platform packages (0.20)
+# Platform packages (0.21)
 
 The same C++20 core powers the desktop, CLI and SDK. Syncthing, Git and WireGuard remain
 external tools. Native builds are preferred for distribution; the optional Zig toolchain

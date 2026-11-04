@@ -17,6 +17,11 @@ conservés, avec une empreinte de métadonnées vérifiée. Les modifications de
 les collisions, historiques divergents, pointeurs LFS et filtres bloquent l'opération.
 Voir le [guide d'intégration Git](docs/git-integration.md).
 
+La version 0.21 ajoute l’historique paginé des reçus d’intégration et la vérification du dépôt
+contre les états avant/après. Une interruption peut être marquée comme examinée après un
+contrôle à jour. Le reçu, son statut initial et les fichiers Git restent conservés. Le CLI,
+le SDK, CyUI et la console Web proposent ces actions.
+
 ## Démarrer
 
 La version 0.18 porte l'extraction des fichiers Git ordinaires à **1 Gio par fichier**, grâce

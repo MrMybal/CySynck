@@ -1,5 +1,15 @@
 # Development milestones
 
+## Delivered in 0.21
+
+Integration receipts are available as paginated summaries through CLI, API/SDK, CyUI and Web
+(English/French). Read-only checks compare the repository to the recorded before/after commits,
+verify the index and raw tracked files, and compare recorded local metadata when available.
+An interrupted receipt can be marked as reviewed with a fresh check token, preserving its
+original status/error and all Git files. Changed work, stale checks, invalid receipts and leftover
+locks block acknowledgement. Older receipts disclose missing local metadata explicitly.
+See [receipt history and review](git-integration.md#receipt-history-and-review).
+
 ## Delivered in 0.20
 
 Reviewed fast-forward integration preserves unrelated untracked and ignored regular files,

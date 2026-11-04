@@ -3,6 +3,7 @@
 #include "git_lfs.hpp"
 #include "git_paths.hpp"
 #include "git_review.hpp"
+#include <algorithm>
 #include <charconv>
 #include <cstdlib>
 #include <fstream>
@@ -396,7 +397,233 @@ Json inspect(const fs::path &state, const Json &project, const Json &data) {
     }
     return result;
 }
+bool hex(const std::string &value, size_t length) {
+    return value.size() == length && value.find_first_not_of("0123456789abcdef") == value.npos;
+}
+fs::path receipt_path(const fs::path &state, const Json &project, const std::string &id) {
+    if (!hex(id, 32))
+        throw std::runtime_error("Invalid Git integration receipt identifier");
+    return project_child(state, "git-integrations/" + project.at("id").get<std::string>() + "/" +
+                                    id + ".json");
+}
+Json read_receipt(const fs::path &state, const Json &project, const std::string &id) {
+    auto path = receipt_path(state, project, id);
+    if (!fs::is_regular_file(path))
+        throw std::runtime_error("Git integration receipt is not a regular file");
+    auto record = Json::parse(read_file(path, 16 * 1024 * 1024));
+    if (record.at("id") != id || record.at("receipt") != id ||
+        record.at("project") != project.at("id") || record.at("root") != project.at("root") ||
+        record.at("state") != path_string(fs::absolute(state)) ||
+        (record.at("status") != "complete" && record.at("status") != "incomplete") ||
+        !record.at("applied").is_boolean() || !record.at("created").is_string() ||
+        record.at("created").get_ref<const std::string &>().size() > 64 ||
+        !record.at("local_ref").is_string() ||
+        !record.at("local_ref").get<std::string>().starts_with("refs/heads/") ||
+        !record.at("files_before").is_array() || record.at("files_before").size() > 10000 ||
+        !record.at("files_after").is_array() || record.at("files_after").size() > 10000)
+        throw std::runtime_error("Git integration receipt identity or schema mismatch");
+    for (auto key : {"peer", "branch", "local_ref"})
+        if (!record.at(key).is_string() || record.at(key).get_ref<const std::string &>().empty() ||
+            record.at(key).get_ref<const std::string &>().size() > 1024)
+            throw std::runtime_error("Invalid Git integration receipt reference");
+    for (auto key : {"base", "head"}) {
+        if (std::string(key) == "base" && record.at(key).is_null())
+            continue;
+        auto oid = record.at(key).get<std::string>();
+        if (!hex(oid, 40) && !hex(oid, 64))
+            throw std::runtime_error("Invalid Git integration receipt commit");
+    }
+    if (record.contains("acknowledged_at") && !record.at("acknowledged_at").is_string())
+        throw std::runtime_error("Invalid Git integration acknowledgement");
+    if (record.contains("local_data") && !record.at("local_data").is_null()) {
+        const auto &local = record.at("local_data");
+        for (auto key : {"files", "directories", "bytes"})
+            if (!local.at(key).is_number_unsigned())
+                throw std::runtime_error("Invalid Git integration local inventory");
+        if (!hex(local.at("fingerprint").get<std::string>(), 64))
+            throw std::runtime_error("Invalid Git integration local fingerprint");
+    }
+    // Stored absolute paths are informational; always derive the actual destination.
+    record["receipt_path"] = path_string(path);
+    return record;
+}
+Json receipt_summary(const Json &record) {
+    Json summary = Json::object();
+    for (auto key : {"id", "created", "status", "applied", "peer", "branch", "base", "head",
+                     "local_ref", "receipt_path", "acknowledged_at", "local_data", "error"})
+        if (record.contains(key))
+            summary[key] = record.at(key);
+    summary["needs_attention"] =
+        record.at("status") == "incomplete" && !record.contains("acknowledged_at");
+    return summary;
+}
 } // namespace
+Json git_integrations(const fs::path &state, const Json &project, const Json &data) {
+    for (auto key : {"offset", "limit"})
+        if (data.contains(key) &&
+            (!data.at(key).is_number_integer() ||
+             (!data.at(key).is_number_unsigned() && data.at(key).get<int64_t>() < 0)))
+            throw std::runtime_error("Expected non-negative integer Git receipt pagination");
+    auto offset = data.value("offset", size_t{0}), limit = data.value("limit", size_t{20});
+    if (offset > 1000 || limit == 0 || limit > 50)
+        throw std::runtime_error("Git receipt pagination requires offset <= 1000 and limit 1..50");
+    Json records = Json::array(), errors = Json::array();
+    auto directory =
+        project_child(state, "git-integrations/" + project.at("id").get<std::string>());
+    plain_directory(directory);
+    size_t count = 0;
+    uintmax_t bytes = 0;
+    bool truncated = false;
+    if (fs::exists(directory))
+        for (const auto &entry : fs::directory_iterator(directory)) {
+            if (++count > 1000) {
+                truncated = true;
+                break;
+            }
+            auto name = path_string(entry.path().filename());
+            try {
+                if (!name.ends_with(".json"))
+                    throw std::runtime_error("Unexpected file in Git integration receipts");
+                auto path = receipt_path(state, project, name.substr(0, name.size() - 5));
+                if (!fs::is_regular_file(path))
+                    throw std::runtime_error("Git integration receipt is not a regular file");
+                auto length = fs::file_size(path);
+                if (length > 64 * 1024 * 1024 - bytes) {
+                    truncated = true;
+                    break;
+                }
+                bytes += length;
+                records.push_back(
+                    receipt_summary(read_receipt(state, project, name.substr(0, name.size() - 5))));
+            } catch (const std::exception &error) {
+                errors.push_back({{"path", name}, {"error", error.what()}});
+            }
+        }
+    std::sort(records.begin(), records.end(), [](const Json &left, const Json &right) {
+        if (left.at("created") != right.at("created"))
+            return left.at("created").get<std::string>() > right.at("created").get<std::string>();
+        return left.at("id").get<std::string>() > right.at("id").get<std::string>();
+    });
+    auto total = records.size();
+    Json page = Json::array();
+    for (auto i = offset; i < total && i < offset + limit; ++i)
+        page.push_back(records.at(i));
+    return {{"records", page},       {"errors", errors}, {"offset", offset},
+            {"limit", limit},        {"total", total},   {"has_more", offset + page.size() < total},
+            {"truncated", truncated}};
+}
+Json check_git_integration(const fs::path &state, const Json &project, const Json &data) {
+    auto record = read_receipt(state, project, data.at("receipt").get<std::string>());
+    Json result{{"receipt", record.at("id")},
+                {"record", receipt_summary(record)},
+                {"position", "unknown"},
+                {"current_base", nullptr},
+                {"current_ref", nullptr},
+                {"tracked_matches", false},
+                {"local_data_matches", nullptr},
+                {"lock_present", false},
+                {"errors", Json::array()},
+                {"can_acknowledge", false},
+                {"plan", nullptr},
+                {"receipt_hash", sha256(record.dump())}};
+    try {
+        Git git(project);
+        auto root = fs::u8path(project.at("root").get<std::string>());
+        metadata(git, root);
+        auto lock = project_child(root, ".git/cysynck-integration.lock");
+        result["lock_present"] = fs::exists(lock);
+        if (result.at("lock_present").get<bool>())
+            throw std::runtime_error("Inspect the repository and confirm no integration is running "
+                                     "before manually removing its leftover integration lock");
+        auto current = git_local_head(project);
+        result["current_base"] = current.at("base");
+        result["current_ref"] = current.at("local_ref");
+        result["config_hash"] = git.config_hash;
+        if (current.at("base") == record.at("head"))
+            result["position"] = "after";
+        else if (current.at("base") == record.at("base"))
+            result["position"] = "before";
+        else
+            result["position"] = "other";
+        if (current.at("local_ref") != record.at("local_ref") || result.at("position") == "other")
+            throw std::runtime_error(
+                "The current Git branch or commit differs from both receipt states");
+        std::map<std::string, std::string, GitPathLess> paths;
+        auto before = tree(
+            git, record.at("base").is_null() ? "" : record.at("base").get<std::string>(), paths);
+        auto after = tree(git, record.at("head"), paths);
+        if (before != record.at("files_before") || after != record.at("files_after"))
+            throw std::runtime_error("Receipt file listings do not match their Git commit objects");
+        const auto &expected = result.at("position") == "after" ? after : before;
+        auto index = git.get({"ls-files", "--stage", "-z"});
+        result["index_hash"] = sha256(index);
+        std::string expected_index;
+        for (const auto &file : expected)
+            expected_index += file.at("mode").get<std::string>() + " " +
+                              file.at("oid").get<std::string>() + " 0\t" +
+                              file.at("path").get<std::string>() + '\0';
+        if (index != expected_index)
+            throw std::runtime_error(
+                "The Git index differs from the receipt commit; preserve staged work");
+        for (const auto &flag : records(git.get({"ls-files", "-v", "-z"})))
+            if (!flag.starts_with("H "))
+                throw std::runtime_error(
+                    "Clear assume-unchanged and skip-worktree flags before verification");
+        for (const auto &file : expected) {
+            auto path = project_child(root, file.at("path"));
+            if (!fs::is_regular_file(path) ||
+                fs::file_size(path) != file.at("bytes").get<uintmax_t>() ||
+                file.at("oid") !=
+                    trim(git.get({"hash-object", "--no-filters", "--", path_string(path)})))
+                throw std::runtime_error("Tracked working files differ from the receipt commit");
+#ifndef _WIN32
+            bool executable =
+                (fs::status(path).permissions() & (fs::perms::owner_exec | fs::perms::group_exec |
+                                                   fs::perms::others_exec)) != fs::perms::none;
+            if (executable != (file.at("mode") == "100755"))
+                throw std::runtime_error(
+                    "Tracked executable permissions differ from the receipt commit");
+#endif
+        }
+        if (!git.get({"status", "--porcelain=v1", "-z", "--untracked-files=no"}).empty())
+            throw std::runtime_error("Tracked working files or index changed during verification");
+        result["tracked_matches"] = true;
+        auto inventory = local_data(root, expected, before, after);
+        result["local_data"] = inventory;
+        if (record.contains("local_data") && !record.at("local_data").is_null()) {
+            result["local_data_matches"] = inventory == record.at("local_data");
+            if (!result.at("local_data_matches").get<bool>())
+                throw std::runtime_error(
+                    "Local data metadata differs from the integration receipt");
+        }
+        if (git_local_head(project) != current)
+            throw std::runtime_error("Git HEAD changed during receipt verification; check again");
+        result["can_acknowledge"] = result.at("record").at("needs_attention");
+        if (result.at("can_acknowledge").get<bool>())
+            result["plan"] = sha256(result.dump());
+    } catch (const std::exception &error) {
+        result["can_acknowledge"] = false;
+        result["errors"].push_back(error.what());
+    }
+    return result;
+}
+Json acknowledge_git_integration(const fs::path &state, const Json &project, const Json &data) {
+    auto checked = check_git_integration(state, project, data);
+    if (!checked.at("can_acknowledge").get<bool>() || !data.contains("plan") ||
+        checked.at("plan") != data.at("plan"))
+        throw std::runtime_error(
+            "Git receipt acknowledgement is blocked or its check changed; check again");
+    auto id = data.at("receipt").get<std::string>();
+    auto record = read_receipt(state, project, id);
+    if (sha256(record.dump()) != checked.at("receipt_hash").get<std::string>())
+        throw std::runtime_error("Git integration receipt changed; check again");
+    record["acknowledged_at"] = timestamp();
+    checked.erase("plan");
+    checked.erase("record");
+    record["acknowledgement"] = checked;
+    atomic_write(receipt_path(state, project, id), record.dump(2), true);
+    return receipt_summary(record);
+}
 Json integrate_git_branch(const fs::path &state, const Json &project, const Json &data) {
     auto result = inspect(state, project, data);
     if (!data.value("apply", false))

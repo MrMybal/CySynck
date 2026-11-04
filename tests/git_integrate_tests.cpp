@@ -64,6 +64,20 @@ int main() {
             auto peer = exported.at("peer").get<std::string>();
             cli(target, {"git", "import", "team", peer, exported.at("id")});
             auto query = Json{{"peer", peer}, {"branch", "main"}};
+            check(cli(target, {"git", "integrations", "team"}).at("records").empty() &&
+                      !fs::exists(work / "target/git-integrations"),
+                  "Empty receipt history does not create a receipt directory");
+            rejects([&] { cli(target, {"git", "integrations", "team", "--limit", "0"}); },
+                    "Receipt history rejects empty pages");
+            rejects([&] { cli(target, {"git", "integrations", "team", "--offset", "-1"}); },
+                    "Receipt history rejects negative CLI offsets");
+            rejects(
+                [&] {
+                    target.request("POST", "/api/projects/team/git-integrations", {{"limit", 1.5}});
+                },
+                "Receipt history rejects fractional API limits");
+            rejects([&] { cli(target, {"git", "integration-check", "team", "../outside"}); },
+                    "Receipt identifiers cannot escape the state directory");
             auto request = [&](Json q) {
                 return target.request("POST", "/api/projects/team/git-integrate", q);
             };
@@ -158,6 +172,55 @@ int main() {
                   "Private receipt records completion and repository hooks never run");
             check(!request(query).at("can_integrate").get<bool>(),
                   "Already-integrated branch does not apply again");
+            auto receiptId = done.at("id").get<std::string>();
+            auto receiptFile = fs::u8path(done.at("receipt_path").get<std::string>());
+            auto originalReceipt = read_file(receiptFile, 16 * 1024 * 1024);
+            auto indexBeforeCheck = sha256_file(receiver / ".git/index");
+            auto checkedComplete = cli(target, {"git", "integration-check", "team", receiptId});
+            check(checkedComplete.at("position") == "after" &&
+                      checkedComplete.at("tracked_matches") &&
+                      checkedComplete.at("local_data_matches") &&
+                      !checkedComplete.at("can_acknowledge").get<bool>(),
+                  "A complete receipt verifies the exact HEAD, tracked files and local metadata");
+            auto listed = cli(target, {"git", "integrations", "team", "--limit", "1"});
+            check(listed.at("total") == 1 && listed.at("records").at(0).at("id") == receiptId &&
+                      !listed.at("records").at(0).contains("files_after") &&
+                      !listed.at("records").at(0).at("needs_attention").get<bool>(),
+                  "Receipt history returns bounded summaries rather than full tree listings");
+            check(sha256_file(receiver / ".git/index") == indexBeforeCheck &&
+                      read_file(receiptFile, 16 * 1024 * 1024) == originalReceipt,
+                  "Checking and listing receipts preserve the Git index and receipt bytes");
+            auto altered = Json::parse(originalReceipt);
+            altered["receipt_path"] = path_string(work / "outside.json");
+            atomic_write(receiptFile, altered.dump(2), true);
+            check(cli(target, {"git", "integration-check", "team", receiptId})
+                          .at("record")
+                          .at("receipt_path") == path_string(receiptFile),
+                  "Stored absolute receipt paths cannot redirect a check");
+            altered["files_after"][0]["path"] = "../outside";
+            atomic_write(receiptFile, altered.dump(2), true);
+            check(
+                !cli(target, {"git", "integration-check", "team", receiptId}).at("errors").empty(),
+                "Receipt tree listings must agree with immutable Git objects");
+            altered = Json::parse(originalReceipt);
+            altered["project"] = "another-project";
+            atomic_write(receiptFile, altered.dump(2), true);
+            rejects([&] { cli(target, {"git", "integration-check", "team", receiptId}); },
+                    "Receipt identity cannot cross project boundaries");
+            atomic_write(receiptFile, originalReceipt, true);
+            auto brokenFile = receiptFile.parent_path() / (std::string(32, 'e') + ".json");
+            atomic_write(brokenFile, "not JSON", true);
+            listed = cli(target, {"git", "integrations", "team"});
+            check(listed.at("total") == 1 && listed.at("errors").size() == 1,
+                  "A corrupt neighboring receipt is reported without hiding valid history");
+            fs::remove(brokenFile);
+            std::error_code linkError;
+            fs::create_symlink(receiptFile, brokenFile, linkError);
+            if (!linkError) {
+                check(cli(target, {"git", "integrations", "team"}).at("errors").size() == 1,
+                      "Receipt history refuses symbolic links");
+                fs::remove(brokenFile);
+            }
             rejects([&] { apply(preview); }, "Consumed first-import preview becomes stale");
             atomic_write(root / "first.txt", "second\n");
             fs::remove(root / fs::u8path("dir/été [x].bin"));
@@ -229,11 +292,14 @@ int main() {
             rejects([&] { apply(preview); },
                     "A native Git command failure is reported without automatic retry");
             bool incomplete = false;
+            std::string incompleteId;
             for (const auto &entry :
                  fs::directory_iterator(work / "target/git-integrations/team")) {
                 auto receipt = Json::parse(read_file(entry.path()));
-                if (receipt.at("status") == "incomplete" && receipt.contains("error"))
+                if (receipt.at("status") == "incomplete" && receipt.contains("error")) {
                     incomplete = true;
+                    incompleteId = receipt.at("id");
+                }
             }
             check(incomplete && git(b, {"rev-parse", "HEAD"}) == first &&
                       read_file(receiver / "first.txt") == "first\n",
@@ -241,6 +307,63 @@ int main() {
                   "repository");
             check(!fs::exists(receiver / ".git/cysynck-integration.lock"),
                   "Completed or failed calls release only their own integration lock");
+            auto recoveryCheck = [&] {
+                return cli(target, {"git", "integration-check", "team", incompleteId});
+            };
+            auto acknowledge = [&](const Json &checked) {
+                return cli(target, {"git", "integration-acknowledge", "team", incompleteId,
+                                    "--plan", checked.at("plan")});
+            };
+            auto recovery = recoveryCheck();
+            check(recovery.at("can_acknowledge") && recovery.at("position") == "before" &&
+                      recovery.at("local_data_matches"),
+                  "Native Git failure can be checked at the exact unchanged original commit");
+            rejects([&] { cli(target, {"git", "integration-acknowledge", "team", incompleteId}); },
+                    "Acknowledgement requires the checked preview token");
+            fs::create_directory(receiver / ".git/cysynck-integration.lock");
+            auto locked = recoveryCheck();
+            check(locked.at("lock_present") && !locked.at("can_acknowledge").get<bool>() &&
+                      fs::is_directory(receiver / ".git/cysynck-integration.lock"),
+                  "Checks preserve leftover integration locks and require manual inspection");
+            fs::remove(receiver / ".git/cysynck-integration.lock");
+            atomic_write(receiver / "first.txt", "user edit\n");
+            check(!recoveryCheck().at("can_acknowledge").get<bool>(),
+                  "Dirty tracked files prevent recovery acknowledgement");
+            rejects([&] { acknowledge(recovery); },
+                    "Tracked edits invalidate a checked acknowledgement");
+            atomic_write(receiver / "first.txt", "first\n");
+            git(b, {"add", "first.txt"});
+            auto keepTime = fs::last_write_time(receiver / "keep.txt");
+            atomic_write(receiver / "keep.txt", "changed local work\n");
+            check(!recoveryCheck().at("can_acknowledge").get<bool>(),
+                  "Changed local metadata blocks acknowledgement without overwriting local data");
+            atomic_write(receiver / "keep.txt", "keep\n");
+            fs::last_write_time(receiver / "keep.txt", keepTime);
+            recovery = recoveryCheck();
+            git(b, {"config", "integration.receiptcheck", "changed"});
+            rejects([&] { acknowledge(recovery); },
+                    "Configuration changes require a fresh recovery check");
+            recovery = recoveryCheck();
+            auto recoveryIndex = sha256_file(receiver / ".git/index");
+            auto reviewed = acknowledge(recovery);
+            auto recoveryRecord = Json::parse(read_file(
+                fs::u8path(reviewed.at("receipt_path").get<std::string>()), 16 * 1024 * 1024));
+            check(reviewed.contains("acknowledged_at") && reviewed.at("status") == "incomplete" &&
+                      !reviewed.at("needs_attention").get<bool>() &&
+                      recoveryRecord.contains("error") &&
+                      recoveryRecord.at("acknowledgement").at("position") == "before",
+                  "Acknowledgement preserves incomplete status and the original error as evidence");
+            check(git(b, {"rev-parse", "HEAD"}) == first &&
+                      sha256_file(receiver / ".git/index") == recoveryIndex &&
+                      sha256_file(receiver / "Build/cache.bin") == localDigest,
+                  "Acknowledgement never resets Git or changes working files");
+            rejects([&] { acknowledge(recovery); }, "Acknowledgement tokens cannot be replayed");
+            listed = cli(target, {"git", "integrations", "team", "--limit", "1"});
+            auto nextPage =
+                cli(target, {"git", "integrations", "team", "--offset", "1", "--limit", "1"});
+            check(listed.at("has_more") && nextPage.at("records").size() == 1 &&
+                      listed.at("records").at(0).at("id") != nextPage.at("records").at(0).at("id"),
+                  "Receipt pages have deterministic order without duplicate entries");
             git(b, {"config", "branch.main.mergeOptions", "--squash --autostash"});
             preview = request(query);
             done = apply(preview);
@@ -248,6 +371,36 @@ int main() {
                       git(b, {"rev-list", "--count", "HEAD"}) == "2",
                   "Fast-forward overrides branch squash/autostash options and creates no extra "
                   "commit");
+            auto interrupted = done;
+            auto interruptedId = random_id();
+            interrupted.update({{"id", interruptedId},
+                                {"receipt", interruptedId},
+                                {"status", "incomplete"},
+                                {"applied", false}});
+            auto interruptedPath =
+                work / "target/git-integrations/team" / (interruptedId + ".json");
+            atomic_write(interruptedPath, interrupted.dump(2), true);
+            auto afterCheck = cli(target, {"git", "integration-check", "team", interruptedId});
+            check(afterCheck.at("position") == "after" && afterCheck.at("can_acknowledge"),
+                  "A post-check interruption is recognized at the exact integrated state");
+            auto ref = "refs/remotes/cysynck/" + peer + "/main";
+            git(b, {"update-ref", "-d", ref});
+            check(cli(target, {"git", "integration-check", "team", interruptedId})
+                      .at("can_acknowledge"),
+                  "Receipt verification does not depend on a surviving imported tracking ref");
+            git(b, {"update-ref", ref, second});
+            cli(target, {"git", "integration-acknowledge", "team", interruptedId, "--plan",
+                         afterCheck.at("plan")});
+            interrupted.erase("local_data");
+            interrupted["id"] = interrupted["receipt"] = random_id();
+            auto legacyId = interrupted.at("id").get<std::string>();
+            atomic_write(interruptedPath.parent_path() / (legacyId + ".json"), interrupted.dump(2),
+                         true);
+            auto legacyCheck = cli(target, {"git", "integration-check", "team", legacyId});
+            check(
+                legacyCheck.at("local_data_matches").is_null() &&
+                    legacyCheck.at("tracked_matches") && legacyCheck.at("can_acknowledge"),
+                "Legacy receipts disclose unavailable local metadata while checking tracked data");
             check(read_file(receiver / "first.txt") == "second\n" &&
                       !fs::exists(receiver / fs::u8path("dir/été [x].bin")) &&
                       sha256_file(receiver / "new.bin") == sha256_file(root / "new.bin"),

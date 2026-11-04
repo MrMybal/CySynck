@@ -909,6 +909,14 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
         result = integrate_git_branch(state_, p, data);
         if (result.value("applied", false))
             event(p.at("id"), "git", "Reviewed imported branch integrated by fast-forward");
+    } else if (action == "git-integrations")
+        result = git_integrations(state_, p, data);
+    else if (action == "git-integration-check")
+        result = check_git_integration(state_, p, data);
+    else if (action == "git-integration-acknowledge") {
+        result = acknowledge_git_integration(state_, p, data);
+        event(p.at("id"), "git",
+              "Interrupted Git integration marked as reviewed; receipt preserved");
     } else if (action == "git-review" || action == "git-review-file")
         result = review_git_branch(p, data, action == "git-review-file");
     else if (action == "git-history")

@@ -107,6 +107,63 @@ This directory is not a lock recognized by other Git clients: close other Git cl
 and avoid concurrent repository edits while applying. The preview and native Git guards
 cannot make external editors or independent Git processes part of one atomic transaction.
 
+## Receipt history and review
+
+From 0.21, the Git view in CyUI and the Web console exposes **Git integration receipts**.
+Load the history, select **Check integration receipt**, then use **Mark as reviewed** for an
+interrupted operation that passes the checks. This records a review; it leaves the original
+`incomplete` status, error and repository intact.
+
+```sh
+cysynck git integrations PROJECT_ID --offset 0 --limit 20
+cysynck git integration-check PROJECT_ID RECEIPT_ID
+cysynck git integration-acknowledge PROJECT_ID RECEIPT_ID --plan CHECK_TOKEN
+```
+
+The corresponding authenticated POST routes are:
+
+- `/api/projects/PROJECT_ID/git-integrations`, with `{"offset":0,"limit":20}`.
+- `/api/projects/PROJECT_ID/git-integration-check`, with `{"receipt":"RECEIPT_ID"}`.
+- `/api/projects/PROJECT_ID/git-integration-acknowledge`, with
+  `{"receipt":"RECEIPT_ID","plan":"CHECK_TOKEN"}`.
+
+History returns `records`, `errors`, `total`, `offset`, `limit`, `has_more` and `truncated`.
+Summaries omit tree listings; `needs_attention` identifies incomplete, unreviewed receipts.
+Pages contain at most 50 records, sorted by creation time then ID descending. A scan reads
+at most 1,000 directory entries and 64 MiB, with a 16 MiB bound per receipt. `truncated`
+means the state directory also needs manual inspection; its omitted entries are not counted
+in `total`. Invalid neighboring records are reported separately without hiding valid history.
+
+A check returns `position` (`before`, `after`, `other` or `unknown`), the current local commit
+and branch, `tracked_matches`, `local_data_matches`, `lock_present`, `errors`,
+`can_acknowledge` and a `plan` when acknowledgement is available. It derives both expected
+trees from full commit IDs and verifies the receipt listings against those objects. Imported
+tracking refs can have been removed or advanced. Git object storage must still contain the
+recorded commits and blobs. Verification uses the same offline, hook/filter-disabled helpers
+and regular-file restrictions as integration; it does not refresh the index.
+
+Acknowledgement is available only for an unreviewed incomplete receipt at its exact original
+or integrated commit, on its recorded local branch, with matching index/raw working files and
+matching local metadata when the receipt contains it. Receipts from 0.19 have no local inventory:
+`local_data_matches` is `null`, disclosed in the interfaces, while tracked files are still checked.
+Local metadata changes, staged changes, another branch/commit, unavailable objects and Git
+operations or lock files block review until the repository is inspected and reconciled manually.
+Complete receipts may be checked at any time; a later legitimate commit can differ from an old
+receipt without changing its recorded completion status.
+
+The check token binds the receipt, repository branch/commit, index, effective Git configuration
+and current local inventory. Acknowledgement rechecks these before saving `acknowledged_at`
+and the inspection evidence. A changed check or already reviewed receipt requires another
+inspection and cannot replay its old token. Receipt paths are derived from the current state
+directory and validated ID; stored path fields cannot redirect reads or writes. Receipts contain
+local diagnostic evidence, without an authenticity signature or a content backup of local files.
+
+Checks and acknowledgement never remove `.git/cysynck-integration.lock`, Git locks or working
+files, and never advance HEAD, retry a merge or reset the index. After a crash, the lock requires
+the manual inspection described above. Avoid concurrent builds, edits and Git operations during
+checks and acknowledgement as during integration; external processes do not honor the CySynck
+lock and the inspection is not a filesystem transaction.
+
 Each Git helper has a 120-second timeout. The complete fast-forward and receipt update
 are not one filesystem transaction. Receipts identify the reviewed before/after commits
 for inspection; they are not backups of uncommitted work. Native Linux/macOS execution

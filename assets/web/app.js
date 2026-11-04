@@ -2,7 +2,7 @@
 const $ = id => document.getElementById(id);
 const {t, setText: translated, init: initLanguages} = CySynckI18n;
 initLanguages();
-let token = "", selected = "", transferLoad = 0, gitLoad = 0, gitReviewLoad=0, gitHistoryLoad=0;
+let token = "", selected = "", transferLoad = 0, gitLoad = 0, gitReviewLoad=0, gitHistoryLoad=0, gitReceiptsLoad=0;
 function clearGitReview() {
   $("git-review").replaceChildren(); $("git-review-patch").textContent="";
   ++gitReviewLoad; ++gitHistoryLoad;
@@ -260,6 +260,7 @@ async function select(project) {
     $("received-records").replaceChildren();
     $("transfer-records").replaceChildren();
     $("git-records").replaceChildren();
+    $("git-integrations-records").replaceChildren(); ++gitReceiptsLoad;
     $("git-result").replaceChildren();
     $("git-branches").replaceChildren(); clearGitReview();
     resetGitStorage();
@@ -476,6 +477,47 @@ async function loadReceived() {
   }
 }
 $("received-load").addEventListener("click", () => safe(loadReceived));
+async function loadGitReceipts(offset=0) {
+  const project=selected,generation=++gitReceiptsLoad;
+  if(!project)return;
+  const result=await api("projects/"+project+"/git-integrations","POST",{offset});
+  if(project!==selected || generation!==gitReceiptsLoad)return;
+  const container=$("git-integrations-records");container.replaceChildren();
+  if(!result.records.length)container.append(label("p","No integration receipts"));
+  for(const record of result.records) {
+    const card=text("div","","snapshot"),check=label("button","Check integration receipt"),output=text("div","");
+    card.append(text("p",record.created+" / "+record.peer+" / "+record.branch),text("p",record.id),label("p",record.status==="complete"?"Integration complete":"Integration incomplete"),text("p",record.receipt_path));
+    if(record.acknowledged_at)card.append(label("p","Recovery reviewed"),text("p",record.acknowledged_at));
+    let request=0;
+    const current=()=>selected===project && generation===gitReceiptsLoad && card.isConnected;
+    check.addEventListener("click",()=>safe(async()=>{
+      output.replaceChildren();const revision=++request;
+      const checked=await api("projects/"+project+"/git-integration-check","POST",{receipt:record.id});
+      if(!current() || revision!==request)return;
+      output.append(label("p",checked.position==="after"?"Repository at integrated commit":checked.position==="before"?"Repository at original commit":"Repository state differs or is unavailable"));
+      if(checked.tracked_matches)output.append(label("p","Tracked files and index verified"));
+      if(checked.local_data_matches===null)output.append(label("p","Local data verification unavailable"));
+      else if(checked.local_data_matches)output.append(label("p","Local data metadata verified"));
+      for(const error of checked.errors)output.append(label("p",error));
+      if(checked.can_acknowledge) {
+        const acknowledge=label("button","Mark as reviewed");output.append(acknowledge);
+        acknowledge.addEventListener("click",()=>safe(async()=>{
+          if(!current() || revision!==request)return;
+          acknowledge.disabled=true;check.disabled=true;++request;
+          try {
+            await api("projects/"+project+"/git-integration-acknowledge","POST",{receipt:record.id,plan:checked.plan});
+            if(current())await loadGitReceipts(offset);
+          } finally {check.disabled=false;}
+        }));
+      }
+    }));
+    card.append(check,output);container.append(card);
+  }
+  for(const issue of result.errors)container.append(text("p",issue.path+": "+issue.error));
+  if(result.truncated)container.append(label("p","Receipt scan limit reached; inspect the state directory for older records."));
+  for(const [show,key,page] of [[offset>0,"Previous receipts",Math.max(0,offset-20)],[result.has_more,"Next receipts",offset+20]])if(show){const button=label("button",key);button.addEventListener("click",()=>safe(()=>loadGitReceipts(page)));container.append(button);}
+}
+$("git-integrations-load").addEventListener("click",()=>safe(()=>loadGitReceipts()));
 async function loadGitExchange() {
   invalidateGitStorage();
   const project = selected, request = ++gitLoad;
@@ -560,6 +602,7 @@ function showGitIntegration(project,review,container) {
       const result=await api("projects/"+project+"/git-integrate","POST",{...saved.input,apply:true,plan:saved.token});
       if(!current())return;
       $("git-result").textContent=t("Integration complete")+"\n"+result.receipt_path;
+      await loadGitReceipts();
       await loadGitExchange();
     } finally {preview.disabled=false;}
   }));

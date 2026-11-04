@@ -70,3 +70,6 @@ path and checks a JSON error. This is separate from compiling the Unreal bridge 
 
 Reviewed first-import and fast-forward branch integration uses the same request interface; see
 [Git integration](git-integration.md) for preview tokens, working-tree restrictions and receipts.
+The same C ABI also lists integration receipts and verifies or acknowledges interrupted
+operations through `git-integrations`, `git-integration-check` and `git-integration-acknowledge`.
+These JSON routes require no ABI version change.

@@ -69,7 +69,51 @@ static void field(const char *label, std::string &value) {
 static void localize() {
     c::registerTranslations(
         "fr",
-        {{"Direct transfers", "Transferts directs"},
+        {{"Git integration receipts", "Reçus d’intégration Git"},
+         {"Check the repository before marking an interruption as reviewed. Receipts and Git files "
+          "are preserved.",
+          "Vérifiez le dépôt avant de marquer une interruption comme examinée. Les reçus et les "
+          "fichiers Git sont conservés."},
+         {"Load integration receipts", "Charger les reçus d’intégration"},
+         {"No integration receipts", "Aucun reçu d’intégration"},
+         {"Integration incomplete", "Intégration incomplète"},
+         {"Recovery reviewed", "Récupération examinée"},
+         {"Check integration receipt", "Vérifier le reçu d’intégration"},
+         {"Repository at integrated commit", "Dépôt au commit intégré"},
+         {"Repository at original commit", "Dépôt au commit d’origine"},
+         {"Repository state differs or is unavailable",
+          "L’état du dépôt diffère ou est indisponible"},
+         {"Tracked files and index verified", "Fichiers suivis et index vérifiés"},
+         {"Local data verification unavailable", "Vérification des données locales indisponible"},
+         {"Local data metadata verified", "Métadonnées des données locales vérifiées"},
+         {"Receipt scan limit reached; inspect the state directory for older records.",
+          "Limite de lecture des reçus atteinte ; consultez le dossier d’état pour les autres "
+          "reçus."},
+         {"Previous receipts", "Reçus précédents"},
+         {"Next receipts", "Reçus suivants"},
+         {"Inspect the repository and confirm no integration is running before manually removing "
+          "its leftover integration lock",
+          "Inspectez le dépôt et confirmez qu’aucune intégration n’est active avant de retirer "
+          "manuellement le verrou restant"},
+         {"The current Git branch or commit differs from both receipt states",
+          "La branche ou le commit Git actuel diffère des deux états du reçu"},
+         {"Receipt file listings do not match their Git commit objects",
+          "Les listes de fichiers du reçu ne correspondent pas à leurs objets Git"},
+         {"The Git index differs from the receipt commit; preserve staged work",
+          "L’index Git diffère du commit du reçu ; préservez les changements indexés"},
+         {"Clear assume-unchanged and skip-worktree flags before verification",
+          "Retirez les indicateurs assume-unchanged et skip-worktree avant la vérification"},
+         {"Tracked working files differ from the receipt commit",
+          "Les fichiers suivis diffèrent du commit du reçu"},
+         {"Tracked executable permissions differ from the receipt commit",
+          "Les permissions exécutables diffèrent du commit du reçu"},
+         {"Tracked working files or index changed during verification",
+          "Les fichiers suivis ou l’index ont changé pendant la vérification"},
+         {"Local data metadata differs from the integration receipt",
+          "Les métadonnées locales diffèrent du reçu d’intégration"},
+         {"Git HEAD changed during receipt verification; check again",
+          "HEAD a changé pendant la vérification ; vérifiez à nouveau"},
+         {"Direct transfers", "Transferts directs"},
          {"Git exchange storage", "Stockage des échanges Git"},
          {"Preview Git cleanup", "Prévisualiser le nettoyage Git"},
          {"Apply Git cleanup", "Appliquer le nettoyage Git"},
@@ -580,7 +624,8 @@ class App {
         doctor_state, service_preview, service_preview_input, transfer_state, transfer_limits_state,
         git_branches, git_review_state, git_review_diff, git_storage_state, git_history_state,
         git_commit_state, git_setup_state, git_extract_state, git_extract_input,
-        git_integrate_state, git_integrate_input;
+        git_integrate_state, git_integrate_input, git_integration_records, git_integration_check;
+    size_t git_integration_offset = 0;
     std::string git_extract_destination;
     bool git_extract_lfs = true;
     std::string git_initial_branch = "main";
@@ -798,6 +843,8 @@ class App {
         git_setup_state = nullptr;
         git_extract_state = git_extract_input = nullptr;
         git_integrate_state = git_integrate_input = nullptr;
+        git_integration_records = git_integration_check = nullptr;
+        git_integration_offset = 0;
         git_extract_destination.clear();
         git_extract_lfs = true;
         git_setup_requested = false;
@@ -1970,18 +2017,100 @@ class App {
             git_review_diff = nullptr;
         });
     }
+    void git_receipts_view() {
+        c::beginCard("git-integration-receipts", c::tr("Git integration receipts").c_str());
+        ImGui::TextWrapped("%s", c::tr("Check the repository before marking an interruption as "
+                                       "reviewed. Receipts and Git files are preserved.")
+                                     .c_str());
+        auto load = [this](size_t offset) {
+            git_integration_check = nullptr;
+            action("git-integrations", {{"offset", offset}}, [this, offset](const Json &r) {
+                git_integration_records = r;
+                git_integration_offset = offset;
+            });
+        };
+        if (button("Load integration receipts"))
+            load(0);
+        if (!git_integration_records.is_null()) {
+            ImGui::BeginChild("integration-receipt-list", c::dp(0, 320), ImGuiChildFlags_Borders);
+            if (git_integration_records.at("records").empty())
+                text(c::tr("No integration receipts"));
+            for (const auto &record : git_integration_records.at("records")) {
+                auto id = record.at("id").get<std::string>();
+                ImGui::PushID(id.c_str());
+                text(record.at("created").get<std::string>() + " / " +
+                     record.at("peer").get<std::string>() + " / " +
+                     record.at("branch").get<std::string>());
+                text(id);
+                text(c::tr(record.at("status") == "complete" ? "Integration complete"
+                                                             : "Integration incomplete"));
+                if (record.contains("acknowledged_at"))
+                    text(c::tr("Recovery reviewed") + " / " +
+                         record.at("acknowledged_at").get<std::string>());
+                text(record.at("receipt_path"));
+                if (button("Check integration receipt")) {
+                    git_integration_check = nullptr;
+                    action("git-integration-check", {{"receipt", id}},
+                           [this](const Json &r) { git_integration_check = r; });
+                }
+                if (!git_integration_check.is_null() && git_integration_check.at("receipt") == id) {
+                    const auto &checked = git_integration_check;
+                    auto position = checked.at("position").get<std::string>();
+                    text(c::tr(position == "after" ? "Repository at integrated commit"
+                               : position == "before"
+                                   ? "Repository at original commit"
+                                   : "Repository state differs or is unavailable"));
+                    if (checked.at("tracked_matches").get<bool>())
+                        text(c::tr("Tracked files and index verified"));
+                    if (checked.at("local_data_matches").is_null())
+                        text(c::tr("Local data verification unavailable"));
+                    else if (checked.at("local_data_matches").get<bool>())
+                        text(c::tr("Local data metadata verified"));
+                    for (const auto &issue : checked.at("errors"))
+                        text(c::tr(issue.get_ref<const std::string &>().c_str()));
+                    ImGui::BeginDisabled(!checked.value("can_acknowledge", false));
+                    if (button("Mark as reviewed")) {
+                        auto query = Json{{"receipt", id}, {"plan", checked.at("plan")}};
+                        git_integration_check = nullptr;
+                        action("git-integration-acknowledge", query, [this](const Json &r) {
+                            if (!git_integration_records.is_null())
+                                for (auto &item : git_integration_records.at("records"))
+                                    if (item.at("id") == r.at("id"))
+                                        item = r;
+                        });
+                    }
+                    ImGui::EndDisabled();
+                }
+                ImGui::PopID();
+            }
+            if (git_integration_records.at("truncated").get<bool>())
+                text(c::tr(
+                    "Receipt scan limit reached; inspect the state directory for older records."));
+            for (const auto &issue : git_integration_records.at("errors"))
+                text(issue.dump());
+            if (git_integration_offset > 0 && button("Previous receipts"))
+                load(git_integration_offset >= 20 ? git_integration_offset - 20 : 0);
+            if (git_integration_records.at("has_more").get<bool>() && button("Next receipts"))
+                load(git_integration_offset + 20);
+            ImGui::EndChild();
+        }
+        c::endCard();
+    }
     void git_view() {
         if (project()["mode"] != "git-bundles") {
             c::callout(c::Tone::info, c::tr("Use Git exchange mode for this view.").c_str());
             return;
         }
         if (button("Refresh")) {
+            git_integration_records = git_integration_check = nullptr;
+            git_integration_offset = 0;
             git_integrate_state = git_integrate_input = nullptr;
             git_branches = git_review_state = git_review_diff = git_history_state =
                 git_commit_state = git_setup_state = nullptr;
             git_setup_requested = false;
             git_loaded = git_storage_current = false;
         }
+        git_receipts_view();
         auto setupQuery = Json{{"branch", git_initial_branch},
                                {"object_format", git_object_format ? "sha256" : "sha1"}};
         if (git_setup_state.is_null()) {

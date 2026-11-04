@@ -9,7 +9,7 @@ A project-based synchronization and backup companion written in **C++20**, power
 One shared core powers the native desktop app, CLI, local Web console and integration SDK.
 Build a headless server without graphical dependencies. No Python or .NET runtime is required.
 
-**Status: 0.20.0, under active development.** Windows x64 is validated locally. The headless
+**Status: 0.21.0, under active development.** Windows x64 is validated locally. The headless
 Linux core, CLI and test binaries also cross-compile from Windows with Zig.
 Native Linux and macOS execution still needs validation on those platforms.
 The Unreal bridge is an integration example and has not yet been compiled inside Unreal.
@@ -19,7 +19,7 @@ those fixes and the new package smoke checks still need another native CI run.
 
 ## Features
 
-| Area | Available in 0.20 |
+| Area | Available in 0.21 |
 | --- | --- |
 | Projects | Separate folders, settings and modes; overlapping project roots are rejected |
 | Sync modes | Two-way, send only, receive only, local backup and Git bundle exchange |
@@ -46,7 +46,9 @@ history can advance by fast-forward, including the first local checkout. The ope
 HEAD, the index and working files, preserves a private receipt and refuses staged or modified tracked files,
 divergent history, LFS pointers and checkout filters. Unrelated untracked and ignored files
 remain in place; their metadata inventory is pinned to the preview and checked after checkout.
-Incoming-path collisions remain blocked.
+Incoming-path collisions remain blocked. Integration receipts have a paginated history and
+can be checked against the current repository. Interrupted operations can be marked as reviewed
+after a fresh check, preserving the original status, error and all Git files.
 See [Git branch integration](docs/git-integration.md) for limits and recovery.
 
 Imported revisions can now be extracted into a new folder after a reviewed preview, including
