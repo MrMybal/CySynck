@@ -1857,15 +1857,15 @@ class App {
             c::tr("Git and LFS imports preserve the working tree. Review and merge using Git.")
                 .c_str());
         auto load = [this] {
-            action("inbox", Json::object(), [this](const Json &r) {
-                incoming = r;
-                git_loaded = true;
-            });
+            git_loaded = true;
+            action("inbox", Json::object(), [this](const Json &r) { incoming = r; });
         };
         if (!git_loaded && !busy())
             load();
-        if (git_branches.is_null() && !busy())
+        if (git_branches.is_null() && !busy()) {
+            git_branches = Json::array();
             action("git-branches", Json::object(), [this](const Json &r) { git_branches = r; });
+        }
         ImGui::Checkbox(c::trLabel("Include Git LFS history").c_str(), &include_git_lfs);
         if (button("Export committed branch", true))
             action("export", {{"lfs", include_git_lfs}}, [this](const Json &) {
