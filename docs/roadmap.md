@@ -1,5 +1,16 @@
 # Development milestones
 
+## Delivered in 0.15
+
+Imported branches now expose paginated topological commit history, recorded authors and
+committers, subjects and ordered parents. Ref identities pin continuation pages and stale
+responses are discarded by both interfaces. A selected commit can be compared with a chosen
+parent, including secondary merge parents, root commits and empty commits. Comparisons use
+committed objects, preserve local changes and share the bounded diff viewer. SHA-1 and SHA-256
+repositories are supported; shallow history is refused instead of misreporting a boundary as
+a root. CLI and C/C++ API routes mirror the bilingual CyUI and Web views.
+See [Git history](git-history.md). Applying or merging commits remains a separate Git operation.
+
 ## Delivered in 0.14
 
 Three Git collaboration milestones share the C++ core, CLI, SDK and bilingual interfaces:

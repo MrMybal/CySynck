@@ -9,7 +9,7 @@ A project-based synchronization and backup companion written in **C++20**, power
 One shared core powers the native desktop app, CLI, local Web console and integration SDK.
 Build a headless server without graphical dependencies. No Python or .NET runtime is required.
 
-**Status: 0.14.0, under active development.** Windows x64 is validated locally. The headless
+**Status: 0.15.0, under active development.** Windows x64 is validated locally. The headless
 Linux core, CLI and test binaries also cross-compile from Windows with Zig.
 Native Linux and macOS execution still needs validation on those platforms.
 The Unreal bridge is an integration example and has not yet been compiled inside Unreal.
@@ -19,7 +19,7 @@ those fixes and the new package smoke checks still need another native CI run.
 
 ## Features
 
-| Area | Available in 0.14 |
+| Area | Available in 0.15 |
 | --- | --- |
 | Projects | Separate folders, settings and modes; overlapping project roots are rejected |
 | Sync modes | Two-way, send only, receive only, local backup and Git bundle exchange |
@@ -33,7 +33,7 @@ those fixes and the new package smoke checks still need another native CI run.
 | Diffs | Snapshot or two-file comparison, side-by-side and unified views, statistics and Git-compatible patches |
 | Conflicts | Version selection or manual text merge, checked preview, preserved sources and exportable recovery history |
 | Syncthing | Supervised isolated instance, crash restart, device and folder management, existing-instance support and access to the original Web UI |
-| Git collaboration | Bundles and verified LFS history, per-project cache policy, imported-branch diffs and reviewed export cleanup |
+| Git collaboration | Bundles and verified LFS history, per-project cache policy, branch/commit diffs, paginated history and reviewed export cleanup |
 | Plugins | Explicitly loaded native libraries, versioned C ABI, additional modes and events |
 | VPN | WireGuard identities, public profile exchange through Syncthing, peer trust and official tunnel tools |
 | Direct chat and files | VPN transport, project permissions, pairing secret, local history and SHA-256 verification |
@@ -224,6 +224,9 @@ cysynck project set game-team --git-lfs true
 cysynck git branches game-team
 cysynck git review game-team PEER_ID BRANCH
 cysynck git review-file game-team PEER_ID BRANCH relative/path.cpp
+cysynck git history game-team PEER_ID BRANCH --limit 50
+cysynck git commit game-team PEER_ID BRANCH FULL_COMMIT_ID
+cysynck git commit-file game-team PEER_ID BRANCH FULL_COMMIT_ID relative/path.cpp --parent 1
 cysynck git storage game-team --exports OLD_EXPORT_ID
 cysynck git storage game-team --exports OLD_EXPORT_ID --apply true --plan PREVIEW_TOKEN
 ```
@@ -232,7 +235,10 @@ The saved LFS policy also controls automatic Git synchronization. Existing custo
 directories require explicit approval in project settings. Review reads committed Git blobs,
 preserves local changes and identifies binary files, submodules and LFS pointers. Cleanup removes
 only selected local exchange exports and unused exchange objects; retained exports protect shared
-assets. See [branch review](docs/git-review.md) and [exchange storage](docs/git-storage.md).
+assets. History includes recorded authors and committers, all merge parents and stable pagination.
+Select a commit to compare its files with a chosen parent, including root and empty commits.
+See [branch review](docs/git-review.md), [commit history](docs/git-history.md) and
+[exchange storage](docs/git-storage.md).
 
 Version 2 includes Git LFS objects from the exported branch history, including deleted versions,
 with SHA-256 verification and deduplication. Import preserves HEAD, the index and working files.

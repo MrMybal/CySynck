@@ -2,7 +2,11 @@
 const $ = id => document.getElementById(id);
 const {t, setText: translated, init: initLanguages} = CySynckI18n;
 initLanguages();
-let token = "", selected = "", transferLoad = 0, gitLoad = 0, gitReviewLoad=0;
+let token = "", selected = "", transferLoad = 0, gitLoad = 0, gitReviewLoad=0, gitHistoryLoad=0;
+function clearGitReview() {
+  $("git-review").replaceChildren(); $("git-review-patch").textContent="";
+  ++gitReviewLoad; ++gitHistoryLoad;
+}
 try { token = sessionStorage.getItem("cysynck-token") || ""; } catch (_) { /* Storage may be disabled. */ }
 let storagePlan = null, servicePreview = null;
 let backupStorageDirty = false;
@@ -231,7 +235,7 @@ async function select(project) {
     $("transfer-records").replaceChildren();
     $("git-records").replaceChildren();
     $("git-result").replaceChildren();
-    $("git-branches").replaceChildren(); $("git-review").replaceChildren(); $("git-review-patch").textContent=""; ++gitReviewLoad;
+    $("git-branches").replaceChildren(); clearGitReview();
     resetGitStorage();
     ++gitLoad;
     $("transfer-result").replaceChildren();
@@ -450,7 +454,7 @@ async function loadGitExchange() {
   if (!project) return;
   const [result,branches] = await Promise.all([api("projects/" + project + "/inbox", "POST", {}),api("projects/"+project+"/git-branches","POST",{})]);
   if (project !== selected || request !== gitLoad) return;
-  $("git-review").replaceChildren(); $("git-review-patch").textContent=""; ++gitReviewLoad;
+  clearGitReview();
   $("git-branches").replaceChildren();
   for (const branch of branches) {
     const row=text("div","","snapshot"), button=label("button","Review branch");
@@ -479,7 +483,7 @@ async function loadGitExchange() {
         const output = await api("projects/" + project + "/import", "POST", {peer: item.peer, bundle: item.id});
         if (selected === project) {
           $("git-result").textContent = JSON.stringify(output, null, 2);
-          $("git-review").replaceChildren(); $("git-review-patch").textContent=""; ++gitReviewLoad;
+          clearGitReview();
           await loadGitExchange();
         }
       } finally { button.disabled = false; }
@@ -489,20 +493,72 @@ async function loadGitExchange() {
   }
 }
 function showGitReview(project,review) {
+  ++gitHistoryLoad;
   const names={identical:"Branches are identical",fast_forward:"Fast-forward is possible",local_ahead:"Local branch is ahead",diverged:"Branches have diverged",unrelated:"Histories are unrelated"};
   $("git-review").replaceChildren(label("p",names[review.relation]),label("p","{local} local commits · {peer} peer commits",{local:review.local_only_commits,peer:review.peer_only_commits}));
   $("git-review-patch").textContent="";
-  for (const file of review.files) {
+  const load=label("button","Load branch history"), history=text("div",""), details=text("div",""), files=text("div","");
+  $("git-review").append(load,history,details,files);
+  load.addEventListener("click",()=>safe(()=>loadGitHistory(project,review,history,details,files)));
+  showGitFiles(project,review,review,files);
+}
+function gitContext(review) {return {peer:review.peer,branch:review.branch,base:review.base,head:review.head};}
+function showGitFiles(project,review,comparison,container) {
+  container.replaceChildren(); $("git-review-patch").textContent=""; ++gitReviewLoad;
+  if(!comparison.files.length) container.append(label("p","No changed files"));
+  for (const file of comparison.files) {
     const row=text("div","","snapshot"), button=label("button","Review file");
     row.append(text("p",file.status+" / "+file.path),button);
     button.addEventListener("click",()=>safe(async()=>{
       const request=++gitReviewLoad;
-      const result=await api("projects/"+project+"/git-review-file","POST",{peer:review.peer,branch:review.branch,base:review.base,head:review.head,path:file.path});
+      const input={...gitContext(review),path:file.path};
+      if(comparison.commit) Object.assign(input,{commit:comparison.commit.oid,parent:comparison.parent});
+      const result=await api("projects/"+project+(comparison.commit?"/git-commit-file":"/git-review-file"),"POST",input);
       if(selected!==project || request!==gitReviewLoad) return;
       $("git-review-patch").textContent=result.binary?t(result.message):(result.reason==="lfs_pointer"?t("LFS pointer comparison; asset bytes are not loaded.")+"\n\n":"")+result.patch;
     }));
-    $("git-review").append(row);
+    container.append(row);
   }
+}
+async function loadGitHistory(project,review,container,details,files,offset=0) {
+  const request=++gitHistoryLoad;
+  const result=await api("projects/"+project+"/git-history","POST",{...gitContext(review),offset});
+  if(selected!==project || request!==gitHistoryLoad) return;
+  container.replaceChildren(label("h4","Branch history")); details.replaceChildren();
+  showGitFiles(project,review,review,files);
+  const previous=label("button","Previous page"), next=label("button","Next page");
+  previous.disabled=result.offset===0; next.disabled=result.next_offset===null;
+  previous.addEventListener("click",()=>safe(()=>loadGitHistory(project,review,container,details,files,Math.max(0,result.offset-result.limit))));
+  next.addEventListener("click",()=>safe(()=>loadGitHistory(project,review,container,details,files,result.next_offset)));
+  container.append(previous,next);
+  if(result.truncated) container.append(label("p","History page limit reached"));
+  for(const entry of result.commits) {
+    const row=text("div","","snapshot"), button=label("button","Review commit");
+    row.append(text("p",entry.oid.slice(0,12)+" / "+entry.subject),text("p",entry.author.name+" / "+entry.author.date),button);
+    button.addEventListener("click",()=>safe(()=>loadGitCommit(project,review,entry.oid,details,files,request)));
+    container.append(row);
+  }
+}
+async function loadGitCommit(project,review,oid,details,files,historyRequest,parent) {
+  const request=++gitReviewLoad, input={...gitContext(review),commit:oid};
+  if(parent!==undefined) input.parent=parent;
+  const result=await api("projects/"+project+"/git-commit","POST",input);
+  if(selected!==project || request!==gitReviewLoad || historyRequest!==gitHistoryLoad) return;
+  const entry=result.commit;
+  details.replaceChildren(text("h4",entry.oid+" / "+entry.subject));
+  for(const key of ["author","committer"]) {
+    const row=text("p","");
+    row.append(label("span",key==="author"?"Author":"Committer"),text("span",": "+entry[key].name+" <"+entry[key].email+">")); details.append(row);
+  }
+  if(!entry.parents.length) details.append(label("p","Root commit"));
+  entry.parents.forEach((oid,index)=>{
+    const row=text("p",""), button=label("button","Compare with parent {number}",{number:index+1});
+    button.addEventListener("click",()=>safe(()=>loadGitCommit(project,review,entry.oid,details,files,historyRequest,index+1)));
+    row.append(button,text("span"," "+oid)); details.append(row);
+  });
+  const back=label("button","Return to branch comparison");
+  back.addEventListener("click",()=>{details.replaceChildren();showGitFiles(project,review,review,files);});
+  details.append(back); showGitFiles(project,review,result,files);
 }
 $("git-refresh").addEventListener("click", () => safe(loadGitExchange));
 $("git-export").addEventListener("click", () => safe(async () => {

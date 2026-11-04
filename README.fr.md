@@ -12,6 +12,11 @@ par profil pour le desktop et dans le navigateur pour le Web.
 
 ## Démarrer
 
+La version 0.15 ajoute l'historique paginé des branches importées, les auteurs et validateurs,
+et la revue des fichiers d'un commit précis. Les commits initiaux et vides sont pris en charge ;
+pour une fusion, le parent de comparaison est sélectionnable. CyUI, le Web, le CLI et le SDK
+partagent ces fonctions et préservent le dossier de travail. Voir [l'historique Git](docs/git-history.md).
+
 La version 0.14 ajoute trois jalons Git : paramètres LFS par projet avec cache personnalisé
 explicitement autorisé, revue des branches importées et des fichiers modifiés dans CyUI/Web/CLI,
 puis nettoyage des exports locaux et objets LFS inutilisés après aperçu vérifié. Les données Git
@@ -57,7 +62,7 @@ Linux : `dist/bin/cysynck-desktop`. macOS : `open dist/CySynck.app`.
 Le CLI reste disponible avec `dist/bin/cysynck help` sur ces deux plateformes.
 Les scripts `scripts/build.ps1` et `scripts/build.sh` exécutent ces étapes.
 
-La version 0.14.0 prépare des archives `.tar.gz` pour Linux et ZIP pour Windows/macOS.
+La version 0.15.0 prépare des archives `.tar.gz` pour Linux et ZIP pour Windows/macOS.
 Le bundle macOS contient son cœur, ses ressources Web et ses licences. Voir le
 [guide des paquets et de compilation croisée Linux](docs/packaging.md) (anglais).
 

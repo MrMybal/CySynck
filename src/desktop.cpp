@@ -80,6 +80,18 @@ static void localize() {
          {"Unused LFS objects", "Objets LFS inutilisés"},
          {"Reclaimable bytes", "Octets récupérables"},
          {"Imported branches", "Branches importées"},
+         {"Branch history", "Historique de la branche"},
+         {"Load branch history", "Charger l'historique de la branche"},
+         {"Previous page", "Page précédente"},
+         {"Next page", "Page suivante"},
+         {"Review commit", "Revoir le commit"},
+         {"Compare with parent", "Comparer au parent"},
+         {"Return to branch comparison", "Revenir à la comparaison des branches"},
+         {"Root commit", "Commit initial"},
+         {"Author", "Auteur"},
+         {"Committer", "Validateur"},
+         {"No changed files", "Aucun fichier modifié"},
+         {"History page limit reached", "Limite des pages d'historique atteinte"},
          {"Review branch", "Revoir la branche"},
          {"Review file", "Revoir le fichier"},
          {"Local commits", "Commits locaux"},
@@ -508,7 +520,8 @@ class App {
         startup_state, backup_check, restore_preview, storage_state, conflict_state, conflict_diff,
         resolution_preview, resolution_preview_input, resolution_history, received_state,
         doctor_state, service_preview, service_preview_input, transfer_state, transfer_limits_state,
-        git_branches, git_review_state, git_review_diff, git_storage_state;
+        git_branches, git_review_state, git_review_diff, git_storage_state, git_history_state,
+        git_commit_state;
     std::set<std::string> git_storage_selected;
     bool git_storage_current = false;
     std::string view = "Overview", selected, theme = "mid-grey", language = "en", error, output,
@@ -717,7 +730,8 @@ class App {
         restore_id.clear();
         backup_check = restore_preview = nullptr;
         git_state = nullptr;
-        git_branches = git_review_state = git_review_diff = nullptr;
+        git_branches = git_review_state = git_review_diff = git_history_state = git_commit_state =
+            nullptr;
         git_storage_state = nullptr;
         git_storage_selected.clear();
         git_storage_current = false;
@@ -1847,6 +1861,43 @@ class App {
         ImGui::EndDisabled();
         c::endCard();
     }
+    Json git_context() const {
+        Json query;
+        for (auto key : {"peer", "branch", "base", "head"})
+            query[key] = git_review_state.at(key);
+        return query;
+    }
+    bool current_git_context(const Json &result) const {
+        return !git_review_state.is_null() && result.at("base") == git_review_state.at("base") &&
+               result.at("head") == git_review_state.at("head") &&
+               result.at("tracking_ref") == git_review_state.at("tracking_ref");
+    }
+    void load_git_history(uintmax_t offset = 0) {
+        if (busy())
+            return;
+        auto query = git_context();
+        query["offset"] = offset;
+        action("git-history", query, [this](const Json &r) {
+            if (!current_git_context(r))
+                return;
+            git_history_state = r;
+            git_commit_state = git_review_diff = nullptr;
+        });
+    }
+    void load_git_commit(const std::string &oid, unsigned parent = 0) {
+        if (busy())
+            return;
+        auto query = git_context();
+        query["commit"] = oid;
+        if (parent)
+            query["parent"] = parent;
+        action("git-commit", query, [this](const Json &r) {
+            if (!current_git_context(r))
+                return;
+            git_commit_state = r;
+            git_review_diff = nullptr;
+        });
+    }
     void git_view() {
         if (project()["mode"] != "git-bundles") {
             c::callout(c::Tone::info, c::tr("Use Git exchange mode for this view.").c_str());
@@ -1877,7 +1928,8 @@ class App {
             action("git-status", Json::object(), [this](const Json &r) { git_state = r; });
         ImGui::SameLine();
         if (button("Refresh")) {
-            git_branches = git_review_state = git_review_diff = nullptr;
+            git_branches = git_review_state = git_review_diff = git_history_state =
+                git_commit_state = nullptr;
             git_storage_current = false;
             load();
         }
@@ -1944,7 +1996,7 @@ class App {
                            {{"peer", branch.at("peer")}, {"branch", branch.at("branch")}},
                            [this](const Json &r) {
                                git_review_state = r;
-                               git_review_diff = nullptr;
+                               git_review_diff = git_history_state = git_commit_state = nullptr;
                            });
                 ImGui::PopID();
             }
@@ -1961,21 +2013,81 @@ class App {
             text(c::tr("Local commits") + ": " + git_review_state.at("local_only_commits").dump() +
                  " / " + c::tr("Peer commits") + ": " +
                  git_review_state.at("peer_only_commits").dump());
-            for (const auto &file : git_review_state.at("files")) {
+            if (button("Load branch history"))
+                load_git_history();
+            if (!git_history_state.is_null()) {
+                c::heading(c::tr("Branch history").c_str(), 3);
+                auto offset = git_history_state.at("offset").get<uintmax_t>();
+                auto limit = git_history_state.at("limit").get<uintmax_t>();
+                ImGui::BeginDisabled(offset == 0);
+                if (button("Previous page"))
+                    load_git_history(offset > limit ? offset - limit : 0);
+                ImGui::EndDisabled();
+                ImGui::SameLine();
+                ImGui::BeginDisabled(git_history_state.at("next_offset").is_null());
+                if (button("Next page"))
+                    load_git_history(git_history_state.at("next_offset"));
+                ImGui::EndDisabled();
+                if (git_history_state.at("truncated"))
+                    text(c::tr("History page limit reached"));
+                for (const auto &entry : git_history_state.at("commits")) {
+                    auto oid = entry.at("oid").get<std::string>();
+                    ImGui::PushID(oid.c_str());
+                    text(oid.substr(0, 12) + " / " + entry.at("subject").get<std::string>());
+                    text(entry.at("author").at("name").get<std::string>() + " / " +
+                         entry.at("author").at("date").get<std::string>());
+                    if (button("Review commit"))
+                        load_git_commit(oid);
+                    ImGui::PopID();
+                }
+            }
+            if (!git_commit_state.is_null()) {
+                const auto &entry = git_commit_state.at("commit");
+                text(entry.at("oid").get<std::string>() + " / " +
+                     entry.at("subject").get<std::string>());
+                for (auto key : {"author", "committer"})
+                    text(c::tr(key == std::string("author") ? "Author" : "Committer") + ": " +
+                         entry.at(key).at("name").get<std::string>() + " <" +
+                         entry.at(key).at("email").get<std::string>() + ">");
+                if (entry.at("parents").empty())
+                    text(c::tr("Root commit"));
+                for (size_t i = 0; i < entry.at("parents").size(); ++i) {
+                    auto label = c::tr("Compare with parent") + " " + std::to_string(i + 1);
+                    if (c::button(label.c_str()))
+                        load_git_commit(entry.at("oid"), static_cast<unsigned>(i + 1));
+                    ImGui::SameLine();
+                    text(entry.at("parents")[i]);
+                }
+                if (button("Return to branch comparison"))
+                    git_commit_state = git_review_diff = nullptr;
+            }
+            const auto &comparison =
+                git_commit_state.is_null() ? git_review_state : git_commit_state;
+            if (comparison.at("files").empty())
+                text(c::tr("No changed files"));
+            for (const auto &file : comparison.at("files")) {
                 auto path = file.at("path").get<std::string>();
                 ImGui::PushID(path.c_str());
                 text(file.at("status").get<std::string>() + " / " + path);
                 if (button("Review file")) {
-                    Json query;
-                    for (auto key : {"peer", "branch", "base", "head"})
-                        query[key] = git_review_state.at(key);
+                    auto query = git_context();
                     query["path"] = path;
-                    action("git-review-file", query, [this, query](const Json &r) {
-                        if (!git_review_state.is_null() &&
-                            git_review_state.at("base") == query.at("base") &&
-                            git_review_state.at("head") == query.at("head"))
-                            set_comparison(r, git_review_diff, git_document);
-                    });
+                    if (!git_commit_state.is_null()) {
+                        query["commit"] = git_commit_state.at("commit").at("oid");
+                        query["parent"] = git_commit_state.at("parent");
+                    }
+                    action(query.contains("commit") ? "git-commit-file" : "git-review-file", query,
+                           [this, query](const Json &r) {
+                               bool sameCommit =
+                                   query.contains("commit")
+                                       ? !git_commit_state.is_null() &&
+                                             git_commit_state.at("commit").at("oid") ==
+                                                 query.at("commit") &&
+                                             git_commit_state.at("parent") == query.at("parent")
+                                       : git_commit_state.is_null();
+                               if (current_git_context(r) && sameCommit)
+                                   set_comparison(r, git_review_diff, git_document);
+                           });
                 }
                 ImGui::PopID();
             }
@@ -2011,7 +2123,8 @@ class App {
                 if (button("Import tracking branch"))
                     action("import", {{"peer", b["peer"]}, {"bundle", b["id"]}},
                            [this](const Json &) {
-                               git_branches = git_review_state = git_review_diff = nullptr;
+                               git_branches = git_review_state = git_review_diff =
+                                   git_history_state = git_commit_state = nullptr;
                            });
                 ImGui::EndDisabled();
                 c::endCard();
