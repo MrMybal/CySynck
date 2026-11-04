@@ -6,6 +6,7 @@
 #include <charconv>
 #include <cstdlib>
 #include <fstream>
+#include <limits>
 #include <set>
 #include <sstream>
 
@@ -198,6 +199,103 @@ Json tree(const Git &git, const std::string &commit,
     }
     return entries;
 }
+Json local_data(const fs::path &root, const Json &current, const Json &before, const Json &after) {
+    std::set<std::string, GitPathLess> tracked, directories, incoming;
+    std::map<std::string, std::string, GitPathLess> paths;
+    for (const auto &file : current)
+        tracked.insert(file.at("path").get<std::string>());
+    for (const auto &files : {before, after})
+        for (const auto &file : files) {
+            auto name = file.at("path").get<std::string>();
+            validate_git_path(name, paths);
+            for (auto parent = fs::u8path(name).parent_path(); !parent.empty();
+                 parent = parent.parent_path())
+                directories.insert(path_string(parent));
+        }
+    for (const auto &file : after)
+        incoming.insert(file.at("path").get<std::string>());
+    std::map<std::string, Json, GitPathLess> inventory;
+    size_t visited = 0, files = 0, folders = 0, metadata_bytes = 2;
+    uintmax_t bytes = 0;
+    for (fs::recursive_directory_iterator it(root), end; it != end; ++it) {
+        auto relative = it->path().lexically_relative(root);
+        if (relative == ".git") {
+            it.disable_recursion_pending();
+            continue;
+        }
+        if (++visited > 100000)
+            throw std::runtime_error("Git integration scans at most 100000 working-tree entries");
+        auto name = path_string(relative);
+        validate_git_path(name, paths);
+        auto path = project_child(root, name); // Reject reparse points before descending.
+        auto status = fs::symlink_status(path);
+        bool directory = fs::is_directory(status);
+        if (!directory && !fs::is_regular_file(status))
+            throw std::runtime_error("Local data contains a linked or special entry: " + name);
+        if (!directory && tracked.contains(name))
+            continue;
+        // Shared tracked parent directories may gain/lose tracked children during checkout.
+        if (directory && directories.contains(name))
+            continue;
+        if (incoming.contains(name))
+            throw std::runtime_error("Local data collides with an imported file: " + name);
+        for (auto parent = relative.parent_path(); !parent.empty(); parent = parent.parent_path())
+            if (incoming.contains(path_string(parent)))
+                throw std::runtime_error("Local data lies below an imported file: " + name);
+        // A local file must not replace a directory needed by the imported tree.
+        if (!directory && directories.contains(name))
+            throw std::runtime_error("Local data blocks a Git directory: " + name);
+        auto leaf = path_string(relative.filename());
+        std::transform(leaf.begin(), leaf.end(), leaf.begin(), [](unsigned char c) {
+            return c >= 'A' && c <= 'Z' ? static_cast<char>(c + 'a' - 'A') : static_cast<char>(c);
+        });
+        if (leaf == ".gitattributes")
+            throw std::runtime_error("Untracked attributes require manual handling: " + name);
+        Json entry = {{"path", name},
+                      {"type", directory ? "directory" : "file"},
+                      {"permissions", static_cast<unsigned>(status.permissions())}};
+        if (directory) {
+            ++folders;
+        } else {
+            auto size = fs::file_size(path);
+            if (size > std::numeric_limits<uintmax_t>::max() - bytes)
+                throw std::runtime_error("Local data size exceeds the supported range");
+            bytes += size;
+            ++files;
+            entry["bytes"] = size;
+            auto modified = fs::last_write_time(path).time_since_epoch().count();
+#ifdef _LIBCPP_VERSION
+            // libc++ can use a 128-bit file clock; std::to_string has no such overload.
+            bool negative = modified < 0;
+            std::string stamp;
+            do {
+                auto digit = modified % 10;
+                if (digit < 0)
+                    digit = -digit;
+                stamp += static_cast<char>('0' + digit);
+                modified /= 10;
+            } while (modified != 0);
+            if (negative)
+                stamp += '-';
+            std::reverse(stamp.begin(), stamp.end());
+            entry["modified"] = stamp;
+#else
+            entry["modified"] = std::to_string(modified);
+#endif
+        }
+        metadata_bytes += entry.dump().size() + 1;
+        if (metadata_bytes > 16 * 1024 * 1024)
+            throw std::runtime_error("Local data metadata exceeds 16 MiB");
+        inventory.emplace(name, std::move(entry));
+    }
+    Json entries = Json::array();
+    for (const auto &[name, entry] : inventory)
+        entries.push_back(entry);
+    return {{"files", files},
+            {"directories", folders},
+            {"bytes", bytes},
+            {"fingerprint", sha256(entries.dump())}};
+}
 Json inspect(const fs::path &state, const Json &project, const Json &data) {
     if (data.contains("commit"))
         throw std::runtime_error(
@@ -210,6 +308,7 @@ Json inspect(const fs::path &state, const Json &project, const Json &data) {
                    {"root", path_string(root)},
                    {"applied", false},
                    {"can_integrate", false},
+                   {"local_data", nullptr},
                    {"plan", nullptr},
                    {"errors", Json::array()}});
     auto block = [&](const std::string &reason) { result["errors"].push_back(reason); };
@@ -276,13 +375,11 @@ Json inspect(const fs::path &state, const Json &project, const Json &data) {
             }
 #endif
         }
-        // Include ignored payloads: native merge defaults may otherwise overwrite them.
-        if (!git.get({"ls-files", "--others", "-z"}).empty())
-            block("Move untracked and ignored files outside the project before integration");
-        if (!git.get({"status", "--porcelain=v1", "-z", "--untracked-files=all",
+        result["local_data"] = local_data(root, before, before, after);
+        if (!git.get({"status", "--porcelain=v1", "-z", "--untracked-files=no",
                       "--ignore-submodules=none"})
                  .empty())
-            block("The working tree must be clean before integration");
+            block("Tracked files and index must be clean before integration");
         result["index_hash"] = sha256(index);
     } catch (const std::exception &error) {
         block(error.what());
@@ -366,8 +463,12 @@ Json integrate_git_branch(const fs::path &state, const Json &project, const Json
                     "Integrated executable permissions do not match the reviewed tree");
 #endif
         }
-        if (!git.get({"status", "--porcelain=v1", "-z", "--untracked-files=all"}).empty())
+        if (!git.get({"status", "--porcelain=v1", "-z", "--untracked-files=no"}).empty())
             throw std::runtime_error("Working tree changed during integration; inspect Git status");
+        if (local_data(root, result.at("files_after"), result.at("files_before"),
+                       result.at("files_after")) != result.at("local_data"))
+            throw std::runtime_error(
+                "Local data changed during integration; inspect the repository and receipt");
         record.update({{"applied", true},
                        {"status", "complete"},
                        {"plan", nullptr},

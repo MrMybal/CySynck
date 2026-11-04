@@ -540,7 +540,7 @@ function gitContext(review) {return {peer:review.peer,branch:review.branch,base:
 function showGitIntegration(project,review,container) {
   const card=text("div","","snapshot"), preview=label("button","Preview integration"), apply=label("button","Apply fast-forward"), output=text("div","");
   apply.disabled=true;
-  card.append(label("h4","Integrate imported branch"),label("p","Updates the local branch, index and working files. Requires a clean project; LFS and checkout filters use separate extraction."),text("p",review.head),preview,apply,output);
+  card.append(label("h4","Integrate imported branch"),label("p","Updates the local branch, index and tracked files. Unrelated local files are preserved; LFS and checkout filters use separate extraction."),text("p",review.head),preview,apply,output);
   container.append(card);
   let plan=null,request=0;
   const current=()=>selected===project && card.isConnected;
@@ -549,6 +549,7 @@ function showGitIntegration(project,review,container) {
     const query=gitContext(review),result=await api("projects/"+project+"/git-integrate","POST",query);
     if(!current() || generation!==request)return;
     output.replaceChildren();
+    if(result.local_data)output.append(label("p","Local files preserved: {files} · {bytes} bytes",result.local_data));
     if(result.errors.length){output.append(label("p","Integration blocked"));for(const reason of result.errors)output.append(label("p",reason));}
     if(result.can_integrate){plan={input:query,token:result.plan};apply.disabled=false;}
   }));

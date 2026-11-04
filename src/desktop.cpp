@@ -98,8 +98,8 @@ static void localize() {
           "Préservez les fichiers de travail modifiés ou manquants avant l'intégration"},
          {"Move untracked and ignored files outside the project before integration",
           "Déplacez les fichiers non suivis et ignorés hors du projet avant l'intégration"},
-         {"The working tree must be clean before integration",
-          "Le dossier de travail doit être propre avant l'intégration"},
+         {"Tracked files and index must be clean before integration",
+          "Les fichiers suivis et l'index doivent être propres avant l'intégration"},
          {"LFS revisions require separate extraction; Git integration does not hydrate assets yet",
           "Les révisions LFS nécessitent une extraction séparée ; l'intégration Git ne restaure "
           "pas encore les assets"},
@@ -111,12 +111,13 @@ static void localize() {
          {"Integrate imported branch", "Intégrer la branche importée"},
          {"Preview integration", "Prévisualiser l'intégration"},
          {"Apply fast-forward", "Appliquer l'avance rapide"},
+         {"Local files preserved", "Fichiers locaux conservés"},
          {"Integration complete", "Intégration terminée"},
          {"Integration blocked", "Intégration bloquée"},
-         {"Updates the local branch, index and working files. Requires a clean project; LFS and "
-          "checkout filters use separate extraction.",
-          "Met à jour la branche locale, l'index et les fichiers du projet. Le projet doit être "
-          "propre ; les fichiers LFS et les filtres nécessitent une extraction séparée."},
+         {"Updates the local branch, index and tracked files. Unrelated local files are preserved; "
+          "LFS and checkout filters use separate extraction.",
+          "Met à jour la branche locale, l'index et les fichiers suivis. Les fichiers locaux sans "
+          "collision sont conservés ; LFS et les filtres nécessitent une extraction séparée."},
          {"Preview extraction", "Prévisualiser l'extraction"},
          {"Extract to new directory", "Extraire vers un nouveau dossier"},
          {"New extraction directory", "Nouveau dossier d'extraction"},
@@ -2191,9 +2192,10 @@ class App {
             if (git_commit_state.is_null()) {
                 c::beginCard("git-integrate", c::tr("Integrate imported branch").c_str());
                 ImGui::TextWrapped(
-                    "%s", c::tr("Updates the local branch, index and working files. Requires a "
-                                "clean project; LFS and checkout filters use separate extraction.")
-                              .c_str());
+                    "%s",
+                    c::tr("Updates the local branch, index and tracked files. Unrelated local "
+                          "files are preserved; LFS and checkout filters use separate extraction.")
+                        .c_str());
                 auto integrateQuery = git_context();
                 text(git_review_state.at("head"));
                 if (button("Preview integration")) {
@@ -2222,6 +2224,12 @@ class App {
                     });
                 }
                 ImGui::EndDisabled();
+                if (!git_integrate_state.is_null() &&
+                    !git_integrate_state.at("local_data").is_null()) {
+                    const auto &local = git_integrate_state.at("local_data");
+                    text(c::tr("Local files preserved") + ": " + local.at("files").dump() + " / " +
+                         local.at("bytes").dump() + " B");
+                }
                 if (!git_integrate_state.is_null() && !git_integrate_state.at("errors").empty()) {
                     text(c::tr("Integration blocked"));
                     for (const auto &reason : git_integrate_state.at("errors"))

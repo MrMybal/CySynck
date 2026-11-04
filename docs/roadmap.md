@@ -1,5 +1,15 @@
 # Development milestones
 
+## Delivered in 0.20
+
+Reviewed fast-forward integration preserves unrelated untracked and ignored regular files,
+including build outputs and standalone empty directories. Filesystem-based collision checks
+protect incoming files and parent directories regardless of ignore rules. A bounded local
+metadata fingerprint pins the preview and is checked after checkout; file contents are not
+read for this inventory. CLI, SDK, CyUI and Web expose preserved-file counts and bytes.
+Tracked changes, local checkout attributes, links and conflicting paths remain blocked.
+See [local-data preservation](git-integration.md#local-data-freshness) for limits and concurrency.
+
 ## Delivered in 0.19
 
 Imported branch heads can be integrated into a clean local project by reviewed fast-forward,

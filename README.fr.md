@@ -12,8 +12,9 @@ par profil pour le desktop et dans le navigateur pour le Web.
 
 L'intégration des branches importées propose désormais une avance rapide dans le projet
 local, y compris avant son premier commit. Un aperçu vérifié précède la mise à jour de la
-branche, de l'index et des fichiers. Les changements locaux, fichiers ignorés ou non suivis,
-historiques divergents, pointeurs LFS et filtres bloquent l'opération.
+branche, de l'index et des fichiers. Les fichiers non suivis ou ignorés sans collision sont
+conservés, avec une empreinte de métadonnées vérifiée. Les modifications des fichiers suivis,
+les collisions, historiques divergents, pointeurs LFS et filtres bloquent l'opération.
 Voir le [guide d'intégration Git](docs/git-integration.md).
 
 ## Démarrer

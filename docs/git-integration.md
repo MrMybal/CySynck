@@ -2,7 +2,8 @@
 
 From 0.19, an imported branch head can update the local project by fast-forward.
 The operation updates the currently selected local branch, the Git index and working
-files. It also supports a new repository whose local branch has no first commit yet.
+files. From 0.20, unrelated regular local files and ignored build outputs can remain
+in the project. It also supports a new repository whose local branch has no first commit yet.
 It creates no merge commit and never rewinds or merges divergent history.
 
 ## Preview and apply
@@ -16,7 +17,8 @@ cysynck git integrate game-team PEER_ID main --apply true --plan PREVIEW_TOKEN
 
 Optional `--base COMMIT|unborn`, `--head FULL_OID` and `--local-ref refs/heads/BRANCH`
 pin the comparison context. The preview token also binds the project, state profile,
-configuration digest and exact before/after tree inventory. Application inspects the
+configuration digest, exact before/after tree inventory and local-data metadata fingerprint.
+Application inspects the
 repository again; changed refs, staged or working files and configuration invalidate it.
 Preview does not update the index or working files. The native and Web branch comparison
 views expose **Preview integration** and **Apply fast-forward** in English and French.
@@ -31,7 +33,9 @@ POST /api/projects/PROJECT_ID/git-integrate
 ```
 
 Preview returns `can_integrate`, `errors`, `relation`, `base`, `head`, `local_ref`,
-`files_before`, `files_after`, `file_count` and `plan`. Blocked previews provide reasons
+`files_before`, `files_after`, `file_count`, `local_data` and `plan`. `local_data` includes
+`files`, `directories`, `bytes` and a SHA-256 `fingerprint` of the sorted metadata inventory.
+Blocked previews provide reasons
 and no token. Invalid repository context can return an error instead. Success returns
 `applied: true`, `status: "complete"`, `receipt` and `receipt_path`.
 
@@ -42,8 +46,14 @@ and no token. Invalid repository context can return an error instead. Success re
 - A clean index and byte-for-byte working files. Raw file hashes are checked even when
   Git's stat cache could hide modifications. Assume-unchanged/skip-worktree flags and
   changed executable bits are refused. Staged changes are preserved by refusal.
-- **All untracked and ignored files block integration**, even when they appear unrelated.
-  Preserve them outside this project first. No automatic stash or deletion is performed.
+- Unrelated untracked and ignored regular files remain in place. Files that collide with
+  incoming file names or required parent directories block the operation, even if Git ignores
+  them. Local descendants and empty local folders also block replacement by an imported file.
+  Case aliases and linked/special entries are refused. Untracked `.gitattributes` files are
+  refused because they could change checkout behavior. No stash or local-data deletion occurs.
+- The filesystem scan includes at most 100,000 entries outside the root `.git`, with at most
+  16 MiB of local metadata. Counts include standalone empty local folders; directories shared
+  with a tracked tree are omitted from the local-directory inventory.
 - Regular files only: at most 10,000 per tree, 1 GiB per blob and 16 GiB per tree.
   Linked files, submodules, unsafe paths, metadata aliases and case collisions are refused.
   Case-only renames require manual Git handling.
@@ -58,6 +68,21 @@ An installation of Git supporting `check-attr --source` is required (Git 2.43 or
 The effective user `core.attributesFile` is disabled for this operation; repository and
 system attributes are inspected and must satisfy the rules above. Files are checked
 again after checkout against their reviewed raw Git object IDs.
+
+## Local-data freshness
+
+The local inventory uses relative paths, entry types and permissions, plus regular-file sizes
+and modification timestamps. It includes ignored files without relying on ignore rules. Its
+metadata fingerprint is part of the preview token and is checked again after checkout. Creating,
+removing, renaming or changing the recorded metadata requires a new preview. The receipt retains
+the counts, logical byte total and fingerprint.
+
+Directory timestamps are omitted because checkout may add or remove tracked children in shared
+folders. Local file contents are not loaded or hashed: a large ignored cache does not need to be
+read. The fingerprint does not detect a same-size rewrite whose modification timestamp is restored,
+and does not represent a content backup. Byte hashes are still verified for all tracked Git files.
+Stop background builds and avoid concurrent edits while applying; post-check failure preserves an
+incomplete receipt and does not undo an already completed Git update.
 
 ## Execution and interrupted operations
 

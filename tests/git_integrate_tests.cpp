@@ -1,5 +1,6 @@
 #include <cysynck/core.hpp>
 #include "git_lfs.hpp"
+#include <chrono>
 #include <functional>
 #include <iostream>
 using namespace cysynck;
@@ -86,14 +87,44 @@ int main() {
                 return request(q);
             };
             atomic_write(receiver / "keep.txt", "keep\n");
-            check(!request(query).at("can_integrate").get<bool>(),
-                  "Untracked files block first integration");
+            check(request(query).at("can_integrate").get<bool>(),
+                  "Unrelated untracked files permit first integration");
             rejects([&] { apply(preview); },
                     "A local file added after preview invalidates application");
             check(read_file(receiver / "keep.txt") == "keep\n" &&
                       !fs::exists(receiver / "first.txt"),
                   "Blocked integration preserves every local file");
-            fs::remove(receiver / "keep.txt");
+            auto withLocal = request(query);
+            check(withLocal.at("local_data").at("files") == 1 &&
+                      withLocal.at("local_data").at("bytes") == 5,
+                  "Preview reports local data without including it in the imported tree");
+            atomic_write(receiver / "keep.txt", "changed local content\n");
+            rejects([&] { apply(withLocal); },
+                    "Changed local metadata invalidates the reviewed inventory");
+            atomic_write(receiver / "keep.txt", "keep\n");
+            auto sameSize = request(query);
+            auto oldTime = fs::last_write_time(receiver / "keep.txt");
+            atomic_write(receiver / "keep.txt", "edit\n");
+            fs::last_write_time(receiver / "keep.txt", oldTime + std::chrono::seconds(2));
+            rejects([&] { apply(sameSize); },
+                    "A same-size local edit with a new timestamp invalidates the preview");
+            atomic_write(receiver / "keep.txt", "keep\n");
+            atomic_write(receiver / "dir", "local file blocks incoming directory\n");
+            check(!request(query).at("can_integrate").get<bool>(),
+                  "A local file cannot replace an incoming parent directory");
+            fs::remove(receiver / "dir");
+            fs::create_directories(receiver / "first.txt");
+            check(!request(query).at("can_integrate").get<bool>(),
+                  "An empty local directory cannot be replaced by an imported file");
+            fs::remove(receiver / "first.txt");
+            atomic_write(receiver / ".gitattributes", "* text\n");
+            check(!request(query).at("can_integrate").get<bool>(),
+                  "Untracked attributes cannot change the meaning of checkout");
+            fs::remove(receiver / ".gitattributes");
+            atomic_write(receiver / "First.txt", "case collision\n");
+            check(!request(query).at("can_integrate").get<bool>(),
+                  "Local files cannot alias incoming names by case");
+            fs::remove(receiver / "First.txt");
             git(b, {"config", "core.fsmonitor", "command-that-must-not-run"});
             auto hook = receiver / ".git/hooks/post-merge";
             atomic_write(hook, "#!/bin/sh\necho ran > hook-ran\n");
@@ -118,6 +149,9 @@ int main() {
                       read_file(receiver / fs::u8path("dir/été [x].bin")) ==
                           std::string("\0bin\xff", 5),
                   "First integration preserves binary bytes and Unicode paths");
+            check(read_file(receiver / "keep.txt") == "keep\n" &&
+                      done.at("local_data").at("files") == 1,
+                  "First integration preserves local data and records its inventory");
             check(Json::parse(read_file(fs::u8path(done.at("receipt_path").get<std::string>())))
                               .at("status") == "complete" &&
                       !fs::exists(receiver / "hook-ran"),
@@ -165,6 +199,28 @@ int main() {
             check(read_file(receiver / "new.bin") == "ignored local payload\n",
                   "Ignored payload is never overwritten");
             fs::remove(receiver / "new.bin");
+            fs::create_directories(receiver / "new.bin");
+            atomic_write(receiver / "new.bin/keep.bin", "nested local payload\n");
+            check(!request(query).at("can_integrate").get<bool>(),
+                  "Local descendants prevent an imported file from replacing their directory");
+            fs::remove(receiver / "new.bin/keep.bin");
+            fs::remove(receiver / "new.bin");
+            atomic_write(receiver / "Build/cache.bin", std::string(9 * 1024 * 1024 + 17, 'k'));
+            atomic_write(receiver / "dir/local.txt", "local file in a tracked directory\n");
+            fs::create_directories(receiver / "Scratch/empty");
+            fs::create_directories(receiver / "dir/empty");
+            atomic_write(receiver / ".git/info/exclude", "new.bin\nBuild/\n");
+            auto localDigest = sha256_file(receiver / "Build/cache.bin");
+            auto localModified = fs::last_write_time(receiver / "Build/cache.bin");
+            auto preserved = request(query);
+            check(preserved.at("can_integrate") && preserved.at("local_data").at("files") == 3 &&
+                      preserved.at("local_data").at("directories") == 4,
+                  "Ignored build files, shared directories and empty local directories are "
+                  "permitted");
+            atomic_write(receiver / "Build/new.cache", "new build file\n");
+            rejects([&] { apply(preserved); },
+                    "Adding an unrelated ignored file invalidates an older preview");
+            fs::remove(receiver / "Build/new.cache");
             rejects(
                 [&] { cli(target, {"git", "integrate", "team", peer, "main", "--commit", first}); },
                 "Selected-commit flags cannot silently apply a branch head");
@@ -196,6 +252,17 @@ int main() {
                       !fs::exists(receiver / fs::u8path("dir/été [x].bin")) &&
                       sha256_file(receiver / "new.bin") == sha256_file(root / "new.bin"),
                   "Fast-forward applies modifications, deletions and files beyond 8 MiB");
+            check(sha256_file(receiver / "Build/cache.bin") == localDigest &&
+                      fs::last_write_time(receiver / "Build/cache.bin") == localModified &&
+                      read_file(receiver / "dir/local.txt") ==
+                          "local file in a tracked directory\n" &&
+                      read_file(receiver / "keep.txt") == "keep\n" &&
+                      fs::is_directory(receiver / "Scratch/empty") &&
+                      fs::is_directory(receiver / "dir/empty"),
+                  "Fast-forward retains ignored bytes, timestamps, untracked files and empty "
+                  "directories");
+            check(done.at("local_data") == preserved.at("local_data"),
+                  "Completed receipt retains the reviewed metadata fingerprint");
             git(b, {"checkout", "--detach", second});
             check(!request(query).at("can_integrate").get<bool>(), "Detached HEAD is preserved");
             git(b, {"checkout", "main"});
