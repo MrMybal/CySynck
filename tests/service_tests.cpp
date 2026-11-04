@@ -34,42 +34,43 @@ int main() {
             return core.request("POST", "/api/service/export", input);
         };
         auto before = read_file(core.state() / "registry.json");
-        auto linux = plan(data);
-        check(!linux.at("installed") && linux.at("arguments").at(5) == "127.0.0.1",
+        auto linux_plan = plan(data);
+        check(!linux_plan.at("installed") && linux_plan.at("arguments").at(5) == "127.0.0.1",
               "Service plans use loopback and do not claim installation");
-        check(plan(data).at("plan") == linux.at("plan"),
+        check(plan(data).at("plan") == linux_plan.at("plan"),
               "The same parameters give a stable preview");
-        check(linux.at("contents")
+        check(linux_plan.at("contents")
                       .get<std::string>()
                       .find("ExecStart=:\"/opt/App éspace %% $x/bin/cysynck\"") !=
                   std::string::npos,
               "Systemd disables environment expansion and escapes percent specifiers");
-        check(linux.at("contents").get<std::string>().find("UMask=0077") != std::string::npos &&
-                  linux.at("contents").get<std::string>().find("KillMode=control-group") !=
+        check(linux_plan.at("contents").get<std::string>().find("UMask=0077") !=
+                      std::string::npos &&
+                  linux_plan.at("contents").get<std::string>().find("KillMode=control-group") !=
                       std::string::npos,
               "Systemd restricts file creation and stops the service process group");
         check(read_file(core.state() / "registry.json") == before,
               "Preparing a service changes neither settings nor startup registration");
         auto other = data;
         other["target_state"] = "/srv/second-profile";
-        check(plan(other).at("filename") != linux.at("filename"),
+        check(plan(other).at("filename") != linux_plan.at("filename"),
               "Profiles have independent service identities");
         other = data;
         other["port"] = 8585;
-        check(plan(other).at("filename") == linux.at("filename") &&
-                  plan(other).at("plan") != linux.at("plan"),
+        check(plan(other).at("filename") == linux_plan.at("filename") &&
+                  plan(other).at("plan") != linux_plan.at("plan"),
               "A port change keeps service identity but invalidates the preview");
         rejects([&] { export_files(data, run / "without-preview"); },
                 "Export requires a matching preview");
-        other["plan"] = linux.at("plan");
+        other["plan"] = linux_plan.at("plan");
         rejects([&] { export_files(other, run / "stale"); },
                 "Changed parameters cannot reuse a preview");
         check(!fs::exists(run / "stale"), "A stale preview creates no output directory");
-        data["plan"] = linux.at("plan");
+        data["plan"] = linux_plan.at("plan");
         auto result = export_files(data, run / "linux-export");
-        auto filename = linux.at("filename").get<std::string>();
-        check(linux.at("contents") == read_file(run / "linux-export" / filename) &&
-                  linux.at("instructions") == read_file(run / "linux-export/README.md"),
+        auto filename = linux_plan.at("filename").get<std::string>();
+        check(linux_plan.at("contents") == read_file(run / "linux-export" / filename) &&
+                  linux_plan.at("instructions") == read_file(run / "linux-export/README.md"),
               "Export writes the reviewed configuration and target-specific instructions");
         auto receipt = Json::parse(read_file(run / "linux-export/service-export.json"));
         check(receipt.at("files").at(filename) == sha256_file(run / "linux-export" / filename) &&
@@ -121,12 +122,26 @@ int main() {
             other["port"] = port;
             rejects([&] { plan(other); }, "Service ports require an unprivileged integer");
         }
+        for (const auto &executable : std::vector<std::string>{
+                 "/opt/app'quote/cysynck", "/opt/app?glob/cysynck", "/opt/app\\slash/cysynck"}) {
+            other = data;
+            other["executable"] = executable;
+            rejects([&] { plan(other); },
+                    "Executable paths unsupported by systemd are rejected before export");
+        }
+        rejects(
+            [&] {
+                cli(core, {"service", "plan", "--platform", "linux", "--executable",
+                           "/opt/cysynck/bin/cysynck", "--target-state", "/srv/team", "--port",
+                           "8484junk"});
+            },
+            "CLI ports cannot silently ignore trailing text");
         other = data;
         other["platform"] = "windows";
         rejects([&] { plan(other); }, "Unsupported service platforms are explicit");
         check(cli(core, {"service", "plan", "--platform", "linux", "--executable",
                          data.at("executable"), "--target-state", data.at("target_state")})
-                      .at("plan") == linux.at("plan"),
+                      .at("plan") == linux_plan.at("plan"),
               "CLI and API produce the same reviewed service");
         std::cout << "PASS " << checks << " service checks; fixtures: " << path_string(run) << '\n';
         return 0;

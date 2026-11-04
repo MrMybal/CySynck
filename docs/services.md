@@ -1,5 +1,9 @@
 # Prepare a headless user service
 
+The desktop and Web **Services** views prepare the same configurations as the CLI and API.
+Changing an input invalidates the displayed preview. Export destinations refer to the machine
+running the core/server, rather than the browser's local filesystem.
+
 CySynck can prepare a systemd user unit for Linux or a LaunchAgent for macOS. Preparation
 and export are available on any host, including Windows when staging a Linux installation.
 They do not install, enable or start services. Windows desktop login registration remains
@@ -21,6 +25,8 @@ cysynck service export /tmp/team-service --platform linux \
 Replace `linux` with `macos` for a LaunchAgent. On a POSIX host, omitting `--target-state`
 uses the CLI's selected `--state` profile. On Windows, explicitly give the target POSIX
 state path. Target paths must be absolute, without dot components or control characters.
+Systemd also disallows quotes, backslashes and glob characters in the executable path;
+these are rejected before preview. Spaces and literal percent/dollar characters are supported.
 The API port must be an integer from 1024 through 65535. Binding stays on `127.0.0.1`;
 use an SSH tunnel for remote administration.
 

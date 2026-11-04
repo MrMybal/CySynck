@@ -68,7 +68,21 @@ static void field(const char *label, std::string &value) {
 static void localize() {
     c::registerTranslations(
         "fr",
-        {{"Diagnostics", "Diagnostic"},
+        {{"Services", "Services"},
+         {"Target platform", "Plateforme cible"},
+         {"CLI on target", "CLI sur la cible"},
+         {"State on target", "Profil sur la cible"},
+         {"API port", "Port API"},
+         {"Prepare service", "Préparer le service"},
+         {"Export service files", "Exporter les fichiers du service"},
+         {"Service files exported", "Fichiers du service exportés"},
+         {"Review the target paths and port. Export does not install or start a service.",
+          "Vérifiez les chemins et le port sur la cible. L'export n'installe ni ne démarre de "
+          "service."},
+         {"Open the exported README on the target machine for installation and removal commands.",
+          "Ouvrez le README exporté sur la machine cible pour les commandes d'installation et de "
+          "suppression."},
+         {"Diagnostics", "Diagnostic"},
          {"Inspect diagnostics", "Actualiser le diagnostic"},
          {"Test tools and connection", "Tester les outils et la connexion"},
          {"Errors", "Erreurs"},
@@ -413,7 +427,7 @@ class App {
         incoming = Json::array(), messages = Json::array(), engine_state, engine_devices,
         startup_state, backup_check, restore_preview, storage_state, conflict_state, conflict_diff,
         resolution_preview, resolution_preview_input, resolution_history, received_state,
-        doctor_state;
+        doctor_state, service_preview, service_preview_input;
     std::string view = "Overview", selected, theme = "mid-grey", language = "en", error, output,
                 query, baseline, comparison_snapshot, destination, restore_id, compare_left,
                 compare_right, selected_conflict, merged_content, selected_resolution,
@@ -433,6 +447,8 @@ class App {
     bool close_to_tray = true, start_hidden = false, tray_available = false, quit_requested = false,
          hide_requested = false;
     std::string tray_reason;
+    std::string service_executable, service_target_state, service_destination;
+    int service_platform = 0, service_port = 8484;
     std::unordered_map<std::string, bool> verified;
     c::DiffDocument document;
     c::DiffState diff_state;
@@ -444,6 +460,12 @@ class App {
 
   public:
     App(cysynck::Core &value, cysynck::desktop::LoginStartup &login) : core(value), startup(login) {
+#ifndef _WIN32
+        service_target_state = cysynck::path_string(core.state());
+#endif
+#ifdef __APPLE__
+        service_platform = 1;
+#endif
         overview = core.request("GET", "/api/overview");
         events = core.request("GET", "/api/events");
         startup_state = startup.status();
@@ -699,7 +721,7 @@ class App {
                          ImGuiWindowFlags_NoSavedSettings);
         ImGui::BeginChild("navigation", c::dp(245, 0));
         c::heading("CySynck", 1);
-        c::textDim("0.8 / C++20");
+        c::textDim("%s / C++20", cysynck::version);
         c::space(12);
         if (c::sidebarItem("", c::trLabel("Overview").c_str(), view == "Overview"))
             view = "Overview";
@@ -719,7 +741,7 @@ class App {
         c::space(14);
         for (auto page :
              {"Changes", "Conflicts", "Backups", "Git exchange", "Engine", "Network", "Activity",
-              "Storage", "Diagnostics", "Command line", "Settings", "Application"})
+              "Storage", "Diagnostics", "Services", "Command line", "Settings", "Application"})
             if (c::sidebarItem("", c::trLabel(page).c_str(),
                                view == page ||
                                    (std::string(page) == "Conflicts" && view == "Recovery") ||
@@ -745,7 +767,7 @@ class App {
         ImGui::BeginChild("workspace", ImVec2(0, 0));
         c::heading(c::tr(view.c_str()).c_str(), 1);
         auto p = project();
-        c::textDim("%s", (view == "Storage" || view == "Diagnostics")
+        c::textDim("%s", (view == "Storage" || view == "Diagnostics" || view == "Services")
                              ? c::tr("All projects").c_str()
                          : !p.is_null() && view != "Overview" ? p["name"].get<std::string>().c_str()
                                                               : c::tr("Projects").c_str());
@@ -762,6 +784,8 @@ class App {
             application_view();
         else if (view == "Diagnostics")
             diagnostics_view();
+        else if (view == "Services")
+            services_view();
         else if (view == "Storage")
             storage_view();
         else if (view == "Network")
@@ -832,6 +856,73 @@ class App {
             c::endCard();
             c::space(6);
         }
+    }
+    Json service_input() const {
+        return {{"platform", service_platform ? "macos" : "linux"},
+                {"executable", service_executable},
+                {"target_state", service_target_state},
+                {"port", service_port}};
+    }
+    void services_view() {
+        ImGui::TextWrapped(
+            "%s",
+            c::tr("Review the target paths and port. Export does not install or start a service.")
+                .c_str());
+        ImGui::BeginDisabled(busy());
+        if (c::beginProperties("service-fields")) {
+            c::property(c::tr("Target platform").c_str());
+            ImGui::Combo("##service-platform", &service_platform,
+                         "Linux (systemd)\0macOS (launchd)\0");
+            field("CLI on target", service_executable);
+            field("State on target", service_target_state);
+            c::property(c::tr("API port").c_str());
+            ImGui::InputInt("##service-port", &service_port);
+            c::endProperties();
+        }
+        if (!service_preview.is_null() && service_preview_input != service_input())
+            service_preview = nullptr;
+        ImGui::BeginDisabled(service_executable.empty() || service_target_state.empty());
+        if (button("Prepare service", true)) {
+            auto input = service_input();
+            service_preview = nullptr;
+            submit([this, input] { return core.request("POST", "/api/service/plan", input); },
+                   [this, input](const Json &result) {
+                       if (input == service_input()) {
+                           service_preview_input = input;
+                           service_preview = result;
+                       }
+                   });
+        }
+        ImGui::EndDisabled();
+        ImGui::EndDisabled();
+        if (!service_preview.is_null()) {
+            text(service_preview.at("filename"));
+            ImGui::BeginChild("service-preview", ImVec2(0, c::dp(240)), true,
+                              ImGuiWindowFlags_HorizontalScrollbar);
+            text(service_preview.at("contents"));
+            ImGui::EndChild();
+        }
+        ImGui::BeginDisabled(busy());
+        if (c::beginProperties("service-export")) {
+            field("Destination", service_destination);
+            c::endProperties();
+        }
+        ImGui::BeginDisabled(service_preview.is_null() || service_destination.empty());
+        if (button("Export service files", true)) {
+            auto input = service_input();
+            input["plan"] = service_preview.at("plan");
+            input["destination"] = service_destination;
+            submit([this, input] { return core.request("POST", "/api/service/export", input); },
+                   [this](const Json &result) {
+                       output = result.dump(2);
+                       c::notify(c::tr("Service files exported").c_str(), c::Tone::success);
+                   });
+        }
+        ImGui::EndDisabled();
+        ImGui::EndDisabled();
+        ImGui::TextWrapped("%s", c::tr("Open the exported README on the target machine for "
+                                       "installation and removal commands.")
+                                     .c_str());
     }
     void application_view() {
         c::beginCard("desktop-preferences", c::tr("Notification area").c_str());

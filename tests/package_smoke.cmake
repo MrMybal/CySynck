@@ -50,7 +50,7 @@ foreach(required IN ITEMS share/cysynck/web/index.html share/cysynck/licenses/Ti
   endif()
 endforeach()
 # Build and execute an independent consumer against the extracted SDK.
-execute_process(COMMAND "${CMAKE_COMMAND}" -S "${CMAKE_CURRENT_LIST_DIR}/../examples/consumer"
+execute_process(COMMAND "${CMAKE_COMMAND}" -S "${prefix}/share/cysynck/examples/consumer"
   -B "${WORK_DIR}/sdk" "-DCMAKE_PREFIX_PATH=${prefix}" -DCMAKE_BUILD_TYPE=Release
   RESULT_VARIABLE result)
 if(NOT result EQUAL 0)
@@ -66,6 +66,31 @@ if(EXISTS "${WORK_DIR}/sdk/Release/cysynck-consumer${suffix}")
   set(consumer "${WORK_DIR}/sdk/Release/cysynck-consumer${suffix}")
 endif()
 run_json("${consumer}" sdk_overview "${WORK_DIR}/sdk-state")
+# A C-only consumer checks the ABI without relying on C++ headers or language setup.
+execute_process(COMMAND "${CMAKE_COMMAND}" -S "${prefix}/share/cysynck/examples/c-consumer"
+  -B "${WORK_DIR}/c-sdk" "-DCMAKE_PREFIX_PATH=${prefix}" -DCMAKE_BUILD_TYPE=Release
+  RESULT_VARIABLE result)
+if(NOT result EQUAL 0)
+  message(FATAL_ERROR "C ABI consumer configuration failed")
+endif()
+execute_process(COMMAND "${CMAKE_COMMAND}" --build "${WORK_DIR}/c-sdk" --config Release
+  RESULT_VARIABLE result)
+if(NOT result EQUAL 0)
+  message(FATAL_ERROR "C ABI consumer failed to link")
+endif()
+set(c_consumer "${WORK_DIR}/c-sdk/cysynck-c-consumer${suffix}")
+if(EXISTS "${WORK_DIR}/c-sdk/Release/cysynck-c-consumer${suffix}")
+  set(c_consumer "${WORK_DIR}/c-sdk/Release/cysynck-c-consumer${suffix}")
+endif()
+run_json("${c_consumer}" c_overview "${WORK_DIR}/C profil été")
+run_json("${c_consumer}" c_diagnostics "${WORK_DIR}/C profil été" GET /api/doctor)
+run_json("${c_consumer}" c_service "${WORK_DIR}/C profil été" POST /api/service/plan
+  "{\"platform\":\"linux\",\"executable\":\"/opt/cysynck/bin/cysynck\",\"target_state\":\"/srv/team\"}")
+execute_process(COMMAND "${c_consumer}" "${WORK_DIR}/C profil été" GET /api/unknown
+  RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE error)
+if(NOT result EQUAL 1 OR NOT error MATCHES "error")
+  message(FATAL_ERROR "C ABI errors must produce a failure status and JSON diagnostic")
+endif()
 if(CMAKE_HOST_APPLE AND EXISTS "${prefix}/CySynck.app")
   execute_process(COMMAND plutil -lint "${prefix}/CySynck.app/Contents/Info.plist"
     RESULT_VARIABLE result)
@@ -108,4 +133,4 @@ if(DESKTOP_SMOKE)
     message(FATAL_ERROR "Packaged desktop failed to render (${result}): ${error}")
   endif()
 endif()
-message(STATUS "PASS packaged CLI and SDK ${expected_version}; fixtures: ${WORK_DIR}")
+message(STATUS "PASS packaged CLI, C++ SDK and C ABI ${expected_version}; fixtures: ${WORK_DIR}")

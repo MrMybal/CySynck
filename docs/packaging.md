@@ -1,4 +1,4 @@
-# Platform packages (0.8.1)
+# Platform packages (0.9)
 
 The same C++20 core powers the desktop, CLI and SDK. Syncthing, Git and WireGuard remain
 external tools. Native builds are preferred for distribution; the optional Zig toolchain
@@ -15,7 +15,9 @@ cpack --config build/CPackConfig.cmake -C Release -B dist/packages
 
 Use a new output directory for each package variant. The CI runs package smoke checks
 against a directory containing exactly one archive, extracts it to a new directory, then
-executes its CLI and builds and runs a separate C++ SDK consumer.
+executes its CLI and builds and runs separate C++ and pure C SDK consumers from the examples
+inside that extracted package. The C example also checks diagnostics, service planning,
+UTF-8 paths and JSON error handling.
 
 | Platform | Archive | Desktop entry point |
 | --- | --- | --- |

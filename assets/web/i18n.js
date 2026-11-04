@@ -2,6 +2,18 @@
 // English is the source language. Keep API identifiers and user content unchanged.
 globalThis.CySynckI18n = (() => {
   const french = {
+    "Services": "Services",
+    "Target platform": "Plateforme cible",
+    "CLI on target": "CLI sur la cible",
+    "State on target": "Profil sur la cible",
+    "API port": "Port API",
+    "Prepare service": "Préparer le service",
+    "Export service files": "Exporter les fichiers du service",
+    "Service files exported": "Fichiers du service exportés",
+    "Review the target paths and port. Export does not install or start a service.": "Vérifiez les chemins et le port sur la cible. L'export n'installe ni ne démarre de service.",
+    "Open the exported README on the target machine for installation and removal commands.": "Ouvrez le README exporté sur la machine cible pour les commandes d'installation et de suppression.",
+    "Export folder on the server": "Dossier d’export sur le serveur",
+
     "Diagnostics": "Diagnostic",
     "Inspect diagnostics": "Actualiser le diagnostic",
     "Test tools and connection": "Tester les outils et la connexion",

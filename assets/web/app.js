@@ -4,7 +4,47 @@ const {t, setText: translated, init: initLanguages} = CySynckI18n;
 initLanguages();
 let token = "", selected = "";
 try { token = sessionStorage.getItem("cysynck-token") || ""; } catch (_) { /* Storage may be disabled. */ }
-let storagePlan = null;
+let storagePlan = null, servicePreview = null;
+function serviceInput() {
+  return {platform: $("service-platform").value, executable: $("service-executable").value,
+    target_state: $("service-state").value, port: Number($("service-port").value)};
+}
+function serviceExportState() {
+  $("service-export").disabled = !servicePreview || !$("service-directory").value;
+}
+function clearServicePreview() {
+  servicePreview = null;
+  $("service-preview").textContent = "";
+  $("service-preview").hidden = true;
+  $("service-result").replaceChildren();
+  serviceExportState();
+}
+$("service-form").addEventListener("input", clearServicePreview);
+$("service-form").addEventListener("change", clearServicePreview);
+$("service-directory").addEventListener("input", () => {
+  $("service-result").replaceChildren();
+  serviceExportState();
+});
+$("service-form").addEventListener("submit", event => {
+  event.preventDefault();
+  safe(async () => {
+    clearServicePreview();
+    const data = serviceInput();
+    const result = await api("service/plan", "POST", data);
+    if (JSON.stringify(data) !== JSON.stringify(serviceInput())) return;
+    servicePreview = {data, plan: result.plan};
+    $("service-preview").textContent = result.filename + "\n\n" + result.contents;
+    $("service-preview").hidden = false;
+    serviceExportState();
+  });
+});
+$("service-export").addEventListener("click", () => safe(async () => {
+  const preview = servicePreview, destination = $("service-directory").value;
+  if (!preview || JSON.stringify(preview.data) !== JSON.stringify(serviceInput())) return;
+  const result = await api("service/export", "POST", {...preview.data, plan: preview.plan, destination});
+  if (preview !== servicePreview || destination !== $("service-directory").value) return;
+  $("service-result").replaceChildren(label("p", "Service files exported"), text("div", result.directory));
+}));
 let currentPatch = "";
 let selectedProject = null, resolutionPath = "", resolutionPreview = null, resolutionExpected = null;
 function resolutionInput() {

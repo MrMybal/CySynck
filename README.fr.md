@@ -29,7 +29,7 @@ Linux : `dist/bin/cysynck-desktop`. macOS : `open dist/CySynck.app`.
 Le CLI reste disponible avec `dist/bin/cysynck help` sur ces deux plateformes.
 Les scripts `scripts/build.ps1` et `scripts/build.sh` exécutent ces étapes.
 
-La version 0.8.1 prépare des archives `.tar.gz` pour Linux et ZIP pour Windows/macOS.
+La version 0.9.0 prépare des archives `.tar.gz` pour Linux et ZIP pour Windows/macOS.
 Le bundle macOS contient son cœur, ses ressources Web et ses licences. Voir le
 [guide des paquets et de compilation croisée Linux](docs/packaging.md) (anglais).
 
@@ -58,6 +58,16 @@ confirmer l'exécution native sur Linux et macOS, ainsi que les nouveaux essais 
 Le pont Unreal est fourni comme exemple d'intégration et n'a pas été compilé dans Unreal ici.
 
 ## Fonctions disponibles
+
+La vue **Diagnostic** vérifie les dossiers et dépendances selon les modes des projets.
+`cysynck doctor --probe true` teste explicitement les versions des outils et la connexion
+Syncthing. La vue **Services** prépare un export systemd Linux ou LaunchAgent macOS par
+profil, après aperçu, avec les instructions d'installation. Elle n'active aucun service.
+Ces fonctions sont aussi disponibles dans le CLI, l'API et le SDK.
+
+Le paquet contient désormais des exemples compilables C++ et C pur. Voir les guides
+[diagnostic](docs/diagnostics.md), [services](docs/services.md) et
+[intégration C/C++](docs/integration.md) (anglais).
 
 | Fonction | Comportement de la version 0.8 |
 | --- | --- |

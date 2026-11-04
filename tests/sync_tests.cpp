@@ -332,16 +332,24 @@ int main(int argc, char **argv) {
         HANDLE owned = OpenProcess(PROCESS_TERMINATE, FALSE, static_cast<DWORD>(pid));
         if (!owned)
             throw std::runtime_error("Cannot simulate owned test child crash");
-        TerminateProcess(owned, 1);
+        auto terminated = TerminateProcess(owned, 1);
         CloseHandle(owned);
+        if (!terminated)
+            throw std::runtime_error("Cannot terminate the owned test child");
 #else
-        kill(static_cast<pid_t>(pid), SIGKILL);
+        if (kill(static_cast<pid_t>(pid), SIGKILL) != 0)
+            throw std::runtime_error("Cannot terminate the owned test child");
 #endif
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        a.tick();
-        auto recovered = engine(a, "status");
-        check(recovered["running"].get<bool>() && recovered["owned"].get<bool>(),
-              "Supervisor restarts its own crashed engine");
+        // Process termination is asynchronous. Poll actual recovery, rather than
+        // assuming that a fixed sleep has let the OS finish releasing the child.
+        eventually(
+            [&] {
+                a.tick();
+                auto recovered = engine(a, "status");
+                return recovered.at("running").get<bool>() && recovered.at("owned").get<bool>() &&
+                       recovered.at("pid").get<uint64_t>() != pid;
+            },
+            "Supervisor restarts its own crashed engine with a new process");
         check(engine(b, "status")["running"].get<bool>(), "Crash recovery must not affect B");
         engine(a, "stop");
         engine(b, "stop");

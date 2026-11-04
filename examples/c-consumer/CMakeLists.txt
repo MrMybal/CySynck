@@ -1,0 +1,10 @@
+cmake_minimum_required(VERSION 3.24)
+project(CySynckCConsumer LANGUAGES C)
+find_package(CySynck 0.1 CONFIG REQUIRED)
+add_executable(cysynck-c-consumer main.c)
+set_target_properties(cysynck-c-consumer PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED YES LINKER_LANGUAGE C)
+target_link_libraries(cysynck-c-consumer PRIVATE CySynck::Core)
+if(WIN32)
+  add_custom_command(TARGET cysynck-c-consumer POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "$<TARGET_FILE:CySynck::Core>" "$<TARGET_FILE_DIR:cysynck-c-consumer>")
+endif()

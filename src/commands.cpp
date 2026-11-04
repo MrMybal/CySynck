@@ -25,7 +25,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.8 (C++20)
+        return {{"help", R"(CySynck 0.9 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | events | api-token
   doctor [--probe true]  (test tool versions and engine connection only with --probe)
@@ -68,7 +68,7 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   serve [--host 127.0.0.1] [--port 8484]
 Desktop: cysynck-desktop [--state DIR] [--plugin LIBRARY] [--background|--foreground] [--no-tray]
 Secrets: CYSYNCK_SYNCTHING_API_KEY, CYSYNCK_API_TOKEN, CYSYNCK_MESH_TOKEN.
-VPN up/down requires administrator/root. No automatic NAT traversal in 0.8.)"}};
+VPN up/down requires administrator/root. No automatic NAT traversal in 0.9.)"}};
     if (args[0] == "service") {
         if (args.size() < 2 || (args[1] != "plan" && args[1] != "export"))
             throw std::runtime_error("Use service plan|export");
@@ -81,8 +81,13 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.8.)"}};
                  {"--target-state", "target_state"}, {"--plan", "plan"}})
             if (flags.contains(flag))
                 data[key] = flags.at(flag);
-        if (flags.contains("--port"))
-            data["port"] = std::stoi(flags.at("--port"));
+        if (flags.contains("--port")) {
+            size_t parsed = 0;
+            auto port = std::stoi(flags.at("--port"), &parsed);
+            if (parsed != flags.at("--port").size())
+                throw std::runtime_error("Service port must be an integer");
+            data["port"] = port;
+        }
         if (args[1] == "export")
             data["destination"] = args[2];
         return core.request("POST", "/api/service/" + args[1], data);

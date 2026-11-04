@@ -66,6 +66,9 @@ Json prepare(const Json &data, const fs::path &state) {
     if (platform != "linux" && platform != "macos")
         throw std::runtime_error("Choose linux or macos for a user service");
     auto executable = posix_path(data.at("executable").get<std::string>());
+    if (platform == "linux" && executable.find_first_of("\\\"'*?[") != std::string::npos)
+        throw std::runtime_error(
+            "Systemd executable paths cannot contain quotes, backslashes or glob characters");
     auto target_state = posix_path(data.value("target_state", path_string(state)));
     auto port_value = data.value("port", Json(8484));
     if (!port_value.is_number_integer() || port_value < 1024 || port_value > 65535)

@@ -95,6 +95,22 @@
     <div id="doctor-output"></div>
   </section>
   <section>
+    <h3 data-i18n>Services</h3>
+    <p data-i18n>Review the target paths and port. Export does not install or start a service.</p>
+    <form id="service-form">
+      <label><span data-i18n>Target platform</span><select id="service-platform"><option value="linux">Linux (systemd)</option><option value="macos">macOS (launchd)</option></select></label>
+      <label><span data-i18n>CLI on target</span><input id="service-executable" placeholder="/opt/cysynck/bin/cysynck" required></label>
+      <label><span data-i18n>State on target</span><input id="service-state" placeholder="/srv/cysynck/team" required></label>
+      <label><span data-i18n>API port</span><input id="service-port" type="number" min="1024" max="65535" step="1" value="8484" required></label>
+      <button data-i18n>Prepare service</button>
+    </form>
+    <pre id="service-preview" hidden></pre>
+    <label><span data-i18n>Export folder on the server</span><input id="service-directory"></label>
+    <button id="service-export" disabled data-i18n>Export service files</button>
+    <p data-i18n>Open the exported README on the target machine for installation and removal commands.</p>
+    <div id="service-result"></div>
+  </section>
+  <section>
     <h3 data-i18n>Backup storage</h3>
     <p data-i18n>Cleanup removes only objects unused by all retained backups.</p>
     <div class="actions"><button id="inspect-storage" data-i18n>Inspect storage</button><button id="prune-storage" disabled data-i18n>Free unused space</button></div>

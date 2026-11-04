@@ -9,23 +9,25 @@ A project-based synchronization and backup companion written in **C++20**, power
 One shared core powers the native desktop app, CLI, local Web console and integration SDK.
 Build a headless server without graphical dependencies. No Python or .NET runtime is required.
 
-**Status: 0.8.1, under active development.** Windows x64 is validated locally. The headless
+**Status: 0.9.0, under active development.** Windows x64 is validated locally. The headless
 Linux core, CLI and test binaries also cross-compile from Windows with Zig.
 Native Linux and macOS execution still needs validation on those platforms.
 The Unreal bridge is an integration example and has not yet been compiled inside Unreal.
 The initial GitHub run passed on Windows and exposed Linux and macOS configuration issues.
-The 0.8.1 sources address those blockers and additional libc++ portability issues;
+The current sources address those blockers and additional libc++ portability issues;
 those fixes and the new package smoke checks still need another native CI run.
 
 ## Features
 
-| Area | Available in 0.8 |
+| Area | Available in 0.9 |
 | --- | --- |
 | Projects | Separate folders, settings and modes; overlapping project roots are rejected |
 | Sync modes | Two-way, send only, receive only, local backup and Git bundle exchange |
 | Desktop | Native CyUI overview, diffs, backups, recovery, Git, network, activity and embedded CLI |
 | Background operation | Native tray icon, close to tray, reopen on second launch and scheduled backups while hidden |
 | Startup | Explicit per-profile login registration; disabled by default |
+| Diagnostics | Project paths, required/optional tools, explicit version and Syncthing connection checks |
+| Services | Reviewed per-profile systemd/LaunchAgent export, with installation instructions |
 | Backups | Deduplicated SHA-256 objects, scheduling, retention, integrity checks and restore preview |
 | Storage | Explicit cleanup of unused objects, with a preview and checks across all retained manifests |
 | Diffs | Snapshot or two-file comparison, side-by-side and unified views, statistics and Git-compatible patches |
@@ -262,6 +264,27 @@ target_link_libraries(MyApp PRIVATE CySynck::Core)
 Free returned strings with `cysynck_free`. Native plugins use a versioned C ABI and are
 loaded explicitly. `integrations/unreal/CySynck` contains a dynamically loaded Blueprint bridge example.
 
+The installed package includes buildable C++ and pure C SDK examples. See
+[integration and the C ABI](docs/integration.md) for ownership, UTF-8 and deployment rules.
+
+## Diagnostics and service preparation
+
+Use **Diagnostics** on the desktop or Web console, or run `cysynck doctor` for a local
+inspection. `cysynck doctor --probe true` explicitly tests tool versions and the configured
+Syncthing connection. Reports omit secrets; see [diagnostics](docs/diagnostics.md).
+
+The **Services** view prepares and exports a headless Linux or macOS user service. Export
+does not install or activate it. The same operation is available through the CLI and C ABI:
+
+```sh
+cysynck service plan --platform linux --executable /opt/cysynck/bin/cysynck \
+  --target-state /srv/cysynck/team --port 8484
+```
+
+Review the returned configuration and export it with its preview token. Follow the exported
+README on the target machine. See [service preparation](docs/services.md) for the full command,
+target paths, user-session requirements and current validation limits.
+
 ## Tests and secret scanning
 
 Tests cover backups, diffs and patch application with real Git, resolution recovery, API,
@@ -279,6 +302,8 @@ See [GitHub preparation and Gitleaks](docs/github.md) for the publishing procedu
 A dedicated workflow scans the full Git history with the default Gitleaks rules.
 
 ## Documentation and roadmap
+
+See the [milestone status](docs/roadmap.md) for delivered work and remaining validation.
 
 Detailed guides are currently in French:
 

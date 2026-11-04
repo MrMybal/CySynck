@@ -26,6 +26,10 @@ static Json item(const Json &report, const std::string &id) {
 int main(int argc, char **argv) {
     if (argc == 2 && std::string(argv[1]) == "--version") {
         atomic_write(fs::u8path(env("CYSYNCK_DOCTOR_TEST_MARKER")), "executed");
+        if (env("CYSYNCK_DOCTOR_TEST_FAIL") == "true") {
+            std::cout << "private-probe-output-value\n";
+            return 13;
+        }
         std::cout << "git version 2.0.0-test\n";
         return 0;
     }
@@ -97,11 +101,19 @@ int main(int argc, char **argv) {
                   fs::exists(marker),
               "Explicit probes execute the resolved tool without shell splitting");
         std::atomic<int> requests = 0;
+        environment("CYSYNCK_DOCTOR_TEST_FAIL", "true");
+        report = core.request("POST", "/api/doctor", {{"probe_tools", true}});
+        check(item(report, "tool.git").at("status") == "error" &&
+                  report.dump().find("private-probe-output-value") == std::string::npos,
+              "Failed tool probes do not expose arbitrary process output");
+        environment("CYSYNCK_DOCTOR_TEST_FAIL", "false");
         server.Get("/rest/system/status",
                    [&](const httplib::Request &request, httplib::Response &response) {
                        ++requests;
-                       check(request.get_header_value("X-API-Key") == "private-engine-test-value",
-                             "The engine probe authenticates without exposing its key");
+                       if (request.get_header_value("X-API-Key") != "private-engine-test-value") {
+                           response.status = 403;
+                           return;
+                       }
                        response.set_content("{\"myID\":\"TEST-DEVICE\"}", "application/json");
                    });
         int port = server.bind_to_any_port("127.0.0.1");

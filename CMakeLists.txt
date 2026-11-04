@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(CySynck VERSION 0.8.1 LANGUAGES C CXX)
+project(CySynck VERSION 0.9.0 LANGUAGES C CXX)
 if(APPLE)
   set(CMAKE_INSTALL_RPATH "@loader_path/../lib")
 elseif(UNIX)
@@ -52,7 +52,9 @@ if(WIN32)
 endif()
 add_executable(cysynck src/cli.cpp)
 target_link_libraries(cysynck PRIVATE cysynck_startup)
-add_custom_command(TARGET cysynck POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/assets/web" "$<TARGET_FILE_DIR:cysynck>/web")
+add_custom_target(cysynck-web-assets ALL COMMAND ${CMAKE_COMMAND} -E copy_directory
+  "${CMAKE_CURRENT_SOURCE_DIR}/assets/web" "$<TARGET_FILE_DIR:cysynck>/web")
+add_dependencies(cysynck cysynck-web-assets)
 if(CYSYNCK_DESKTOP)
   FetchContent_Declare(glfw GIT_REPOSITORY https://github.com/glfw/glfw.git GIT_TAG 3.4 GIT_SHALLOW TRUE)
   set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -112,9 +114,10 @@ if(CYSYNCK_DESKTOP)
       MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
       MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
       INSTALL_RPATH "@loader_path/../Frameworks")
-    add_custom_command(TARGET cysynck-desktop POST_BUILD
+    add_custom_target(cysynck-bundle-assets ALL
       COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/assets/web"
       "$<TARGET_BUNDLE_CONTENT_DIR:cysynck-desktop>/Resources/web")
+    add_dependencies(cysynck-desktop cysynck-bundle-assets)
   endif()
 endif()
 if(MSVC)
@@ -216,6 +219,10 @@ if(WIN32 AND CYSYNCK_DESKTOP)
 endif()
 install(FILES README.md README.fr.md THIRD_PARTY.md DESTINATION share/cysynck)
 install(DIRECTORY docs/ DESTINATION share/cysynck/docs)
+install(FILES examples/consumer/CMakeLists.txt examples/consumer/main.cpp
+  DESTINATION share/cysynck/examples/consumer)
+install(FILES examples/c-consumer/CMakeLists.txt examples/c-consumer/main.c
+  DESTINATION share/cysynck/examples/c-consumer)
 if(UNIX AND NOT APPLE)
   install(FILES deploy/cysynck.service DESTINATION share/cysynck/examples/systemd)
 endif()
