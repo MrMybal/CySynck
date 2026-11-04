@@ -57,6 +57,9 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   register ID | sync ID | status ID | pause ID | resume ID
   git status|export|inbox ID  (export: --lfs true includes Git LFS branch history)
   git import ID PEER_ID BUNDLE_ID
+  git review ID PEER_ID BRANCH
+  git branches ID
+  git review-file ID PEER_ID BRANCH RELATIVE_PATH [--base COMMIT --head COMMIT]
   vpn configure NAME 10.77.X.Y [--endpoint HOST:UDP_PORT] [--listen-port 51820] [--mesh-port 8485] [--device-id ID]
   vpn status|preview|write-config|up|down
   vpn publish|discover ID
@@ -347,7 +350,15 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.13.)"}}
             throw std::runtime_error("Expected git command and project ID");
         Json data = Json::object();
         auto command = args[1];
-        if (command == "import") {
+        if (command == "review" || command == "review-file") {
+            require(command == "review" ? 5 : 6);
+            data = {{"peer", args[3]}, {"branch", args[4]}};
+            if (command == "review-file")
+                data["path"] = args[5];
+            for (auto key : {"base", "head"})
+                if (flags.contains("--" + std::string(key)))
+                    data[key] = flags.at("--" + std::string(key));
+        } else if (command == "import") {
             require(5);
             data = {{"peer", args[3]}, {"bundle", args[4]}};
         } else
@@ -357,10 +368,14 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.13.)"}}
                 throw std::runtime_error("Choose --lfs true|false");
             data["lfs"] = flags.at("--lfs") == "true";
         }
-        return core.request("POST",
-                            "/api/projects/" + args[2] + "/" +
-                                (command == "status" ? "git-status" : command),
-                            data);
+        return core.request(
+            "POST",
+            "/api/projects/" + args[2] + "/" +
+                (command == "status" ? "git-status"
+                 : command == "review" || command == "review-file" || command == "branches"
+                     ? "git-" + command
+                     : command),
+            data);
     }
     if (args[0] == "diff") {
         require(3);

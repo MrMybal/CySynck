@@ -69,6 +69,24 @@ static void localize() {
     c::registerTranslations(
         "fr",
         {{"Direct transfers", "Transferts directs"},
+         {"Imported branches", "Branches importées"},
+         {"Review branch", "Revoir la branche"},
+         {"Review file", "Revoir le fichier"},
+         {"Local commits", "Commits locaux"},
+         {"Peer commits", "Commits du pair"},
+         {"Branches are identical", "Les branches sont identiques"},
+         {"Fast-forward is possible", "Avance rapide possible"},
+         {"Local branch is ahead", "La branche locale est en avance"},
+         {"Branches have diverged", "Les branches ont divergé"},
+         {"Histories are unrelated", "Les historiques sont indépendants"},
+         {"LFS pointer comparison; asset bytes are not loaded.",
+          "Comparaison des pointeurs LFS ; les octets des assets ne sont pas chargés."},
+         {"Git text previews are limited to 512 KiB per side",
+          "Les aperçus de texte Git sont limités à 512 Kio par côté"},
+         {"Binary or non-UTF-8 Git object; text preview unavailable",
+          "Objet Git binaire ou non UTF-8 ; aperçu textuel indisponible"},
+         {"Submodule commit changed; inspect its repository separately",
+          "Le commit du sous-module a changé ; examinez son dépôt séparément"},
          {"Use Git LFS during synchronization", "Utiliser Git LFS pendant la synchronisation"},
          {"Approved LFS storage directory", "Dossier de stockage LFS autorisé"},
          {"Leave empty for the default Git cache. A custom directory must already exist and match "
@@ -479,7 +497,8 @@ class App {
         incoming = Json::array(), messages = Json::array(), engine_state, engine_devices,
         startup_state, backup_check, restore_preview, storage_state, conflict_state, conflict_diff,
         resolution_preview, resolution_preview_input, resolution_history, received_state,
-        doctor_state, service_preview, service_preview_input, transfer_state, transfer_limits_state;
+        doctor_state, service_preview, service_preview_input, transfer_state, transfer_limits_state,
+        git_branches, git_review_state, git_review_diff;
     std::string view = "Overview", selected, theme = "mid-grey", language = "en", error, output,
                 query, baseline, comparison_snapshot, destination, restore_id, compare_left,
                 compare_right, selected_conflict, merged_content, selected_resolution,
@@ -514,6 +533,8 @@ class App {
     c::DiffState diff_state;
     c::DiffDocument conflict_document;
     c::DiffState conflict_diff_state;
+    c::DiffDocument git_document;
+    c::DiffState git_diff_state;
     std::unique_ptr<cysynck::HttpServer> receiver;
     std::thread receiver_thread;
     std::chrono::steady_clock::time_point refreshed = std::chrono::steady_clock::now();
@@ -684,6 +705,7 @@ class App {
         restore_id.clear();
         backup_check = restore_preview = nullptr;
         git_state = nullptr;
+        git_branches = git_review_state = git_review_diff = nullptr;
         conflict_state = conflict_diff = nullptr;
         resolution_preview = resolution_preview_input = resolution_history = nullptr;
         history_loaded = false;
@@ -1827,6 +1849,8 @@ class App {
         };
         if (!git_loaded && !busy())
             load();
+        if (git_branches.is_null() && !busy())
+            action("git-branches", Json::object(), [this](const Json &r) { git_branches = r; });
         ImGui::Checkbox(c::trLabel("Include Git LFS history").c_str(), &include_git_lfs);
         if (button("Export committed branch", true))
             action("export", {{"lfs", include_git_lfs}},
@@ -1835,8 +1859,65 @@ class App {
         if (button("Inspect Git"))
             action("git-status", Json::object(), [this](const Json &r) { git_state = r; });
         ImGui::SameLine();
-        if (button("Refresh"))
+        if (button("Refresh")) {
+            git_branches = git_review_state = git_review_diff = nullptr;
             load();
+        }
+        if (!git_branches.is_null()) {
+            c::heading(c::tr("Imported branches").c_str(), 3);
+            for (const auto &branch : git_branches) {
+                auto label = branch.at("peer").get<std::string>() + "/" +
+                             branch.at("branch").get<std::string>();
+                ImGui::PushID(label.c_str());
+                text(label);
+                if (button("Review branch"))
+                    action("git-review",
+                           {{"peer", branch.at("peer")}, {"branch", branch.at("branch")}},
+                           [this](const Json &r) {
+                               git_review_state = r;
+                               git_review_diff = nullptr;
+                           });
+                ImGui::PopID();
+            }
+        }
+        if (!git_review_state.is_null()) {
+            const auto labels =
+                std::map<std::string, std::string>{{"identical", "Branches are identical"},
+                                                   {"fast_forward", "Fast-forward is possible"},
+                                                   {"local_ahead", "Local branch is ahead"},
+                                                   {"diverged", "Branches have diverged"},
+                                                   {"unrelated", "Histories are unrelated"}};
+            c::callout(c::Tone::info,
+                       c::tr(labels.at(git_review_state.at("relation")).c_str()).c_str());
+            text(c::tr("Local commits") + ": " + git_review_state.at("local_only_commits").dump() +
+                 " / " + c::tr("Peer commits") + ": " +
+                 git_review_state.at("peer_only_commits").dump());
+            for (const auto &file : git_review_state.at("files")) {
+                auto path = file.at("path").get<std::string>();
+                ImGui::PushID(path.c_str());
+                text(file.at("status").get<std::string>() + " / " + path);
+                if (button("Review file")) {
+                    Json query;
+                    for (auto key : {"peer", "branch", "base", "head"})
+                        query[key] = git_review_state.at(key);
+                    query["path"] = path;
+                    action("git-review-file", query, [this, query](const Json &r) {
+                        if (!git_review_state.is_null() &&
+                            git_review_state.at("base") == query.at("base") &&
+                            git_review_state.at("head") == query.at("head"))
+                            set_comparison(r, git_review_diff, git_document);
+                    });
+                }
+                ImGui::PopID();
+            }
+            if (!git_review_diff.is_null()) {
+                text(git_review_diff.at("path"));
+                if (git_review_diff.value("reason", "") == "lfs_pointer")
+                    c::textDim(
+                        "%s", c::tr("LFS pointer comparison; asset bytes are not loaded.").c_str());
+                comparison_view("git-diff", git_review_diff, git_document, git_diff_state);
+            }
+        }
         if (!git_state.is_null())
             text(git_state.dump(2));
         for (auto &b : incoming)
@@ -1859,7 +1940,10 @@ class App {
                 ImGui::BeginDisabled(b.contains("lfs_status") &&
                                      !b.at("lfs_status").at("complete").get<bool>());
                 if (button("Import tracking branch"))
-                    action("import", {{"peer", b["peer"]}, {"bundle", b["id"]}});
+                    action("import", {{"peer", b["peer"]}, {"bundle", b["id"]}},
+                           [this](const Json &) {
+                               git_branches = git_review_state = git_review_diff = nullptr;
+                           });
                 ImGui::EndDisabled();
                 c::endCard();
                 ImGui::PopID();

@@ -14,6 +14,7 @@
 #include "backup_data.hpp"
 #include "diff.hpp"
 #include "git_lfs.hpp"
+#include "git_review.hpp"
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
@@ -890,6 +891,10 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
     else if (action == "git-status" || action == "export" || action == "inbox" ||
              action == "import")
         result = git_action(p, action, data);
+    else if (action == "git-branches")
+        result = imported_git_branches(p);
+    else if (action == "git-review" || action == "git-review-file")
+        result = review_git_branch(p, data, action == "git-review-file");
     else
         result = sync_action(p, action, data);
     save();

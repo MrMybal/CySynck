@@ -2,7 +2,7 @@
 const $ = id => document.getElementById(id);
 const {t, setText: translated, init: initLanguages} = CySynckI18n;
 initLanguages();
-let token = "", selected = "", transferLoad = 0, gitLoad = 0;
+let token = "", selected = "", transferLoad = 0, gitLoad = 0, gitReviewLoad=0;
 try { token = sessionStorage.getItem("cysynck-token") || ""; } catch (_) { /* Storage may be disabled. */ }
 let storagePlan = null, servicePreview = null;
 let backupStorageDirty = false;
@@ -189,6 +189,7 @@ async function select(project) {
     $("transfer-records").replaceChildren();
     $("git-records").replaceChildren();
     $("git-result").replaceChildren();
+    $("git-branches").replaceChildren(); $("git-review").replaceChildren(); $("git-review-patch").textContent=""; ++gitReviewLoad;
     ++gitLoad;
     $("transfer-result").replaceChildren();
     $("transfer-peer").value = "";
@@ -403,8 +404,21 @@ $("received-load").addEventListener("click", () => safe(loadReceived));
 async function loadGitExchange() {
   const project = selected, request = ++gitLoad;
   if (!project) return;
-  const result = await api("projects/" + project + "/inbox", "POST", {});
+  const [result,branches] = await Promise.all([api("projects/" + project + "/inbox", "POST", {}),api("projects/"+project+"/git-branches","POST",{})]);
   if (project !== selected || request !== gitLoad) return;
+  $("git-review").replaceChildren(); $("git-review-patch").textContent=""; ++gitReviewLoad;
+  $("git-branches").replaceChildren();
+  for (const branch of branches) {
+    const row=text("div","","snapshot"), button=label("button","Review branch");
+    row.append(text("p",branch.peer+" / "+branch.branch),button);
+    button.addEventListener("click",()=>safe(async()=>{
+      const reviewRequest=++gitReviewLoad;
+      const review=await api("projects/"+project+"/git-review","POST",{peer:branch.peer,branch:branch.branch});
+      if(selected!==project || request!==gitLoad || reviewRequest!==gitReviewLoad) return;
+      showGitReview(project,review);
+    }));
+    $("git-branches").append(row);
+  }
   $("git-records").replaceChildren();
   for (const item of result) {
     const card = text("div", "", "snapshot");
@@ -419,11 +433,31 @@ async function loadGitExchange() {
       button.disabled = true;
       try {
         const output = await api("projects/" + project + "/import", "POST", {peer: item.peer, bundle: item.id});
-        if (selected === project) $("git-result").textContent = JSON.stringify(output, null, 2);
+        if (selected === project) {
+          $("git-result").textContent = JSON.stringify(output, null, 2);
+          $("git-review").replaceChildren(); $("git-review-patch").textContent=""; ++gitReviewLoad;
+          await loadGitExchange();
+        }
       } finally { button.disabled = false; }
     }));
     card.append(button);
     $("git-records").append(card);
+  }
+}
+function showGitReview(project,review) {
+  const names={identical:"Branches are identical",fast_forward:"Fast-forward is possible",local_ahead:"Local branch is ahead",diverged:"Branches have diverged",unrelated:"Histories are unrelated"};
+  $("git-review").replaceChildren(label("p",names[review.relation]),label("p","{local} local commits · {peer} peer commits",{local:review.local_only_commits,peer:review.peer_only_commits}));
+  $("git-review-patch").textContent="";
+  for (const file of review.files) {
+    const row=text("div","","snapshot"), button=label("button","Review file");
+    row.append(text("p",file.status+" / "+file.path),button);
+    button.addEventListener("click",()=>safe(async()=>{
+      const request=++gitReviewLoad;
+      const result=await api("projects/"+project+"/git-review-file","POST",{peer:review.peer,branch:review.branch,base:review.base,head:review.head,path:file.path});
+      if(selected!==project || request!==gitReviewLoad) return;
+      $("git-review-patch").textContent=result.binary?t(result.message):(result.reason==="lfs_pointer"?t("LFS pointer comparison; asset bytes are not loaded.")+"\n\n":"")+result.patch;
+    }));
+    $("git-review").append(row);
   }
 }
 $("git-refresh").addEventListener("click", () => safe(loadGitExchange));
