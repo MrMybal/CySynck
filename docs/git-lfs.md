@@ -94,6 +94,10 @@ publish the tracking ref before verification completes. Export interruption can 
 exchange objects or an unpublished bundle. There is no automatic LFS cleanup, expiry, remote
 locking or acknowledgement. Keep exchange folders restricted to trusted peers.
 
+Starting with 0.14, explicit [Git exchange cleanup](git-storage.md) can remove selected local
+exports and unreferenced exchange objects after a checked preview. Unindexed bundles and
+unknown files are preserved. Cleanup never prunes the repository's local LFS cache.
+
 ## Compatibility and limits
 
 Both devices need CySynck 0.13 or later for LFS exchange. Older clients ignore the `.lfs.json`

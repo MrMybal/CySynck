@@ -1,5 +1,20 @@
 # Development milestones
 
+## Delivered in 0.14
+
+Three Git collaboration milestones share the C++ core, CLI, SDK and bilingual interfaces:
+
+- Per-project LFS policy, including an explicitly approved existing custom `lfs.storage`
+  directory. The saved policy also controls automatic Git-mode synchronization.
+- Imported-branch review with ancestry, changed files, bounded committed-text previews,
+  unified patches and the desktop CyUI comparison viewer. Review preserves HEAD, index
+  and working files and never runs external diff or text-conversion commands.
+- Explicit cleanup of owned exports and unreferenced exchange LFS objects, with selection,
+  a catalog-dependent preview token, retained-reference checks and partial-failure reporting.
+
+See [LFS policy](git-lfs.md), [Git review](git-review.md) and [Git storage](git-storage.md).
+Git merging, distributed acknowledgements and local LFS cache pruning remain separate work.
+
 ## Delivered in 0.13
 
 Git exchange now includes canonical Git LFS v1 assets by default. C++ inspects the exact exported

@@ -1,5 +1,6 @@
 #include "git_lfs.hpp"
 #include "backup.hpp"
+#include "git_storage.hpp"
 #include <regex>
 #include <stdexcept>
 
@@ -42,6 +43,9 @@ fs::path peer_store(const fs::path &exchange, const std::string &peer) {
     return store;
 }
 } // namespace
+Json git_exchange_manifest(const fs::path &file, const std::string &project) {
+    return read_manifest(file, project);
+}
 Json Core::git_action(const Json &p, const std::string &action, const Json &data) {
     if (action == "git-status")
         return {
@@ -61,6 +65,8 @@ Json Core::git_action(const Json &p, const std::string &action, const Json &data
         auto directory = project_child(exchange, "peers/" + peer);
         plain_directory(directory);
         fs::create_directories(directory);
+        project_child(directory, ".cysynck-git.lock");
+        DiskLock exchangeLock(directory, ".cysynck-git.lock");
         auto bundle = random_id();
         auto temp = directory / (bundle + ".part"), destination = directory / (bundle + ".bundle");
         bool withLfs = data.value("lfs", p.value("git_lfs", true));

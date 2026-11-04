@@ -16,6 +16,7 @@
 #include <iostream>
 #include <misc/cpp/imgui_stdlib.h>
 #include <thread>
+#include <set>
 #include <unordered_map>
 #include <utility>
 #include "desktop_support.hpp"
@@ -69,6 +70,15 @@ static void localize() {
     c::registerTranslations(
         "fr",
         {{"Direct transfers", "Transferts directs"},
+         {"Git exchange storage", "Stockage des échanges Git"},
+         {"Preview Git cleanup", "Prévisualiser le nettoyage Git"},
+         {"Apply Git cleanup", "Appliquer le nettoyage Git"},
+         {"Select exports to remove. Peers can no longer import removed exports. Local Git data is "
+          "preserved.",
+          "Sélectionnez les exports à supprimer. Les pairs ne pourront plus les importer. Les "
+          "données Git locales sont préservées."},
+         {"Unused LFS objects", "Objets LFS inutilisés"},
+         {"Reclaimable bytes", "Octets récupérables"},
          {"Imported branches", "Branches importées"},
          {"Review branch", "Revoir la branche"},
          {"Review file", "Revoir le fichier"},
@@ -498,7 +508,9 @@ class App {
         startup_state, backup_check, restore_preview, storage_state, conflict_state, conflict_diff,
         resolution_preview, resolution_preview_input, resolution_history, received_state,
         doctor_state, service_preview, service_preview_input, transfer_state, transfer_limits_state,
-        git_branches, git_review_state, git_review_diff;
+        git_branches, git_review_state, git_review_diff, git_storage_state;
+    std::set<std::string> git_storage_selected;
+    bool git_storage_current = false;
     std::string view = "Overview", selected, theme = "mid-grey", language = "en", error, output,
                 query, baseline, comparison_snapshot, destination, restore_id, compare_left,
                 compare_right, selected_conflict, merged_content, selected_resolution,
@@ -706,6 +718,9 @@ class App {
         backup_check = restore_preview = nullptr;
         git_state = nullptr;
         git_branches = git_review_state = git_review_diff = nullptr;
+        git_storage_state = nullptr;
+        git_storage_selected.clear();
+        git_storage_current = false;
         conflict_state = conflict_diff = nullptr;
         resolution_preview = resolution_preview_input = resolution_history = nullptr;
         history_loaded = false;
@@ -1853,16 +1868,70 @@ class App {
             action("git-branches", Json::object(), [this](const Json &r) { git_branches = r; });
         ImGui::Checkbox(c::trLabel("Include Git LFS history").c_str(), &include_git_lfs);
         if (button("Export committed branch", true))
-            action("export", {{"lfs", include_git_lfs}},
-                   [this](const Json &) { git_loaded = false; });
+            action("export", {{"lfs", include_git_lfs}}, [this](const Json &) {
+                git_loaded = false;
+                git_storage_current = false;
+            });
         ImGui::SameLine();
         if (button("Inspect Git"))
             action("git-status", Json::object(), [this](const Json &r) { git_state = r; });
         ImGui::SameLine();
         if (button("Refresh")) {
             git_branches = git_review_state = git_review_diff = nullptr;
+            git_storage_current = false;
             load();
         }
+        c::beginCard("git-storage", c::tr("Git exchange storage").c_str());
+        ImGui::TextWrapped("%s", c::tr("Select exports to remove. Peers can no longer import "
+                                       "removed exports. Local Git data is preserved.")
+                                     .c_str());
+        if (button("Preview Git cleanup")) {
+            auto selection = git_storage_selected;
+            action("git-storage", {{"exports", selection}}, [this, selection](const Json &r) {
+                git_storage_state = r;
+                git_storage_current = selection == git_storage_selected;
+            });
+        }
+        ImGui::SameLine();
+        ImGui::BeginDisabled(!git_storage_current || git_storage_state.is_null() ||
+                             !git_storage_state.value("can_prune", false));
+        if (button("Apply Git cleanup")) {
+            auto query = Json{{"exports", git_storage_selected},
+                              {"apply", true},
+                              {"plan", git_storage_state.at("plan")}};
+            git_storage_current = false;
+            action("git-storage", query, [this](const Json &r) {
+                git_storage_state = nullptr;
+                git_storage_selected.clear();
+                git_loaded = false;
+                if (!r.at("failures").empty())
+                    error = r.at("failures").dump(2);
+            });
+        }
+        ImGui::EndDisabled();
+        if (!git_storage_state.is_null()) {
+            ImGui::BeginDisabled(busy());
+            for (const auto &entry : git_storage_state.at("exports")) {
+                auto id = entry.at("id").get<std::string>();
+                bool remove = git_storage_selected.contains(id);
+                auto label = entry.at("branch").get<std::string>() + " / " + id;
+                if (ImGui::Checkbox(label.c_str(), &remove)) {
+                    if (remove)
+                        git_storage_selected.insert(id);
+                    else
+                        git_storage_selected.erase(id);
+                    git_storage_current = false;
+                }
+            }
+            ImGui::EndDisabled();
+            text(c::tr("Unused LFS objects") + ": " +
+                 git_storage_state.at("unused_objects").dump());
+            text(c::tr("Reclaimable bytes") + ": " +
+                 git_storage_state.at("reclaimable_bytes").dump());
+            for (const auto &issue : git_storage_state.at("errors"))
+                text(issue.dump());
+        }
+        c::endCard();
         if (!git_branches.is_null()) {
             c::heading(c::tr("Imported branches").c_str(), 3);
             for (const auto &branch : git_branches) {

@@ -12,6 +12,13 @@ par profil pour le desktop et dans le navigateur pour le Web.
 
 ## Démarrer
 
+La version 0.14 ajoute trois jalons Git : paramètres LFS par projet avec cache personnalisé
+explicitement autorisé, revue des branches importées et des fichiers modifiés dans CyUI/Web/CLI,
+puis nettoyage des exports locaux et objets LFS inutilisés après aperçu vérifié. Les données Git
+locales, le cache et les objets partagés encore nécessaires sont préservés.
+Voir les guides [LFS](docs/git-lfs.md), [revue Git](docs/git-review.md) et
+[nettoyage Git](docs/git-storage.md) (anglais).
+
 La version 0.13 ajoute le transport des assets Git LFS avec les bundles : historique de la branche,
 versions supprimées, réutilisation des objets et vérification SHA-256 avant publication de la
 branche de suivi. Le dossier de travail et l'index Git restent intacts. Les deux pairs doivent
@@ -50,7 +57,7 @@ Linux : `dist/bin/cysynck-desktop`. macOS : `open dist/CySynck.app`.
 Le CLI reste disponible avec `dist/bin/cysynck help` sur ces deux plateformes.
 Les scripts `scripts/build.ps1` et `scripts/build.sh` exécutent ces étapes.
 
-La version 0.13.0 prépare des archives `.tar.gz` pour Linux et ZIP pour Windows/macOS.
+La version 0.14.0 prépare des archives `.tar.gz` pour Linux et ZIP pour Windows/macOS.
 Le bundle macOS contient son cœur, ses ressources Web et ses licences. Voir le
 [guide des paquets et de compilation croisée Linux](docs/packaging.md) (anglais).
 

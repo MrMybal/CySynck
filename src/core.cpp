@@ -15,6 +15,7 @@
 #include "diff.hpp"
 #include "git_lfs.hpp"
 #include "git_review.hpp"
+#include "git_storage.hpp"
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
@@ -895,7 +896,11 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
         result = imported_git_branches(p);
     else if (action == "git-review" || action == "git-review-file")
         result = review_git_branch(p, data, action == "git-review-file");
-    else
+    else if (action == "git-storage") {
+        result = git_exchange_storage(p, registry_.at("peer_id"), data);
+        if (result.value("applied", false))
+            event(p.at("id"), "git", "Reviewed local Git export cleanup applied");
+    } else
         result = sync_action(p, action, data);
     save();
     return result;

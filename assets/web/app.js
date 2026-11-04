@@ -7,6 +7,48 @@ try { token = sessionStorage.getItem("cysynck-token") || ""; } catch (_) { /* St
 let storagePlan = null, servicePreview = null;
 let backupStorageDirty = false;
 let gitSettingsDirty = false;
+let gitStorageSelected = new Set(), gitStoragePlan = null, gitStorageLoad = 0;
+function invalidateGitStorage() {
+  gitStoragePlan = null; ++gitStorageLoad;
+  $("git-storage-apply").disabled = true;
+}
+function resetGitStorage() {
+  invalidateGitStorage(); gitStorageSelected.clear();
+  $("git-storage-exports").replaceChildren(); $("git-storage-summary").replaceChildren();
+}
+$("git-storage-preview").addEventListener("click", () => safe(async () => {
+  const project = selected;
+  if (!project) return;
+  invalidateGitStorage();
+  const request = gitStorageLoad, exports = [...gitStorageSelected].sort();
+  const result = await api("projects/" + project + "/git-storage", "POST", {exports});
+  if (selected !== project || request !== gitStorageLoad) return;
+  gitStoragePlan = {project, exports, plan: result.plan};
+  $("git-storage-apply").disabled = !result.can_prune;
+  $("git-storage-exports").replaceChildren();
+  for (const entry of result.exports) {
+    const row = document.createElement("label"), checkbox = document.createElement("input");
+    checkbox.type = "checkbox"; checkbox.checked = gitStorageSelected.has(entry.id);
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) gitStorageSelected.add(entry.id); else gitStorageSelected.delete(entry.id);
+      invalidateGitStorage();
+    });
+    row.append(checkbox, text("span", entry.branch + " / " + entry.id));
+    $("git-storage-exports").append(row);
+  }
+  $("git-storage-summary").replaceChildren(label("p", "{count} unused LFS objects · {bytes} reclaimable bytes", {count: result.unused_objects, bytes: result.reclaimable_bytes}));
+  for (const issue of result.errors) $("git-storage-summary").append(text("p", issue.error));
+}));
+$("git-storage-apply").addEventListener("click", () => safe(async () => {
+  const input = gitStoragePlan;
+  if (!input || input.project !== selected) return;
+  invalidateGitStorage();
+  const result = await api("projects/" + input.project + "/git-storage", "POST", {exports: input.exports, plan: input.plan, apply: true});
+  if (selected !== input.project) return;
+  resetGitStorage();
+  $("git-storage-summary").append(text("pre", JSON.stringify(result, null, 2)));
+  await loadGitExchange();
+}));
 $("git-settings").addEventListener("input", () => {gitSettingsDirty=true; $("git-settings-result").replaceChildren();});
 function gitSettingsInput() { return {git_lfs: $("git-policy").checked, git_lfs_storage: $("git-storage-path").value}; }
 $("git-settings").addEventListener("submit", event => {
@@ -190,6 +232,7 @@ async function select(project) {
     $("git-records").replaceChildren();
     $("git-result").replaceChildren();
     $("git-branches").replaceChildren(); $("git-review").replaceChildren(); $("git-review-patch").textContent=""; ++gitReviewLoad;
+    resetGitStorage();
     ++gitLoad;
     $("transfer-result").replaceChildren();
     $("transfer-peer").value = "";
@@ -402,6 +445,7 @@ async function loadReceived() {
 }
 $("received-load").addEventListener("click", () => safe(loadReceived));
 async function loadGitExchange() {
+  invalidateGitStorage();
   const project = selected, request = ++gitLoad;
   if (!project) return;
   const [result,branches] = await Promise.all([api("projects/" + project + "/inbox", "POST", {}),api("projects/"+project+"/git-branches","POST",{})]);
