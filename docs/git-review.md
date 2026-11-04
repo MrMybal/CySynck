@@ -19,6 +19,9 @@ commit counts unique to each side and a relation: `identical`, `fast_forward`, `
 three-way merge preview or a comparison limited to changes since their common ancestor.
 Renames appear as deletion/addition pairs. Mode changes, symbolic links and submodules remain visible.
 
+From 0.23, the separate [three-way committed review](git-merge-review.md) compares both branches
+with their common ancestor and offers bounded per-file text proposals, including diff3 conflicts.
+
 The native Git exchange view lists imported branches and renders file previews with CyUI's
 side-by-side and unified diff viewer. The Web console provides a changed-file list and unified
 patch. Both default to English and include French translations.

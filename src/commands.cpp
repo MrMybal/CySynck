@@ -26,7 +26,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.22 (C++20)
+        return {{"help", R"(CySynck 0.23 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | events | api-token
   doctor [--probe true]  (test tool versions and engine connection only with --probe)
@@ -61,6 +61,8 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   git setup ID [--branch main --object-format sha1|sha256] [--apply true --plan PREVIEW_TOKEN]
   git integrate ID PEER_ID BRANCH [--apply true --plan PREVIEW_TOKEN]
       [--base COMMIT|unborn --head COMMIT --local-ref REF]  (clean tracked files; unrelated local files preserved)
+  git merge-review ID PEER_ID BRANCH  (committed three-way file overview; no application)
+  git merge-file ID PEER_ID BRANCH PATH [--base COMMIT --head COMMIT --local-ref REF --merge-base COMMIT]
   git integrations ID [--offset 0 --limit 20]
   git integration-check ID RECEIPT_ID
   git integration-acknowledge ID RECEIPT_ID --plan CHECK_TOKEN  (preserve receipt and Git files)
@@ -385,6 +387,11 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.20.)"}}
             }
             return core.request("POST", "/api/projects/" + args[2] + "/git-" + command, data);
         }
+        if (command == "merge-review" || command == "merge-file")
+            for (const auto &[flag, value] : flags)
+                if (flag != "--base" && flag != "--head" && flag != "--local-ref" &&
+                    flag != "--merge-base")
+                    throw std::runtime_error("Unknown three-way Git review flag: " + flag);
         if (command == "integrate")
             for (const auto &[flag, value] : flags)
                 if (flag != "--base" && flag != "--head" && flag != "--local-ref" &&
@@ -392,13 +399,17 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.20.)"}}
                     throw std::runtime_error("Unknown Git integration flag: " + flag);
         if (command == "review" || command == "review-file" || command == "history" ||
             command == "commit" || command == "commit-file" || command == "extract" ||
-            command == "integrate") {
-            require(command == "commit-file"                                                  ? 7
-                    : command == "review-file" || command == "commit" || command == "extract" ? 6
-                                                                                              : 5);
+            command == "integrate" || command == "merge-review" || command == "merge-file") {
+            require(command == "commit-file" ? 7
+                    : command == "review-file" || command == "commit" || command == "extract" ||
+                            command == "merge-file"
+                        ? 6
+                        : 5);
             data = {{"peer", args[3]}, {"branch", args[4]}};
-            if (command == "review-file")
+            if (command == "review-file" || command == "merge-file")
                 data["path"] = args[5];
+            if (flags.contains("--merge-base"))
+                data["merge_base"] = flags.at("--merge-base");
             if (command == "commit" || command == "commit-file")
                 data["commit"] = args[5];
             if (command == "commit-file")
@@ -485,7 +496,8 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.20.)"}}
                                          command == "branches" || command == "storage" ||
                                          command == "history" || command == "commit" ||
                                          command == "commit-file" || command == "setup" ||
-                                         command == "extract" || command == "integrate"
+                                         command == "extract" || command == "integrate" ||
+                                         command == "merge-review" || command == "merge-file"
                                      ? "git-" + command
                                      : command),
                             data);

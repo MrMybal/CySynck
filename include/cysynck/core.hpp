@@ -11,7 +11,7 @@
 namespace cysynck {
 using Json = nlohmann::json;
 namespace fs = std::filesystem;
-inline constexpr const char *version = "0.22.0";
+inline constexpr const char *version = "0.23.0";
 fs::path default_state();
 std::string path_string(const fs::path &path);
 bool path_is_link(const fs::path &path);

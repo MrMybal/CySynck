@@ -924,6 +924,8 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
               "Interrupted Git integration marked as reviewed; receipt preserved");
     } else if (action == "git-review" || action == "git-review-file")
         result = review_git_branch(p, data, action == "git-review-file");
+    else if (action == "git-merge-review" || action == "git-merge-file")
+        result = review_git_merge(state_, p, data, action == "git-merge-file");
     else if (action == "git-history")
         result = git_branch_history(p, data);
     else if (action == "git-commit" || action == "git-commit-file")

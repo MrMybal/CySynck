@@ -1,5 +1,15 @@
 # Development milestones
 
+## Delivered in 0.23
+
+Three-way committed Git review compares both branches with a unique common ancestor. It
+classifies one-sided, identical, overlapping and structural changes, then offers bounded
+per-file text proposals with labelled diff3 conflicts. The proposal and all three committed
+versions are available through CLI, the C/C++ SDK, CyUI and Web in English/French. Staged and
+working changes, refs, configuration and Git objects are preserved. Binary, LFS, structural,
+custom-driver and checkout-conversion cases require manual review. These proposals do not
+apply divergent repository merges. See [three-way Git review](git-merge-review.md).
+
 ## Delivered in 0.22
 
 Optional content-defined backup storage (`backup_storage: cdc`) cuts large files into 1–8 MiB

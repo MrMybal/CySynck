@@ -406,6 +406,58 @@ string(JSON interrupted_status GET "${interrupted_reviewed}" status)
 if(interrupted_attention OR NOT interrupted_status STREQUAL "incomplete")
   message(FATAL_ERROR "Packaged acknowledgement lost the incomplete receipt evidence")
 endif()
+# Divergent branches expose committed three-way proposals through the packaged C ABI.
+file(SHA256 "${integration_target}/hello.txt" merge_expected_ancestor)
+sdk_git("${integration_target}" config core.autocrlf false)
+if(CMAKE_HOST_WIN32)
+  sdk_git("${integration_target}" config core.attributesFile NUL)
+else()
+  sdk_git("${integration_target}" config core.attributesFile /dev/null)
+endif()
+# CMake list expansion omits an empty config argument; write this owned fixture's value.
+file(APPEND "${integration_target}/.git/config" "\n[merge]\n\tdefault =\n")
+file(WRITE "${integration_source}/hello.txt" "Peer SDK edit\n")
+file(SHA256 "${integration_source}/hello.txt" merge_expected_peer)
+sdk_git("${integration_source}" add hello.txt)
+sdk_git("${integration_source}" commit -m "Peer edit")
+file(WRITE "${integration_target}/hello.txt" "Local SDK edit\n")
+file(SHA256 "${integration_target}/hello.txt" merge_expected_local)
+sdk_git("${integration_target}" add hello.txt)
+sdk_git("${integration_target}" commit -m "Local edit")
+run_response("${c_consumer}" merge_export "${WORK_DIR}/C integration source été" POST /api/projects/team/export "{}")
+string(JSON merge_bundle GET "${merge_export}" id)
+run_response("${c_consumer}" merge_import "${integration_profile}" POST /api/projects/team/import
+  "{\"peer\":\"${integration_peer}\",\"bundle\":\"${merge_bundle}\"}")
+file(WRITE "${integration_target}/hello.txt" "Uncommitted SDK edit\n")
+file(SHA256 "${integration_target}/hello.txt" merge_work_before)
+file(SHA256 "${integration_target}/.git/index" merge_index_before)
+run_response("${c_consumer}" merge_overview "${integration_profile}" POST /api/projects/team/git-merge-review
+  "{\"peer\":\"${integration_peer}\",\"branch\":\"main\"}")
+string(JSON merge_can_review GET "${merge_overview}" can_review)
+string(JSON merge_base GET "${merge_overview}" merge_base)
+string(JSON merge_local GET "${merge_overview}" base)
+string(JSON merge_peer GET "${merge_overview}" head)
+string(JSON merge_ref GET "${merge_overview}" local_ref)
+run_response("${c_consumer}" merge_file "${integration_profile}" POST /api/projects/team/git-merge-file
+  "{\"peer\":\"${integration_peer}\",\"branch\":\"main\",\"path\":\"hello.txt\",\"base\":\"${merge_local}\",\"head\":\"${merge_peer}\",\"local_ref\":\"${merge_ref}\",\"merge_base\":\"${merge_base}\"}")
+string(JSON merge_kind GET "${merge_file}" kind)
+string(JSON merge_candidate GET "${merge_file}" candidate)
+string(JSON merge_local_text GET "${merge_file}" texts local)
+string(JSON merge_peer_text GET "${merge_file}" texts peer)
+string(JSON merge_ancestor_text GET "${merge_file}" texts ancestor)
+string(SHA256 merge_actual_local "${merge_local_text}")
+string(SHA256 merge_actual_peer "${merge_peer_text}")
+string(SHA256 merge_actual_ancestor "${merge_ancestor_text}")
+file(SHA256 "${integration_target}/hello.txt" merge_work_after)
+file(SHA256 "${integration_target}/.git/index" merge_index_after)
+if(NOT merge_can_review OR NOT merge_kind STREQUAL "conflict"
+    OR NOT merge_candidate MATCHES "<<<<<<< LOCAL" OR NOT merge_candidate MATCHES "[|][|][|][|][|][|][|] ANCESTOR"
+    OR NOT merge_candidate MATCHES ">>>>>>> PEER"
+    OR NOT merge_actual_local STREQUAL merge_expected_local OR NOT merge_actual_peer STREQUAL merge_expected_peer
+    OR NOT merge_actual_ancestor STREQUAL merge_expected_ancestor
+    OR NOT merge_work_before STREQUAL merge_work_after OR NOT merge_index_before STREQUAL merge_index_after)
+  message(FATAL_ERROR "Packaged C ABI three-way proposal lost committed context or modified local work")
+endif()
 execute_process(COMMAND "${c_consumer}" "${WORK_DIR}/C profil été" GET /api/unknown
   RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE error)
 if(NOT result EQUAL 1 OR NOT error MATCHES "error")

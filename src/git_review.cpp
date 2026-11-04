@@ -1,5 +1,7 @@
 #include "git_review.hpp"
 #include "git_lfs.hpp"
+#include "backup.hpp"
+#include "git_paths.hpp"
 #include <algorithm>
 #include <charconv>
 #include <map>
@@ -65,6 +67,8 @@ Json changed_files(const Json &project, const std::string &base, const std::stri
                              "--no-textconv", "--ignore-submodules=none"});
     args.insert(args.end(), {before, head, "--"});
     auto raw = offline_git(project, args);
+    if (raw.size() >= 8 * 1024 * 1024)
+        throw std::runtime_error("Git changed-file listing exceeds the 8 MiB review bound");
     Json files = Json::array();
     std::set<std::string> objects;
     size_t offset = 0;
@@ -323,6 +327,201 @@ Json commit_log(const Json &project, const std::string &head, uintmax_t offset, 
     return records;
 }
 } // namespace
+namespace {
+bool same_side(const Json &left, const Json &right) {
+    return left.at("oid") == right.at("oid") && left.at("mode") == right.at("mode");
+}
+Json file_merge(const fs::path &state, const Json &project, Json entry, const Json &review) {
+    entry.update({{"kind", "manual"},
+                  {"reason", ""},
+                  {"texts", Json::object()},
+                  {"candidate", nullptr},
+                  {"candidate_mode", nullptr},
+                  {"result_exists", nullptr},
+                  {"clean", false},
+                  {"conflicts", nullptr}});
+    if (entry.at("classification") == "structural") {
+        entry["reason"] = "structure";
+        return entry;
+    }
+    for (auto key : {"ancestor", "local", "peer"}) {
+        const auto &info = entry.at(std::string(key) + "_info");
+        auto mode = info.at("mode").get<std::string>();
+        if (mode == "160000" || mode == "120000") {
+            entry["reason"] = mode == "160000" ? "submodule" : "symlink";
+            return entry;
+        }
+        if (mode != "000000" && mode != "100644" && mode != "100755") {
+            entry["reason"] = "file_type";
+            return entry;
+        }
+        if (info.at("bytes").get<uintmax_t>() > preview_limit) {
+            entry["reason"] = "large";
+            return entry;
+        }
+    }
+    for (auto key : {"ancestor", "local", "peer"}) {
+        const auto &info = entry.at(std::string(key) + "_info");
+        auto text = info.at("exists").get<bool>()
+                        ? offline_git(project, {"cat-file", "blob", info.at("oid")})
+                        : "";
+        if (text.size() != info.at("bytes").get<uintmax_t>())
+            throw std::runtime_error("Git merge review blob changed or was truncated");
+        if (text.find('\0') != text.npos || !utf8(text)) {
+            entry["reason"] = "binary";
+            entry["texts"] = Json::object();
+            return entry;
+        }
+        if (!git_lfs_pointer(text).is_null()) {
+            entry["reason"] = "lfs_pointer";
+            entry["texts"] = Json::object();
+            return entry;
+        }
+        entry["texts"][key] = text;
+    }
+    auto defaults = offline_git_result(project, {"config", "--get", "merge.default"});
+    if (defaults.code != 0 && defaults.code != 1)
+        throw std::runtime_error("Cannot inspect default Git merge driver");
+    if (defaults.code == 0 && !trim(defaults.out).empty()) {
+        entry["reason"] = "attributes";
+        return entry;
+    }
+    for (auto [side_name, commit_key] :
+         {std::pair{"ancestor", "merge_base"}, {"local", "base"}, {"peer", "head"}}) {
+        if (!entry.at(std::string(side_name) + "_info").at("exists").get<bool>())
+            continue;
+        auto attributes = offline_git(project,
+                                      {"-c", "core.fsmonitor=false", "check-attr",
+                                       "--source=" + review.at(commit_key).get<std::string>(), "-z",
+                                       "--stdin", "merge", "filter", "text", "eol",
+                                       "working-tree-encoding", "ident", "crlf"},
+                                      entry.at("path").get<std::string>() + '\0');
+        std::vector<std::string> parts;
+        size_t start = 0;
+        while (start < attributes.size()) {
+            auto end = attributes.find('\0', start);
+            if (end == attributes.npos)
+                throw std::runtime_error("Incomplete Git merge review attributes");
+            parts.push_back(attributes.substr(start, end - start));
+            start = end + 1;
+        }
+        if (parts.size() != 21)
+            throw std::runtime_error("Incomplete Git merge review attributes");
+        for (size_t i = 0; i < parts.size(); i += 3) {
+            bool allowed =
+                parts[i + 2] == "unspecified" ||
+                (parts[i + 1] == "merge" ? parts[i + 2] == "set" : parts[i + 2] == "unset");
+            if (!allowed) {
+                entry["reason"] = "attributes";
+                return entry;
+            }
+        }
+    }
+    const auto &ancestor = entry.at("ancestor_info"), &local = entry.at("local_info"),
+               &peer = entry.at("peer_info");
+    const Json *chosen = nullptr;
+    if (same_side(local, peer) || same_side(peer, ancestor))
+        chosen = &local;
+    else if (same_side(local, ancestor))
+        chosen = &peer;
+    if (chosen) {
+        entry["result_exists"] = chosen->at("exists");
+        entry["kind"] = chosen->at("exists").get<bool>() ? "clean" : "delete";
+        entry["candidate_mode"] =
+            chosen->at("exists").get<bool>() ? chosen->at("mode") : Json(nullptr);
+        entry["candidate"] =
+            chosen == &local ? entry.at("texts").at("local") : entry.at("texts").at("peer");
+        entry["clean"] = true;
+        entry["conflicts"] = 0;
+        return entry;
+    }
+    if (!local.at("exists").get<bool>() || !peer.at("exists").get<bool>()) {
+        entry["reason"] = "modify_delete";
+        return entry;
+    }
+    Json mode = local.at("mode");
+    if (local.at("mode") != peer.at("mode")) {
+        if (local.at("mode") == ancestor.at("mode"))
+            mode = peer.at("mode");
+        else if (peer.at("mode") != ancestor.at("mode")) {
+            entry["reason"] = "permissions";
+            return entry;
+        }
+    }
+    auto parent = project_child(state, "git-file-previews");
+    plain_directory(parent);
+    fs::create_directories(parent);
+    secure_state_path(parent, true);
+    auto temporary_id = random_id();
+    auto directory = project_child(parent, temporary_id);
+    if (!fs::create_directory(directory))
+        throw std::runtime_error("Cannot reserve Git merge preview directory");
+    struct Copies {
+        fs::path state;
+        std::string id;
+        ~Copies() {
+            try {
+                auto relative = "git-file-previews/" + id;
+                for (auto name : {"local", "ancestor", "peer"}) {
+                    auto path = project_child(state, relative + "/" + name);
+                    if (fs::is_regular_file(path))
+                        fs::remove(path);
+                }
+                fs::remove(project_child(state, relative));
+            } catch (...) { /* Preserve unexpected content; cleanup never recurses. */
+            }
+        }
+    } copies{state, temporary_id};
+    secure_state_path(directory, true);
+    for (auto key : {"local", "ancestor", "peer"})
+        atomic_write(directory / key, entry.at("texts").at(key).get<std::string>(), true);
+    auto merged = process({"git",
+                           "--no-pager",
+                           "--no-replace-objects",
+                           "-c",
+                           "protocol.allow=never",
+                           "-c",
+                           "core.fsmonitor=false",
+                           "-c",
+                           "core.hooksPath="
+#ifdef _WIN32
+                           "NUL",
+#else
+                           "/dev/null",
+#endif
+                           "merge-file",
+                           "--stdout",
+                           "--diff3",
+                           "--diff-algorithm=myers",
+                           "--marker-size=7",
+                           "-L",
+                           "LOCAL",
+                           "-L",
+                           "ANCESTOR",
+                           "-L",
+                           "PEER",
+                           "--",
+                           path_string(directory / "local"),
+                           path_string(directory / "ancestor"),
+                           path_string(directory / "peer")},
+                          directory, {}, 120);
+    if (merged.code < 0 || merged.code > 127)
+        throw std::runtime_error(
+            "Git merge-file preview failed; check Git version and local temporary storage");
+    if (merged.out.size() >= 4 * 1024 * 1024 || !utf8(merged.out) ||
+        merged.out.find('\0') != merged.out.npos) {
+        entry["reason"] = "output_limit";
+        return entry;
+    }
+    entry["candidate"] = merged.out;
+    entry["candidate_mode"] = mode;
+    entry["result_exists"] = true;
+    entry["clean"] = merged.code == 0;
+    entry["conflicts"] = merged.code;
+    entry["kind"] = merged.code == 0 ? "clean" : "conflict";
+    return entry;
+}
+} // namespace
 Json git_local_head(const Json &project) { return local_head(project); }
 Json git_revision_context(const Json &project, const Json &data) {
     require_default_git_environment();
@@ -411,6 +610,108 @@ Json review_git_branch(const Json &project, const Json &data, bool filePreview) 
     }
     unchanged(project, review);
     result.update(review);
+    return result;
+}
+Json review_git_merge(const fs::path &state, const Json &project, const Json &data,
+                      bool filePreview) {
+    if (data.contains("apply") || data.contains("commit"))
+        throw std::runtime_error(
+            "Three-way Git review accepts branch context only and never applies changes");
+    auto review = git_revision_context(project, data);
+    review.erase("commit");
+    review.update({{"read_only", true},
+                   {"working_tree_included", false},
+                   {"rename_detection", false},
+                   {"can_review", false},
+                   {"merge_base", nullptr},
+                   {"files", Json::array()},
+                   {"reason", ""}});
+    if (review.at("base").is_null())
+        review["reason"] = "unborn";
+    else {
+        auto bases = offline_git_result(
+            project, {"merge-base", "--all", review.at("base"), review.at("head")});
+        if (bases.code != 0 && bases.code != 1)
+            throw std::runtime_error("Cannot inspect Git merge review ancestors");
+        std::istringstream lines(bases.out);
+        std::vector<std::string> ancestors;
+        std::string line;
+        while (std::getline(lines, line)) {
+            line = trim(line);
+            if (!oid(line) || ancestors.size() >= 10000)
+                throw std::runtime_error("Invalid or oversized Git merge review ancestor list");
+            ancestors.push_back(line);
+        }
+        if (ancestors.empty())
+            review["reason"] = "unrelated";
+        else if (ancestors.size() != 1)
+            review["reason"] = "multiple_bases";
+        else
+            review["merge_base"] = ancestors.front();
+    }
+    if (data.contains("merge_base") && data.at("merge_base") != review.at("merge_base"))
+        throw std::runtime_error("Git merge review ancestor changed; refresh the review");
+    if (!review.at("merge_base").is_null()) {
+        auto common = review.at("merge_base").get<std::string>();
+        std::map<std::string, Json> entries;
+        for (auto [name, commit_key] : {std::pair{"local", "base"}, {"peer", "head"}})
+            for (const auto &file : changed_files(project, common, review.at(commit_key))) {
+                auto path = file.at("path").get<std::string>();
+                auto [it, inserted] = entries.try_emplace(path);
+                if (entries.size() > 10000)
+                    throw std::runtime_error("Git merge review is limited to 10000 changed paths");
+                if (inserted)
+                    it->second = {{"path", path},
+                                  {"ancestor_info", file.at("before_info")},
+                                  {"local_info", file.at("before_info")},
+                                  {"peer_info", file.at("before_info")}};
+                else if (!same_side(it->second.at("ancestor_info"), file.at("before_info")))
+                    throw std::runtime_error("Git merge review ancestor metadata is inconsistent");
+                it->second[std::string(name) + "_info"] = file.at("after_info");
+            }
+        std::map<std::string, std::string, GitPathLess> names;
+        std::set<std::string> structural;
+        for (const auto &[path, entry] : entries) {
+            auto [it, inserted] = names.emplace(path, path);
+            if (!inserted && it->second != path) {
+                structural.insert(path);
+                structural.insert(it->second);
+            }
+        }
+        for (const auto &[path, entry] : entries) {
+            for (auto parent = fs::u8path(path).parent_path(); !parent.empty();
+                 parent = parent.parent_path()) {
+                auto found = names.find(path_string(parent));
+                if (found != names.end()) {
+                    structural.insert(path);
+                    structural.insert(found->second);
+                }
+            }
+        }
+        for (auto &[path, entry] : entries) {
+            auto &ancestor = entry.at("ancestor_info"), &local = entry.at("local_info"),
+                 &peer = entry.at("peer_info");
+            entry["classification"] = structural.contains(path)    ? "structural"
+                                      : same_side(local, peer)     ? "identical"
+                                      : same_side(local, ancestor) ? "peer_only"
+                                      : same_side(peer, ancestor)  ? "local_only"
+                                                                   : "both_changed";
+            review["files"].push_back(entry);
+        }
+        review["can_review"] = true;
+    }
+    Json result = review;
+    if (filePreview) {
+        auto path = data.at("path").get<std::string>();
+        const auto &files = review.at("files");
+        auto found = std::find_if(files.begin(), files.end(),
+                                  [&](const Json &entry) { return entry.at("path") == path; });
+        if (!review.at("can_review").get<bool>() || found == files.end())
+            throw std::runtime_error("Choose a changed path from the current three-way Git review");
+        result.erase("files");
+        result.update(file_merge(state, project, *found, review));
+    }
+    unchanged(project, review);
     return result;
 }
 Json git_branch_history(const Json &project, const Json &data) {

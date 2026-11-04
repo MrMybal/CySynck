@@ -10,6 +10,13 @@ Le cœur, le CLI et les identifiants d'API sont en anglais. Les interfaces deskt
 démarrent en anglais et proposent le français comme deuxième langue. Le choix est mémorisé
 par profil pour le desktop et dans le navigateur pour le Web.
 
+La version 0.23 ajoute une revue Git à trois versions : ancêtre commun, branche locale et
+branche importée. Chaque fichier texte pris en charge propose un résultat combiné ou des
+conflits balisés. Les trois contenus commités sont consultables séparément dans CyUI et le Web,
+en anglais/français, avec les mêmes opérations dans le CLI et le SDK. La revue conserve
+l'index, les fichiers et les références ; la fusion des branches divergentes reste manuelle.
+Voir le [guide de revue à trois versions](docs/git-merge-review.md).
+
 L'intégration des branches importées propose désormais une avance rapide dans le projet
 local, y compris avant son premier commit. Un aperçu vérifié précède la mise à jour de la
 branche, de l'index et des fichiers. Les fichiers non suivis ou ignorés sans collision sont

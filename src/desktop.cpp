@@ -69,7 +69,53 @@ static void field(const char *label, std::string &value) {
 static void localize() {
     c::registerTranslations(
         "fr",
-        {{"Backup storage", "Stockage des sauvegardes"},
+        {{"Three-way Git review", "Revue Git à trois versions"},
+         {"Compares committed files with their common ancestor. Proposals do not apply a "
+          "repository merge or include working changes and rename detection.",
+          "Compare les fichiers commités à leur ancêtre commun. Les propositions n’appliquent "
+          "aucune fusion au dépôt et n’incluent ni les changements de travail ni la détection des "
+          "renommages."},
+         {"Review three-way changes", "Examiner les trois versions"},
+         {"Three-way review needs a local commit",
+          "La revue à trois versions nécessite un commit local"},
+         {"Three-way review needs a shared ancestor",
+          "La revue à trois versions nécessite un ancêtre commun"},
+         {"Multiple merge bases require a repository merge",
+          "Plusieurs ancêtres de fusion nécessitent une fusion dans Git"},
+         {"Common ancestor", "Ancêtre commun"},
+         {"Local change only", "Changement local uniquement"},
+         {"Peer change only", "Changement du pair uniquement"},
+         {"Same change on both sides", "Même changement des deux côtés"},
+         {"Changed on both sides", "Modifié des deux côtés"},
+         {"Structural conflict", "Conflit de structure"},
+         {"Preview three-way file", "Prévisualiser les trois versions"},
+         {"Text proposal without conflicts", "Proposition de texte sans conflit"},
+         {"Text conflicts detected", "Conflits de texte détectés"},
+         {"Proposed file deletion", "Suppression du fichier proposée"},
+         {"Manual Git review required", "Revue Git manuelle nécessaire"},
+         {"Review file types and path collisions in Git",
+          "Examinez les types de fichiers et les collisions de chemins dans Git"},
+         {"Review submodules in Git", "Examinez les sous-modules dans Git"},
+         {"Review symbolic links in Git", "Examinez les liens symboliques dans Git"},
+         {"Three-way text previews are limited to 512 KiB per side",
+          "La prévisualisation à trois versions est limitée à 512 Kio par version"},
+         {"Binary or non-UTF-8 content needs manual review",
+          "Les contenus binaires ou non UTF-8 nécessitent une revue manuelle"},
+         {"LFS assets need manual Git review", "Les assets LFS nécessitent une revue Git manuelle"},
+         {"Custom merge or checkout attributes need manual Git review",
+          "Les attributs de fusion ou d’extraction personnalisés nécessitent une revue Git "
+          "manuelle"},
+         {"One side modified a file deleted by the other",
+          "Un côté a modifié un fichier supprimé par l’autre"},
+         {"File permissions need manual Git review",
+          "Les permissions du fichier nécessitent une revue Git manuelle"},
+         {"Merge proposal exceeds its preview bound",
+          "La proposition de fusion dépasse la limite de prévisualisation"},
+         {"Conflict regions reported", "Zones de conflit signalées"},
+         {"Merge proposal", "Proposition de fusion"},
+         {"Local committed version", "Version locale commitée"},
+         {"Peer committed version", "Version commitée du pair"},
+         {"Backup storage", "Stockage des sauvegardes"},
          {"Fixed blocks (4 MiB)", "Blocs fixes (4 Mio)"},
          {"Whole files", "Fichiers entiers"},
          {"Content-defined blocks (1–8 MiB)", "Blocs selon le contenu (1–8 Mio)"},
@@ -635,7 +681,8 @@ class App {
         doctor_state, service_preview, service_preview_input, transfer_state, transfer_limits_state,
         git_branches, git_review_state, git_review_diff, git_storage_state, git_history_state,
         git_commit_state, git_setup_state, git_extract_state, git_extract_input,
-        git_integrate_state, git_integrate_input, git_integration_records, git_integration_check;
+        git_integrate_state, git_integrate_input, git_integration_records, git_integration_check,
+        git_merge_state, git_merge_file_state;
     size_t git_integration_offset = 0;
     std::string git_extract_destination;
     bool git_extract_lfs = true;
@@ -871,6 +918,7 @@ class App {
         git_setup_state = nullptr;
         git_extract_state = git_extract_input = nullptr;
         git_integrate_state = git_integrate_input = nullptr;
+        git_merge_state = git_merge_file_state = nullptr;
         git_integration_records = git_integration_check = nullptr;
         git_integration_offset = 0;
         git_extract_destination.clear();
@@ -2049,6 +2097,113 @@ class App {
             git_review_diff = nullptr;
         });
     }
+    void git_merge_view() {
+        c::beginCard("git-three-way", c::tr("Three-way Git review").c_str());
+        ImGui::TextWrapped(
+            "%s", c::tr("Compares committed files with their common ancestor. Proposals do not "
+                        "apply a repository merge or include working changes and rename detection.")
+                      .c_str());
+        ImGui::BeginDisabled(busy());
+        if (button("Review three-way changes")) {
+            git_merge_state = git_merge_file_state = nullptr;
+            action("git-merge-review", git_context(), [this](const Json &r) {
+                if (current_git_context(r))
+                    git_merge_state = r;
+            });
+        }
+        ImGui::EndDisabled();
+        if (!git_merge_state.is_null()) {
+            const auto reasons = std::map<std::string, const char *>{
+                {"unborn", "Three-way review needs a local commit"},
+                {"unrelated", "Three-way review needs a shared ancestor"},
+                {"multiple_bases", "Multiple merge bases require a repository merge"}};
+            if (!git_merge_state.value("can_review", false))
+                text(c::tr(reasons.at(git_merge_state.at("reason").get<std::string>())));
+            else {
+                text(c::tr("Common ancestor") + ": " +
+                     git_merge_state.at("merge_base").get<std::string>());
+                const auto classes =
+                    std::map<std::string, const char *>{{"local_only", "Local change only"},
+                                                        {"peer_only", "Peer change only"},
+                                                        {"identical", "Same change on both sides"},
+                                                        {"both_changed", "Changed on both sides"},
+                                                        {"structural", "Structural conflict"}};
+                if (git_merge_state.at("files").empty())
+                    text(c::tr("No changed files"));
+                ImGui::BeginChild("three-way-paths", c::dp(0, 200), ImGuiChildFlags_Borders);
+                for (const auto &entry : git_merge_state.at("files")) {
+                    auto path = entry.at("path").get<std::string>();
+                    ImGui::PushID(path.c_str());
+                    text(path + " / " +
+                         c::tr(classes.at(entry.at("classification").get<std::string>())));
+                    ImGui::BeginDisabled(busy());
+                    if (button("Preview three-way file")) {
+                        auto input = git_context();
+                        input["path"] = path;
+                        input["merge_base"] = git_merge_state.at("merge_base");
+                        git_merge_file_state = nullptr;
+                        action("git-merge-file", input, [this](const Json &r) {
+                            if (current_git_context(r) && !git_merge_state.is_null() &&
+                                git_merge_state.at("merge_base") == r.at("merge_base"))
+                                git_merge_file_state = r;
+                        });
+                    }
+                    ImGui::EndDisabled();
+                    ImGui::PopID();
+                }
+                ImGui::EndChild();
+            }
+        }
+        if (!git_merge_file_state.is_null()) {
+            auto &draft = git_merge_file_state;
+            text(draft.at("path"));
+            const auto kinds =
+                std::map<std::string, const char *>{{"clean", "Text proposal without conflicts"},
+                                                    {"conflict", "Text conflicts detected"},
+                                                    {"delete", "Proposed file deletion"},
+                                                    {"manual", "Manual Git review required"}};
+            text(c::tr(kinds.at(draft.at("kind").get<std::string>())));
+            if (draft.at("kind") == "manual") {
+                const auto reasons = std::map<std::string, const char *>{
+                    {"structure", "Review file types and path collisions in Git"},
+                    {"submodule", "Review submodules in Git"},
+                    {"symlink", "Review symbolic links in Git"},
+                    {"file_type", "Review file types and path collisions in Git"},
+                    {"large", "Three-way text previews are limited to 512 KiB per side"},
+                    {"binary", "Binary or non-UTF-8 content needs manual review"},
+                    {"lfs_pointer", "LFS assets need manual Git review"},
+                    {"attributes", "Custom merge or checkout attributes need manual Git review"},
+                    {"modify_delete", "One side modified a file deleted by the other"},
+                    {"permissions", "File permissions need manual Git review"},
+                    {"output_limit", "Merge proposal exceeds its preview bound"}};
+                text(c::tr(reasons.at(draft.at("reason").get<std::string>())));
+            }
+            if (!draft.at("conflicts").is_null())
+                text(c::tr("Conflict regions reported") + ": " + draft.at("conflicts").dump());
+            ImGui::PushID(draft.at("path").get_ref<const std::string &>().c_str());
+            if (ImGui::BeginTabBar("three-way-text-tabs")) {
+                for (auto [key, title] : {std::pair{"candidate", "Merge proposal"},
+                                          {"ancestor", "Common ancestor"},
+                                          {"local", "Local committed version"},
+                                          {"peer", "Peer committed version"}}) {
+                    auto *value = std::string(key) == "candidate"   ? &draft.at("candidate")
+                                  : draft.at("texts").contains(key) ? &draft.at("texts").at(key)
+                                                                    : nullptr;
+                    if (!value || value->is_null())
+                        continue;
+                    if (ImGui::BeginTabItem(c::tr(title).c_str())) {
+                        auto &contents = value->get_ref<std::string &>();
+                        ImGui::InputTextMultiline("##three-way-content", &contents, c::dp(-1, 220),
+                                                  ImGuiInputTextFlags_ReadOnly);
+                        ImGui::EndTabItem();
+                    }
+                }
+                ImGui::EndTabBar();
+            }
+            ImGui::PopID();
+        }
+        c::endCard();
+    }
     void git_receipts_view() {
         c::beginCard("git-integration-receipts", c::tr("Git integration receipts").c_str());
         ImGui::TextWrapped("%s", c::tr("Check the repository before marking an interruption as "
@@ -2134,6 +2289,7 @@ class App {
             return;
         }
         if (button("Refresh")) {
+            git_merge_state = git_merge_file_state = nullptr;
             git_integration_records = git_integration_check = nullptr;
             git_integration_offset = 0;
             git_integrate_state = git_integrate_input = nullptr;
@@ -2274,6 +2430,7 @@ class App {
                            {{"peer", branch.at("peer")}, {"branch", branch.at("branch")}},
                            [this](const Json &r) {
                                git_review_state = r;
+                               git_merge_state = git_merge_file_state = nullptr;
                                git_integrate_state = git_integrate_input = nullptr;
                                git_review_diff = git_history_state = git_commit_state = nullptr;
                            });
@@ -2351,6 +2508,7 @@ class App {
             const auto &comparison =
                 git_commit_state.is_null() ? git_review_state : git_commit_state;
             if (git_commit_state.is_null()) {
+                git_merge_view();
                 c::beginCard("git-integrate", c::tr("Integrate imported branch").c_str());
                 ImGui::TextWrapped(
                     "%s",

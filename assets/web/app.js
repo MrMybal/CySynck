@@ -576,10 +576,48 @@ function showGitReview(project,review) {
   const integration=text("div",""), load=label("button","Load branch history"), history=text("div",""), details=text("div",""), files=text("div","");
   $("git-review").append(integration,load,history,details,files);
   showGitIntegration(project,review,integration);
+  showGitMergeReview(project,review,integration);
   load.addEventListener("click",()=>safe(()=>loadGitHistory(project,review,history,details,files)));
   showGitFiles(project,review,review,files);
 }
 function gitContext(review) {return {peer:review.peer,branch:review.branch,base:review.base,head:review.head,local_ref:review.local_ref};}
+function showGitMergeReview(project,review,container) {
+  const card=text("div","","snapshot"),load=label("button","Review three-way changes"),files=text("div",""),details=text("div","");
+  card.append(label("h4","Three-way Git review"),label("p","Compares committed files with their common ancestor. Proposals do not apply a repository merge or include working changes and rename detection."),load,files,details);container.append(card);
+  let generation=0,fileRequest=0;
+  const current=()=>selected===project && card.isConnected;
+  load.addEventListener("click",()=>safe(async()=>{
+    const request=++generation;++fileRequest;files.replaceChildren();details.replaceChildren();
+    const result=await api("projects/"+project+"/git-merge-review","POST",gitContext(review));
+    if(!current() || request!==generation)return;
+    const reasons={unborn:"Three-way review needs a local commit",unrelated:"Three-way review needs a shared ancestor",multiple_bases:"Multiple merge bases require a repository merge"};
+    if(!result.can_review){files.append(label("p",reasons[result.reason]));return;}
+    files.append(label("p","Common ancestor"),text("p",result.merge_base));
+    if(!result.files.length)files.append(label("p","No changed files"));
+    const classes={local_only:"Local change only",peer_only:"Peer change only",identical:"Same change on both sides",both_changed:"Changed on both sides",structural:"Structural conflict"};
+    for(const entry of result.files) {
+      const row=text("div","","snapshot"),button=label("button","Preview three-way file");
+      row.append(text("p",entry.path),label("p",classes[entry.classification]),button);files.append(row);
+      button.addEventListener("click",()=>safe(async()=>{
+        const revision=++fileRequest;details.replaceChildren();
+        const draft=await api("projects/"+project+"/git-merge-file","POST",{...gitContext(review),merge_base:result.merge_base,path:entry.path});
+        if(!current() || request!==generation || revision!==fileRequest)return;
+        const kinds={clean:"Text proposal without conflicts",conflict:"Text conflicts detected",delete:"Proposed file deletion",manual:"Manual Git review required"};
+        details.append(text("h4",entry.path),label("p",kinds[draft.kind]));
+        const explanations={structure:"Review file types and path collisions in Git",file_type:"Review file types and path collisions in Git",submodule:"Review submodules in Git",symlink:"Review symbolic links in Git",large:"Three-way text previews are limited to 512 KiB per side",binary:"Binary or non-UTF-8 content needs manual review",lfs_pointer:"LFS assets need manual Git review",attributes:"Custom merge or checkout attributes need manual Git review",modify_delete:"One side modified a file deleted by the other",permissions:"File permissions need manual Git review",output_limit:"Merge proposal exceeds its preview bound"};
+        if(draft.kind==="manual")details.append(label("p",explanations[draft.reason]));
+        if(draft.conflicts!==null)details.append(text("p",t("Conflict regions reported")+": "+draft.conflicts));
+        const tabs=text("div",""),content=text("pre","");details.append(tabs,content);
+        let first=true;
+        for(const [key,title] of [["candidate","Merge proposal"],["ancestor","Common ancestor"],["local","Local committed version"],["peer","Peer committed version"]]) {
+          const value=key==="candidate"?draft.candidate:draft.texts[key];if(value===null || value===undefined)continue;
+          const tab=label("button",title);tabs.append(tab);tab.addEventListener("click",()=>{content.textContent=value;});
+          if(first){content.textContent=value;first=false;}
+        }
+      }));
+    }
+  }));
+}
 function showGitIntegration(project,review,container) {
   const card=text("div","","snapshot"), preview=label("button","Preview integration"), apply=label("button","Apply fast-forward"), output=text("div","");
   apply.disabled=true;

@@ -74,6 +74,10 @@ The same C ABI also lists integration receipts and verifies or acknowledges inte
 operations through `git-integrations`, `git-integration-check` and `git-integration-acknowledge`.
 These JSON routes require no ABI version change.
 
+From 0.23, `git-merge-review` and `git-merge-file` expose three-way committed comparison and
+bounded per-file proposals through the same C/C++ request interface. Pin both commits, the
+local ref and common ancestor; no apply action exists. See [three-way Git review](git-merge-review.md).
+
 Backup storage policies also use the existing ABI: create or update a project with
 `{"backup_storage":"cdc"}`, then use `backup`, `verify`, `restore-plan` and `restore`.
 CDC recipes require core 0.22 or later. See [backup storage](block-backups.md) for bounds,
