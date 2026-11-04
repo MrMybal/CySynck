@@ -1,0 +1,47 @@
+name: Native builds
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Linux desktop dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev libwayland-dev libxkbcommon-dev libayatana-appindicator3-dev
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --config Release --parallel 3
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Install
+        run: cmake --install build --config Release --prefix dist
+      - name: Test Windows deployment without system integration
+        if: runner.os == 'Windows'
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/deployment_tests.ps1 -Package dist
+      - name: Build SDK consumer
+        run: cmake -S examples/consumer -B build-consumer -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="${{ github.workspace }}/dist"
+      - name: Link SDK consumer
+        run: cmake --build build-consumer --config Release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CySynck-${{ runner.os }}-${{ runner.arch }}
+          path: dist/
+  linux-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: sudo apt-get update && sudo apt-get install -y syncthing
+      - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCYSYNCK_DESKTOP=OFF -DCYSYNCK_TEST_SYNCTHING=/usr/bin/syncthing
+      - run: cmake --build build --parallel 3
+      - run: ctest --test-dir build --output-on-failure

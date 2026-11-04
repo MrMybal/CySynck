@@ -1,0 +1,1 @@
+Project-based sync and backup companion in C++20, powered by Syncthing and CyUI. Native desktop, CLI, Web console, diffs, recovery, plugins and WireGuard integration.

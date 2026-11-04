@@ -1,0 +1,16 @@
+[Unit]
+Description=CySynck project synchronization and backups
+After=network-online.target syncthing.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-%h/.config/cysynck/service.env
+ExecStart=%h/.local/opt/cysynck/bin/cysynck serve --host 127.0.0.1 --port 8484
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CySynck</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/i18n.js"></script>
+  <script defer src="/app.js"></script>
+</head>
+<body>
+<aside>
+  <h1>CySynck<span data-i18n>PROJECTS · SYNC · BACKUP</span></h1>
+  <label><span data-i18n>Language</span>
+    <select id="language"><option value="en">English</option><option value="fr">Français</option></select>
+  </label>
+  <p data-i18n>Service console</p>
+  <label><span data-i18n>Local access key</span><input id="token" type="password" autocomplete="off"></label>
+  <button id="connect" data-i18n>Connect</button>
+  <p class="hint"><span data-i18n>Run</span> <code>cysynck api-token</code> <span data-i18n>to display this service's access key.</span></p>
+  <div id="projects"></div><button id="refresh" data-i18n>Refresh</button>
+</aside>
+<main>
+  <header><div><p class="eyebrow" data-i18n>WORKSPACE</p><h2 data-i18n>Overview</h2></div><a id="syncthing" target="_blank" rel="noreferrer">Syncthing Web ↗</a></header>
+  <p id="error" role="alert"></p><section id="summary"></section>
+  <section>
+    <h3 data-i18n>Add a project</h3>
+    <form id="create">
+      <input name="name" placeholder="Project name" data-i18n-placeholder required>
+      <input name="root" placeholder="Folder path on the server" data-i18n-placeholder required>
+      <select name="mode">
+        <option value="sendreceive" data-i18n>Two-way synchronization</option>
+        <option value="sendonly" data-i18n>Send only</option>
+        <option value="receiveonly" data-i18n>Receive only</option>
+        <option value="backup" data-i18n>Backup only</option>
+        <option value="git-bundles" data-i18n>Git exchange</option>
+      </select>
+      <input name="exchange_path" placeholder="Separate exchange folder (Git)" data-i18n-placeholder>
+      <button data-i18n>Create project</button>
+    </form>
+  </section>
+  <section id="detail" hidden>
+    <h3 id="project-name"></h3><p id="project-root" class="hint"></p>
+    <div class="actions">
+      <button data-action="backup" data-i18n>Back up</button>
+      <button data-action="verify" data-i18n>Verify latest backup</button>
+      <button data-action="changes" data-i18n>Compare with latest backup</button>
+      <button data-action="conflicts" data-i18n>Find conflicts</button>
+      <button data-action="register" data-i18n>Add to Syncthing</button>
+      <button data-action="sync" data-i18n>Synchronize</button>
+      <button data-action="status" data-i18n>Engine status</button>
+    </div>
+    <p data-i18n>Synchronize requests a scan. Syncthing continues to manage background transfers.</p>
+    <div id="changes"></div>
+    <h3 data-i18n>Conflict copies</h3><div id="conflicts"></div><pre id="output"></pre>
+    <h3 data-i18n>Differences</h3>
+    <form id="compare-files">
+      <input id="compare-left" placeholder="Left relative path" data-i18n-placeholder required>
+      <input id="compare-right" placeholder="Right relative path" data-i18n-placeholder required>
+      <button data-i18n>Compare files</button>
+    </form>
+    <button id="copy-patch" disabled data-i18n>Copy patch</button>
+    <pre id="patch" data-i18n>Select a file from the changes list.</pre>
+    <h3 data-i18n>Backups</h3><div id="snapshots"></div>
+  </section>
+  <section id="resolution-panel" hidden>
+    <h3 data-i18n>Resolve conflict</h3><p id="resolution-path"></p>
+    <p data-i18n>Both source versions are preserved. Pause the project before applying a choice, then resume synchronization explicitly after checking the result.</p>
+    <select id="resolution-choice">
+      <option value="current" data-i18n>Keep current version</option>
+      <option value="conflict" data-i18n>Use conflict copy</option>
+      <option value="merged" data-i18n>Manual merge</option>
+    </select>
+    <textarea id="resolution-content" rows="8" hidden aria-label="Manual merge content" data-i18n-aria></textarea>
+    <p id="resolution-editor-note" hidden data-i18n>UTF-8 editor, LF line endings, maximum 512 KiB.</p>
+    <div class="actions">
+      <button id="resolution-pause" data-i18n>Pause project</button>
+      <button id="resolution-prepare" data-i18n>Prepare resolution</button>
+      <button id="resolution-apply" disabled data-i18n>Apply resolution</button>
+    </div>
+    <pre id="resolution-summary"></pre>
+  </section>
+  <section id="recovery-panel" hidden>
+    <h3 data-i18n>Recovery history</h3><button id="recovery-load" data-i18n>Refresh history</button><div id="recovery-records"></div>
+  </section>
+  <section>
+    <h3 data-i18n>Backup storage</h3>
+    <p data-i18n>Cleanup removes only objects unused by all retained backups.</p>
+    <div class="actions"><button id="inspect-storage" data-i18n>Inspect storage</button><button id="prune-storage" disabled data-i18n>Free unused space</button></div>
+    <pre id="storage-output"></pre>
+  </section>
+  <section><h3 data-i18n>Recent activity</h3><div id="events"></div></section>
+</main>
+</body>
+</html>
