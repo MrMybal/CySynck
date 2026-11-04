@@ -48,7 +48,9 @@ Reusing its ID with different content, name or sender is refused. Incoming filen
 be portable single filenames, with valid UTF-8 and without reserved Windows device names.
 Stored paths are derived from validated IDs rather than accepted from receipt fields.
 
-The payload quota remains **1 GiB per profile**, with **100 MiB per file**. The durable
+The payload quota remains **1 GiB per profile**, with **100 MiB per file**. Pending resumable
+transfers reserve their full size within that quota; see [direct transfers](transfers.md).
+The durable
 catalog accepts up to **10,000 receipts per project**. This version does not automatically
 delete received payloads or receipts. Normal backup object cleanup does not touch the inbox.
 

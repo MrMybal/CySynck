@@ -83,6 +83,19 @@
   <section id="recovery-panel" hidden>
     <h3 data-i18n>Recovery history</h3><button id="recovery-load" data-i18n>Refresh history</button><div id="recovery-records"></div>
   </section>
+  <section id="transfer-panel" hidden>
+    <h3 data-i18n>Direct transfers</h3>
+    <p data-i18n>Resume uses a frozen copy of the source. Both peers need an active VPN and receiver.</p>
+    <form id="transfer-send">
+      <input id="transfer-peer" required data-i18n-placeholder="Peer ID" data-i18n-aria="Peer ID">
+      <input id="transfer-path" required data-i18n-placeholder="Relative file path" data-i18n-aria="Relative file path">
+      <label><input type="checkbox" id="transfer-legacy"><span data-i18n>Legacy peer (single request)</span></label>
+      <button data-i18n>Send file</button>
+    </form>
+    <button id="transfers-load" data-i18n>Refresh transfers</button>
+    <div id="transfer-result" aria-live="polite"></div>
+    <div id="transfer-records"></div>
+  </section>
   <section id="received-panel" hidden>
     <h3 data-i18n>Received files</h3>
     <p data-i18n>Export creates a new separate directory and preserves the received copy.</p>

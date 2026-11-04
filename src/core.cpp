@@ -708,6 +708,11 @@ Json Core::git_action(const Json &p, const std::string &action, const Json &data
     throw std::runtime_error("No complete bundle found for this project");
 }
 Json Core::request(const std::string &method, const std::string &path, const Json &data) {
+    if (path == "/api/network/transfer-resume") {
+        if (method != "POST")
+            throw std::runtime_error("Method not allowed");
+        return transfer_send(data);
+    }
     if (path == "/api/network/chat" || path == "/api/network/send-file") {
         if (method != "POST")
             throw std::runtime_error("Method not allowed");
@@ -777,6 +782,13 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
         return registry_["settings"];
     }
     if (path.rfind("/api/network/", 0) == 0) {
+        if (path == "/api/network/transfers" || path == "/api/network/transfer-cancel") {
+            if (method != "POST")
+                throw std::runtime_error("Method not allowed");
+            auto result = transfer_action(path.substr(13), data);
+            save();
+            return result;
+        }
         auto result = network_action(path.substr(13), data);
         save();
         return result;

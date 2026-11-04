@@ -25,7 +25,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.9 (C++20)
+        return {{"help", R"(CySynck 0.10 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | events | api-token
   doctor [--probe true]  (test tool versions and engine connection only with --probe)
@@ -62,13 +62,15 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   vpn trust ID PEER_ID --key EXPECTED_PUBLIC_KEY
   vpn revoke ID PEER_ID
   chat send ID PEER_ID TEXT | chat history ID | chat serve
-  send-file ID PEER_ID RELATIVE_PATH
+  send-file ID PEER_ID RELATIVE_PATH [--legacy true]
+  transfers list ID | transfers resume ID TRANSFER_ID
+  transfers cancel ID TRANSFER_ID --direction in|out
   received list ID | received verify ID TRANSFER_ID
   received export ID TRANSFER_ID NEW_DIRECTORY
   serve [--host 127.0.0.1] [--port 8484]
 Desktop: cysynck-desktop [--state DIR] [--plugin LIBRARY] [--background|--foreground] [--no-tray]
 Secrets: CYSYNCK_SYNCTHING_API_KEY, CYSYNCK_API_TOKEN, CYSYNCK_MESH_TOKEN.
-VPN up/down requires administrator/root. No automatic NAT traversal in 0.9.)"}};
+VPN up/down requires administrator/root. No automatic NAT traversal in 0.10.)"}};
     if (args[0] == "service") {
         if (args.size() < 2 || (args[1] != "plan" && args[1] != "export"))
             throw std::runtime_error("Use service plan|export");
@@ -266,10 +268,33 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.9.)"}};
         }
         throw std::runtime_error("Start chat serve in an external terminal");
     }
+    if (args[0] == "transfers") {
+        if (args.size() < 2)
+            throw std::runtime_error("Use transfers list|resume|cancel");
+        auto command = args[1];
+        require(command == "list" ? 3 : 4);
+        Json data{{"project", args[2]}};
+        if (command != "list")
+            data["transfer"] = args[3];
+        if (command == "cancel") {
+            if (!flags.contains("--direction"))
+                throw std::runtime_error("Choose --direction in|out");
+            data["direction"] = flags.at("--direction");
+        } else if (command != "list" && command != "resume")
+            throw std::runtime_error("Use transfers list|resume|cancel");
+        return core.request(
+            "POST",
+            "/api/network/" + std::string(command == "list" ? "transfers" : "transfer-" + command),
+            data);
+    }
     if (args[0] == "send-file") {
         require(4);
-        return core.request("POST", "/api/network/send-file",
-                            {{"project", args[1]}, {"peer", args[2]}, {"path", args[3]}});
+        return core.request(
+            "POST", "/api/network/send-file",
+            {{"project", args[1]},
+             {"peer", args[2]},
+             {"path", args[3]},
+             {"legacy", flags.contains("--legacy") && flags.at("--legacy") == "true"}});
     }
     if (args[0] == "git") {
         if (args.size() < 3)

@@ -1,5 +1,6 @@
 #include <cysynck/core.hpp>
 #include "inbox.hpp"
+#include "transfers.hpp"
 #include <fstream>
 #include <httplib.h>
 #include <regex>
@@ -263,8 +264,8 @@ Json Core::network_action(const std::string &action, const Json &data) {
     }
     throw std::runtime_error("Unknown network action");
 }
-static const Json &trusted_peer(const Json &registry, const std::string &project,
-                                const std::string &peer) {
+const Json &trusted_peer(const Json &registry, const std::string &project,
+                         const std::string &peer) {
     valid_id(peer);
     auto &entry = registry.at("network").at("peers").at(peer);
     bool trusted = false;
@@ -276,6 +277,8 @@ static const Json &trusted_peer(const Json &registry, const std::string &project
     return entry.at("profile");
 }
 Json Core::direct_send(const Json &data, bool file) {
+    if (file && !data.value("legacy", false))
+        return transfer_send(data);
     auto token = env("CYSYNCK_MESH_TOKEN");
     if (token.size() < 24)
         throw std::runtime_error("Set the same CYSYNCK_MESH_TOKEN (at least 24 "
@@ -360,6 +363,8 @@ Json Core::direct_receive(const Json &data, const std::string &remote, const std
     auto peer = trusted_peer(registry_, projectId, peerId);
     if (peer.at("address") != remote)
         throw std::runtime_error("Sender address does not match pinned VPN identity");
+    if (data.contains("transfer_action"))
+        return transfer_receive(data, bytes);
     bool file = data.value("file", false);
     auto receipts = received_records(registry_, projectId);
     if (receipts.contains(messageId)) {
@@ -386,10 +391,13 @@ Json Core::direct_receive(const Json &data, const std::string &remote, const std
             throw std::runtime_error("File too large or checksum mismatch");
         auto name = data.at("name").get<std::string>();
         received_name(name);
-        if (receipts.size() >= 10000)
+        if (receipts.size() + registry_.value("transfers_in", Json::object())
+                                  .value(projectId, Json::object())
+                                  .size() >=
+            10000)
             throw std::runtime_error("Received file catalog limit (10000 per project) reached");
         auto used = inbox_used(state_);
-        if (used + bytes.size() > 1024ull * 1024 * 1024)
+        if (used + transfer_reserved(registry_) + bytes.size() > transfer_quota)
             throw std::runtime_error("Received file quota (1 GiB) reached");
         auto destination = received_path(state_, projectId, messageId);
         if (fs::exists(destination))

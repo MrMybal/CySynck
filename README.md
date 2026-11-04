@@ -9,7 +9,7 @@ A project-based synchronization and backup companion written in **C++20**, power
 One shared core powers the native desktop app, CLI, local Web console and integration SDK.
 Build a headless server without graphical dependencies. No Python or .NET runtime is required.
 
-**Status: 0.9.0, under active development.** Windows x64 is validated locally. The headless
+**Status: 0.10.0, under active development.** Windows x64 is validated locally. The headless
 Linux core, CLI and test binaries also cross-compile from Windows with Zig.
 Native Linux and macOS execution still needs validation on those platforms.
 The Unreal bridge is an integration example and has not yet been compiled inside Unreal.
@@ -19,7 +19,7 @@ those fixes and the new package smoke checks still need another native CI run.
 
 ## Features
 
-| Area | Available in 0.9 |
+| Area | Available in 0.10 |
 | --- | --- |
 | Projects | Separate folders, settings and modes; overlapping project roots are rejected |
 | Sync modes | Two-way, send only, receive only, local backup and Git bundle exchange |
@@ -37,6 +37,7 @@ those fixes and the new package smoke checks still need another native CI run.
 | Plugins | Explicitly loaded native libraries, versioned C ABI, additional modes and events |
 | VPN | WireGuard identities, public profile exchange through Syncthing, peer trust and official tunnel tools |
 | Direct chat and files | VPN transport, project permissions, pairing secret, local history and SHA-256 verification |
+| Resumable transfers | Verified 1 MiB chunks, frozen source, durable progress, manual resume and legacy peer option |
 | Received files | Durable inbox catalog, integrity verification and export to a separate directory |
 | Integration | C++ library, C ABI with UTF-8 JSON and an Unreal/Blueprint bridge example |
 
@@ -224,7 +225,18 @@ WireGuard packets. Restrictive networks may still need reachable endpoints or ad
 
 Tunnel activation requires the relevant system permissions. Starting CySynck does not create
 routes or activate a tunnel. Direct chat and file receivers bind to the configured VPN address.
-The current direct-transfer limit is **100 MiB per file**, with a **1 GiB inbox**, without resumable transfers.
+Direct files use verified **1 MiB chunks**, with a **100 MiB file limit** and a **1 GiB inbox quota**
+including pending reservations. Interrupted sends keep their ID and frozen source for manual resume:
+
+```sh
+cysynck send-file PROJECT_ID PEER_ID assets/example.bin
+cysynck transfers list PROJECT_ID
+cysynck transfers resume PROJECT_ID TRANSFER_ID
+```
+
+The desktop Network view and Web console expose the same progress and resume actions.
+For older receivers, explicitly choose `send-file ... --legacy true` (single request).
+See [resumable transfers](docs/transfers.md) for quotas, local cancellation and protocol details.
 
 Received files are available under **Network → Open received files** on the desktop and in the
 Web console. Their receipts survive chat history retention. Export checks the full SHA-256
@@ -313,7 +325,7 @@ Detailed guides are currently in French:
 
 Planned work includes native Linux/macOS validation, signed installers and updates,
 optional VPN rendezvous/relay support, Git LFS and CyRevision compatibility, larger-scale
-block backups and resumable direct transfers.
+block backups and larger direct payloads.
 
 Syncthing and CyRevision source code is not incorporated into this project.
 Dependency versions, licenses and external references are listed in [THIRD_PARTY.md](THIRD_PARTY.md).

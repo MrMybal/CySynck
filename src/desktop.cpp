@@ -68,7 +68,28 @@ static void field(const char *label, std::string &value) {
 static void localize() {
     c::registerTranslations(
         "fr",
-        {{"Services", "Services"},
+        {{"Direct transfers", "Transferts directs"},
+         {"This peer needs an update or legacy mode.",
+          "Ce pair nécessite une mise à jour ou le mode ancien pair."},
+         {"Refresh transfers", "Actualiser les transferts"},
+         {"No direct transfers", "Aucun transfert direct"},
+         {"Outgoing transfer", "Transfert sortant"},
+         {"Incoming transfer", "Transfert entrant"},
+         {"Delivered", "Livré"},
+         {"Waiting for continuation", "En attente de continuation"},
+         {"Resume transfer", "Reprendre le transfert"},
+         {"Remove local transfer", "Retirer le transfert local"},
+         {"Legacy peer (single request)", "Ancien pair (requête unique)"},
+         {"Resume uses a frozen copy of the source. Both peers need an active VPN and receiver.",
+          "La reprise utilise une copie figée de la source. Les deux pairs doivent avoir un VPN et "
+          "un récepteur actifs."},
+         {"Transfer interrupted. Check receiver, pairing and VPN, then resume.",
+          "Transfert interrompu. Vérifiez le récepteur, l'appairage et le VPN, puis reprenez."},
+         {"Removal clears local partial data or transfer history. Received files are kept; the "
+          "other peer is unchanged.",
+          "Le retrait efface les données partielles locales ou l'historique du transfert. Les "
+          "fichiers reçus sont conservés et l'autre pair reste inchangé."},
+         {"Services", "Services"},
          {"Target platform", "Plateforme cible"},
          {"CLI on target", "CLI sur la cible"},
          {"State on target", "Profil sur la cible"},
@@ -427,7 +448,7 @@ class App {
         incoming = Json::array(), messages = Json::array(), engine_state, engine_devices,
         startup_state, backup_check, restore_preview, storage_state, conflict_state, conflict_diff,
         resolution_preview, resolution_preview_input, resolution_history, received_state,
-        doctor_state, service_preview, service_preview_input;
+        doctor_state, service_preview, service_preview_input, transfer_state;
     std::string view = "Overview", selected, theme = "mid-grey", language = "en", error, output,
                 query, baseline, comparison_snapshot, destination, restore_id, compare_left,
                 compare_right, selected_conflict, merged_content, selected_resolution,
@@ -437,6 +458,7 @@ class App {
     int comparison_source = 0, resolution_choice = 0;
     bool history_loaded = false;
     bool received_loaded = false;
+    bool send_legacy = false;
     int mode = 0, interval = 60, keep = 30;
     std::string name, root, exchange, shared_id;
     std::string vpn_name, vpn_address = "10.77.0.1", vpn_endpoint, chat_peer, chat_text, send_path;
@@ -608,6 +630,7 @@ class App {
         incoming = Json::array();
         messages = Json::array();
         received_state = nullptr;
+        transfer_state = nullptr;
         received_loaded = false;
         selected_received.clear();
         received_destination.clear();
@@ -745,7 +768,8 @@ class App {
             if (c::sidebarItem("", c::trLabel(page).c_str(),
                                view == page ||
                                    (std::string(page) == "Conflicts" && view == "Recovery") ||
-                                   (std::string(page) == "Network" && view == "Received files")))
+                                   (std::string(page) == "Network" &&
+                                    (view == "Received files" || view == "Direct transfers"))))
                 view = page;
         c::space(12);
         int lang = language == "fr";
@@ -810,6 +834,8 @@ class App {
             recovery_view();
         else if (view == "Received files")
             received_view();
+        else if (view == "Direct transfers")
+            transfers_view();
         else if (view == "Backups")
             backup_view();
         else if (view == "Git exchange")
@@ -1888,9 +1914,85 @@ class App {
         }
         ImGui::EndChild();
     }
+    void transfers_view() {
+        if (button("Back to network"))
+            view = "Network";
+        auto id = selected;
+        auto load = [this, id] {
+            net("transfers", {{"project", id}}, [this, id](const Json &result) {
+                if (selected == id)
+                    transfer_state = result;
+            });
+        };
+        c::space(8);
+        c::beginCard("transfers", c::tr("Direct transfers").c_str());
+        c::textDim("%s", c::tr("Resume uses a frozen copy of the source. Both peers need an active "
+                               "VPN and receiver.")
+                             .c_str());
+        if (button("Refresh transfers"))
+            load();
+        if (transfer_state.is_null() && !busy())
+            load();
+        if (!transfer_state.is_null()) {
+            if (transfer_state.at("files").empty())
+                c::textDim("%s", c::tr("No direct transfers").c_str());
+            for (const auto &file : transfer_state.at("files")) {
+                auto transfer = file.at("id").get<std::string>();
+                auto direction = file.at("direction").get<std::string>();
+                ImGui::PushID((direction + transfer).c_str());
+                c::heading(file.at("name").get<std::string>().c_str(), 3);
+                text(file.at("peer").get<std::string>() + " / " + transfer);
+                c::textDim(
+                    "%s / %s",
+                    c::tr(direction == "out" ? "Outgoing transfer" : "Incoming transfer").c_str(),
+                    c::tr(file.at("delivered").get<bool>() ? "Delivered"
+                                                           : "Waiting for continuation")
+                        .c_str());
+                auto bytes = file.at("bytes").get<uintmax_t>();
+                auto done = file.at("acknowledged_bytes").get<uintmax_t>();
+                auto caption = std::to_string(done) + " / " + std::to_string(bytes) + " B";
+                ImGui::ProgressBar(bytes ? static_cast<float>(done) / static_cast<float>(bytes)
+                                         : (file.at("delivered").get<bool>() ? 1.f : 0.f),
+                                   ImVec2(-1, 0), caption.c_str());
+                if (!file.value("error", "").empty())
+                    c::textDim("%s", c::tr(file.value("error_code", "") == "unsupported_protocol"
+                                               ? "This peer needs an update or legacy mode."
+                                               : "Transfer interrupted. Check receiver, pairing "
+                                                 "and VPN, then resume.")
+                                         .c_str());
+                auto doneAction = [this, id](const Json &) {
+                    if (selected == id)
+                        transfer_state = nullptr;
+                };
+                if (direction == "out" && !file.at("delivered").get<bool>()) {
+                    if (button("Resume transfer"))
+                        net("transfer-resume", {{"project", id}, {"transfer", transfer}},
+                            doneAction);
+                    ImGui::SameLine();
+                }
+                if (button("Remove local transfer"))
+                    net("transfer-cancel",
+                        {{"project", id}, {"transfer", transfer}, {"direction", direction}},
+                        doneAction);
+                ImGui::PopID();
+            }
+            for (const auto &issue : transfer_state.at("errors"))
+                text(issue.dump());
+            if (!transfer_state.at("files").empty())
+                c::textDim("%s", c::tr("Removal clears local partial data or transfer history. "
+                                       "Received files are kept; the other peer is unchanged.")
+                                     .c_str());
+        }
+        c::endCard();
+    }
     void network_view() {
         if (!project().is_null() && button("Open received files", true))
             view = "Received files";
+        if (!project().is_null()) {
+            ImGui::SameLine();
+            if (button("Direct transfers"))
+                view = "Direct transfers";
+        }
         c::callout(c::Tone::info, c::tr("WireGuard requires its official tools and "
                                         "administrator/root rights.")
                                       .c_str());
@@ -2000,7 +2102,16 @@ class App {
             net("chat", {{"project", selected}, {"peer", chat_peer}, {"text", chat_text}});
         ImGui::SameLine();
         if (button("Send file"))
-            net("send-file", {{"project", selected}, {"peer", chat_peer}, {"path", send_path}});
+            net("send-file",
+                {{"project", selected},
+                 {"peer", chat_peer},
+                 {"path", send_path},
+                 {"legacy", send_legacy}},
+                [this, id = selected](const Json &) {
+                    if (selected == id)
+                        transfer_state = nullptr;
+                });
+        ImGui::Checkbox(c::trLabel("Legacy peer (single request)").c_str(), &send_legacy);
         for (auto &m : messages) {
             c::textDim("%s / %s", m["created"].get<std::string>().substr(0, 19).c_str(),
                        m["direction"].get<std::string>().c_str());

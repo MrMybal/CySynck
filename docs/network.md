@@ -95,6 +95,9 @@ Le récepteur vérifie l'adresse VPN, le peer épinglé, son autorisation pour l
 le secret de groupe. Ne pas configurer ces adresses sur une interface publique ou en clair.
 
 Limites actuelles : 16 Ko par message UTF-8, 100 Mio par fichier, 1 Gio de fichiers reçus,
-2000 éléments d'historique local. Les transferts utilisent une mémoire bornée par la taille
-maximale du fichier ; ni reprise après interruption, ni accusé de lecture, ni livraison
-différée ne sont encore implémentés. La réception de fichiers vérifie SHA-256 avant publication.
+2000 éléments d'historique local. Depuis la version 0.10, les fichiers sont envoyés par blocs
+de 1 Mio vérifiés, avec copie source figée et reprise explicite après interruption :
+`transfers list PROJECT_ID`, puis `transfers resume PROJECT_ID TRANSFER_ID`.
+Les réservations des fichiers en cours comptent dans le quota de réception. Pour un ancien
+récepteur, utiliser `send-file ... --legacy true`. Voir le [protocole et les limites](transfers.md)
+(anglais). Les accusés de lecture et la livraison différée restent à implémenter.

@@ -12,6 +12,11 @@ par profil pour le desktop et dans le navigateur pour le Web.
 
 ## Démarrer
 
+La version 0.10 ajoute les transferts directs reprenables : blocs de 1 Mio vérifiés par SHA-256,
+copie source figée et progression conservée après interruption. Le CLI, la vue Réseau du desktop
+et la console Web permettent de reprendre un transfert. La limite reste de 100 Mio par fichier.
+Voir le [guide des transferts](docs/transfers.md) (anglais).
+
 Prérequis : CMake 3.24+, Git et un compilateur C++20. Les dépendances sont récupérées par CMake.
 Windows : Visual Studio 2022 avec les outils C++. Linux desktop : bibliothèques de développement
 OpenGL, X11 et Wayland nécessaires à GLFW ; `libayatana-appindicator3-dev` pour la zone
@@ -29,7 +34,7 @@ Linux : `dist/bin/cysynck-desktop`. macOS : `open dist/CySynck.app`.
 Le CLI reste disponible avec `dist/bin/cysynck help` sur ces deux plateformes.
 Les scripts `scripts/build.ps1` et `scripts/build.sh` exécutent ces étapes.
 
-La version 0.9.0 prépare des archives `.tar.gz` pour Linux et ZIP pour Windows/macOS.
+La version 0.10.0 prépare des archives `.tar.gz` pour Linux et ZIP pour Windows/macOS.
 Le bundle macOS contient son cœur, ses ressources Web et ses licences. Voir le
 [guide des paquets et de compilation croisée Linux](docs/packaging.md) (anglais).
 
@@ -342,7 +347,7 @@ sans nlohmann/json côté appelant. Chaque chaîne renvoyée doit être libéré
 - Packaging natif signé, installeurs et validation effective sur macOS/Linux.
 - Traversée NAT, rendez-vous et relais VPN optionnel pour les réseaux restrictifs.
 - Git LFS, protocole signé, compatibilité CyRevision et résolution graphique des conflits Git.
-- Sauvegardes incrémentales par blocs à grande échelle et transferts directs reprenables.
+- Sauvegardes incrémentales par blocs à grande échelle et augmentation de la taille des transferts directs.
 
 Les sources de Syncthing et CyRevision n'ont pas été incorporées. Les dépendances employées,
 leurs versions et leurs licences sont décrites dans [THIRD_PARTY.md](THIRD_PARTY.md).

@@ -2,7 +2,7 @@
 const $ = id => document.getElementById(id);
 const {t, setText: translated, init: initLanguages} = CySynckI18n;
 initLanguages();
-let token = "", selected = "";
+let token = "", selected = "", transferLoad = 0;
 try { token = sessionStorage.getItem("cysynck-token") || ""; } catch (_) { /* Storage may be disabled. */ }
 let storagePlan = null, servicePreview = null;
 function serviceInput() {
@@ -134,11 +134,18 @@ async function select(project) {
     $("resolution-panel").hidden = true;
     $("recovery-records").replaceChildren();
     $("received-records").replaceChildren();
+    $("transfer-records").replaceChildren();
+    $("transfer-result").replaceChildren();
+    $("transfer-peer").value = "";
+    $("transfer-path").value = "";
+    $("transfer-legacy").checked = false;
+    ++transferLoad;
   }
   selected = project.id;
   selectedProject = project;
   $("recovery-panel").hidden = false;
   $("received-panel").hidden = false;
+  $("transfer-panel").hidden = false;
   $("resolution-pause").disabled = project.paused;
   $("resolution-apply").disabled = !resolutionPreview || !resolutionPreview.spaceAvailable || !project.paused || !!project.resolution_pending;
   $("detail").hidden = false;
@@ -304,6 +311,79 @@ async function loadReceived() {
   }
 }
 $("received-load").addEventListener("click", () => safe(loadReceived));
+async function loadTransfers() {
+  const project = selected;
+  if (!project) return;
+  const request = ++transferLoad;
+  const result = await api("network/transfers", "POST", {project});
+  if (selected !== project || request !== transferLoad) return;
+  $("transfer-records").replaceChildren();
+  if (!result.files.length) $("transfer-records").append(label("p", "No direct transfers"));
+  for (const file of result.files) {
+    const card = text("div", "", "snapshot");
+    card.append(text("p", file.name + " · " + file.peer + " · " + file.id),
+      label("p", file.direction === "out" ? "Outgoing transfer" : "Incoming transfer"),
+      label("p", file.delivered ? "Delivered" : "Waiting for continuation"),
+      text("p", file.acknowledged_bytes + " / " + file.bytes + " B"));
+    const progress = document.createElement("progress");
+    progress.max = file.bytes || 1;
+    progress.value = file.bytes ? file.acknowledged_bytes : (file.delivered ? 1 : 0);
+    card.append(progress);
+    if (file.error) card.append(label("p", file.error_code === "unsupported_protocol"
+      ? "This peer needs an update or legacy mode."
+      : "Transfer interrupted. Check receiver, pairing and VPN, then resume."));
+    if (file.direction === "out" && !file.delivered) {
+      const resume = label("button", "Resume transfer");
+      resume.addEventListener("click", () => safe(async () => {
+        resume.disabled = true;
+        try {
+          const output = await api("network/transfer-resume", "POST", {project, transfer: file.id});
+          if (selected !== project) return;
+          showTransferResult(output);
+          await loadTransfers();
+        } finally { resume.disabled = false; }
+      }));
+      card.append(resume);
+    }
+    const remove = label("button", "Remove local transfer");
+    remove.addEventListener("click", () => safe(async () => {
+      remove.disabled = true;
+      try {
+        await api("network/transfer-cancel", "POST", {project, transfer: file.id, direction: file.direction});
+        if (selected === project) await loadTransfers();
+      } finally { remove.disabled = false; }
+    }));
+    card.append(remove);
+    $("transfer-records").append(card);
+    CySynckI18n.apply(card);
+  }
+  if (result.files.length) $("transfer-records").append(label("p", "Removal clears local partial data or transfer history. Received files are kept; the other peer is unchanged."));
+  for (const issue of result.errors) $("transfer-records").append(text("p", issue.id + ": " + issue.error));
+}
+$("transfers-load").addEventListener("click", () => safe(loadTransfers));
+function showTransferResult(result) {
+  $("transfer-result").replaceChildren(label("p", result.delivered ? "Delivered" : "Waiting for continuation"),
+    text("p", result.id));
+  if (result.error) $("transfer-result").append(label("p", result.error_code === "unsupported_protocol"
+    ? "This peer needs an update or legacy mode."
+    : "Transfer interrupted. Check receiver, pairing and VPN, then resume."));
+}
+$("transfer-send").addEventListener("submit", event => {
+  event.preventDefault();
+  const project = selected;
+  if (!project) return;
+  const data = {project, peer: $("transfer-peer").value, path: $("transfer-path").value, legacy: $("transfer-legacy").checked};
+  const button = event.currentTarget.querySelector("button");
+  safe(async () => {
+    button.disabled = true;
+    try {
+      const result = await api("network/send-file", "POST", data);
+      if (selected !== project) return;
+      showTransferResult(result);
+      await loadTransfers();
+    } finally { button.disabled = false; }
+  });
+});
 $("compare-files").addEventListener("submit", event => {
   event.preventDefault();
   safe(async () => {

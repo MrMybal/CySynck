@@ -186,8 +186,20 @@ struct HttpServer::Impl {
             try {
                 Json result;
                 if (direct) {
-                    Json data = req.path == "/message" ? Json::parse(req.body) : Json::object();
+                    bool transfer = req.path.rfind("/transfer/", 0) == 0;
+                    bool chunk = req.path == "/transfer/chunk";
+                    Json data = req.path == "/message" || (transfer && !chunk)
+                                    ? Json::parse(req.body)
+                                    : Json::object();
                     data["peer"] = req.get_header_value("X-CySynck-Peer");
+                    if (transfer)
+                        data["transfer_action"] = req.path.substr(10);
+                    if (chunk) {
+                        data["project"] = req.get_header_value("X-CySynck-Project");
+                        data["id"] = req.get_header_value("X-CySynck-Id");
+                        data["chunk_sha256"] = req.get_header_value("X-CySynck-Chunk-SHA256");
+                        data["index"] = Json::parse(req.get_header_value("X-CySynck-Chunk"));
+                    }
                     if (req.path == "/file") {
                         data["file"] = true;
                         data["project"] = req.get_header_value("X-CySynck-Project");
@@ -197,7 +209,8 @@ struct HttpServer::Impl {
                             req.get_header_value("X-CySynck-Name"), false);
                     }
                     result = core.direct_receive(data, req.remote_addr,
-                                                 req.path == "/file" ? req.body : std::string{});
+                                                 req.path == "/file" || chunk ? req.body
+                                                                              : std::string{});
                 } else {
                     if (req.path == "/api/network/up" || req.path == "/api/network/down" ||
                         req.path == "/api/engine/configure" || req.path == "/api/engine/connect") {
@@ -237,6 +250,9 @@ struct HttpServer::Impl {
             }
         };
         if (direct) {
+            server.Post("/transfer/begin", handler);
+            server.Post("/transfer/chunk", handler);
+            server.Post("/transfer/finish", handler);
             server.Post("/message", handler);
             server.Post("/file", handler);
         } else {
@@ -263,9 +279,14 @@ HttpServer::HttpServer(Core &core, bool direct) : impl_(std::make_unique<Impl>(c
 HttpServer::~HttpServer() { stop(); }
 int HttpServer::bind(const std::string &host, int port) {
     if (impl_->direct) {
-        auto network = impl_->core.request("GET", "/api/network/status");
-        if (network.at("profile").is_null() ||
-            host != network.at("profile").at("address").get<std::string>())
+        // Binding only needs the configured identity, not a WireGuard status process or config
+        // render.
+        auto &core = impl_->core;
+        std::lock_guard lock(core.mutex_);
+        DiskLock disk(core.state_);
+        core.load();
+        auto profile = core.registry_.value("network", Json::object()).value("profile", Json());
+        if (profile.is_null() || host != profile.at("address").get<std::string>())
             throw std::runtime_error("Direct receiver must bind to the configured VPN address");
     }
     if (port == 0)

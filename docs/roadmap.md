@@ -1,5 +1,18 @@
 # Development milestones
 
+## Delivered in 0.10
+
+Direct files now use restart-safe journals and 1 MiB SHA-256 chunks. Manual resume reconciles
+the receiver's verified prefix with the sender's frozen source, including a lost acknowledgement.
+The CLI, native desktop and bilingual Web console expose progress, resume and local removal.
+The legacy endpoint remains available explicitly. Files are still limited to 100 MiB; larger
+payloads are a separate milestone. See the [transfer protocol and limits](transfers.md).
+
+The real-engine fixtures keep an absolute 128 MB free-space reserve and require 256 MiB
+available before running. This makes their small files usable on large developer volumes
+where Syncthing's percentage threshold would otherwise block scans. Production engine
+configuration retains its normal disk thresholds.
+
 ## Delivered in 0.9
 
 | Milestone | Result | Validation |
@@ -25,7 +38,7 @@ macOS notarization, signed Windows installers and automatic updates remain separ
 
 ## Next functional milestones
 
-- Resume interrupted direct transfers and support larger payloads with chunk verification.
+- Extend resumable direct transfers beyond 100 MiB and exercise them on native Linux/macOS.
 - Extend backup storage with block-level deduplication and test larger project trees.
 - Expand Git collaboration with LFS and verify CyRevision interoperability.
 - Design and test WireGuard rendezvous/NAT traversal against real network configurations;

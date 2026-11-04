@@ -2,6 +2,23 @@
 // English is the source language. Keep API identifiers and user content unchanged.
 globalThis.CySynckI18n = (() => {
   const french = {
+    "Direct transfers": "Transferts directs",
+    "This peer needs an update or legacy mode.": "Ce pair nécessite une mise à jour ou le mode ancien pair.",
+    "Resume uses a frozen copy of the source. Both peers need an active VPN and receiver.": "La reprise utilise une copie figée de la source. Les deux pairs doivent avoir un VPN et un récepteur actifs.",
+    "Peer ID": "Identifiant du pair",
+    "Relative file path": "Chemin relatif du fichier",
+    "Legacy peer (single request)": "Ancien pair (requête unique)",
+    "Send file": "Envoyer le fichier",
+    "Refresh transfers": "Actualiser les transferts",
+    "No direct transfers": "Aucun transfert direct",
+    "Outgoing transfer": "Transfert sortant",
+    "Incoming transfer": "Transfert entrant",
+    "Delivered": "Livré",
+    "Waiting for continuation": "En attente de continuation",
+    "Resume transfer": "Reprendre le transfert",
+    "Remove local transfer": "Retirer le transfert local",
+    "Transfer interrupted. Check receiver, pairing and VPN, then resume.": "Transfert interrompu. Vérifiez le récepteur, l’appairage et le VPN, puis reprenez.",
+    "Removal clears local partial data or transfer history. Received files are kept; the other peer is unchanged.": "Le retrait efface les données partielles locales ou l’historique du transfert. Les fichiers reçus sont conservés et l’autre pair reste inchangé.",
     "Services": "Services",
     "Target platform": "Plateforme cible",
     "CLI on target": "CLI sur la cible",
