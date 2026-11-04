@@ -29,6 +29,8 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | events | api-token
   doctor [--probe true]  (test tool versions and engine connection only with --probe)
+  service plan --platform linux|macos --executable /absolute/bin/cysynck [--target-state /profile] [--port 8484]
+  service export NEW_DIRECTORY --platform ... --executable ... --plan PREVIEW_TOKEN [--target-state ...] [--port ...]
   desktop startup status|enable|disable  (local desktop installation only)
   engine configure --executable PATH [--port 8385] [--listen-port 22001] [--auto-start true]
   engine connect http://127.0.0.1:8384   (key from CYSYNCK_CONNECT_API_KEY)
@@ -67,6 +69,24 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
 Desktop: cysynck-desktop [--state DIR] [--plugin LIBRARY] [--background|--foreground] [--no-tray]
 Secrets: CYSYNCK_SYNCTHING_API_KEY, CYSYNCK_API_TOKEN, CYSYNCK_MESH_TOKEN.
 VPN up/down requires administrator/root. No automatic NAT traversal in 0.8.)"}};
+    if (args[0] == "service") {
+        if (args.size() < 2 || (args[1] != "plan" && args[1] != "export"))
+            throw std::runtime_error("Use service plan|export");
+        require(args[1] == "plan" ? 2 : 3);
+        if (!flags.contains("--platform") || !flags.contains("--executable"))
+            throw std::runtime_error(
+                "Choose --platform linux|macos and --executable /absolute/bin/cysynck");
+        Json data{{"platform", flags.at("--platform")}, {"executable", flags.at("--executable")}};
+        for (const auto &[flag, key] : std::vector<std::pair<std::string, std::string>>{
+                 {"--target-state", "target_state"}, {"--plan", "plan"}})
+            if (flags.contains(flag))
+                data[key] = flags.at(flag);
+        if (flags.contains("--port"))
+            data["port"] = std::stoi(flags.at("--port"));
+        if (args[1] == "export")
+            data["destination"] = args[2];
+        return core.request("POST", "/api/service/" + args[1], data);
+    }
     if (args[0] == "doctor") {
         require(1);
         bool probe = false;

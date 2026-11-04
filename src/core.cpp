@@ -720,6 +720,8 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
         throw std::runtime_error("Expected a JSON object");
     if (path == "/api/doctor" && (method == "GET" || method == "POST"))
         return diagnostics(method == "GET" ? Json::object() : data);
+    if (method == "POST" && (path == "/api/service/plan" || path == "/api/service/export"))
+        return service(path.substr(13), data);
     if (path == "/api/overview" && method == "GET") {
         auto projects = registry_["projects"];
         for (auto &p : projects) {
