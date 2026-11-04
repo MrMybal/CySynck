@@ -1,5 +1,15 @@
 # Development milestones
 
+## Delivered in 0.13
+
+Git exchange now includes canonical Git LFS v1 assets by default. C++ inspects the exact exported
+branch history, including deleted versions and shared content, and transports verified objects
+through Syncthing. Import checks the inventory against Git objects before installing the LFS
+cache and publishing a tracking ref; HEAD, staged changes and working files are preserved.
+Distinct manifests keep older clients from silently importing incomplete LFS exports, while
+explicit legacy export remains available. CLI, native desktop and Web expose the same behavior.
+See [offline Git LFS exchange](git-lfs.md) for limits and compatibility.
+
 ## Delivered in 0.12
 
 Resumable direct files now default to 1 GiB per file, with configurable limits up to 4 GiB
@@ -62,7 +72,7 @@ macOS notarization, signed Windows installers and automatic updates remain separ
 
 - Exercise multi-gigabyte resumable transfers and native Linux/macOS transport and services.
 - Evaluate content-defined block boundaries and benchmark much larger project trees.
-- Expand Git collaboration with LFS and verify CyRevision interoperability.
+- Extend Git LFS storage/locking support and verify CyRevision interoperability.
 - Design and test WireGuard rendezvous/NAT traversal against real network configurations;
   Syncthing discovery and relays do not themselves provide that transport.
 

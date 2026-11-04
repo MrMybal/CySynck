@@ -89,6 +89,15 @@
   <section id="recovery-panel" hidden>
     <h3 data-i18n>Recovery history</h3><button id="recovery-load" data-i18n>Refresh history</button><div id="recovery-records"></div>
   </section>
+  <section id="git-panel" hidden>
+      <h3 data-i18n>Git exchange</h3>
+      <p data-i18n>Git and LFS imports preserve the working tree. Review and merge using Git.</p>
+      <label><input type="checkbox" id="git-lfs" checked><span data-i18n>Include Git LFS history</span></label>
+      <button id="git-export" data-i18n>Export committed branch</button>
+      <button id="git-refresh" data-i18n>Refresh Git exchange</button>
+      <div id="git-result" aria-live="polite"></div>
+      <div id="git-records"></div>
+  </section>
   <section id="transfer-panel" hidden>
     <h3 data-i18n>Direct transfers</h3>
     <p data-i18n>Resume uses a frozen copy of the source. Both peers need an active VPN and receiver.</p>

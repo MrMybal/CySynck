@@ -12,6 +12,12 @@ par profil pour le desktop et dans le navigateur pour le Web.
 
 ## Démarrer
 
+La version 0.13 ajoute le transport des assets Git LFS avec les bundles : historique de la branche,
+versions supprimées, réutilisation des objets et vérification SHA-256 avant publication de la
+branche de suivi. Le dossier de travail et l'index Git restent intacts. Les deux pairs doivent
+être en 0.13 ou plus ; `git export ID --lfs false` conserve l'export ancien format, sans assets LFS.
+Voir le [guide Git LFS](docs/git-lfs.md) (anglais).
+
 La version 0.12 porte les transferts directs à 1 Gio par fichier par défaut, réglable jusqu'à
 4 Gio. Les quotas de réception et d'envoi sont séparés : 4 Gio par défaut, jusqu'à 64 Gio chacun.
 Le CLI, le desktop et le Web permettent de régler ces limites par profil. La copie source figée
@@ -44,7 +50,7 @@ Linux : `dist/bin/cysynck-desktop`. macOS : `open dist/CySynck.app`.
 Le CLI reste disponible avec `dist/bin/cysynck help` sur ces deux plateformes.
 Les scripts `scripts/build.ps1` et `scripts/build.sh` exécutent ces étapes.
 
-La version 0.12.0 prépare des archives `.tar.gz` pour Linux et ZIP pour Windows/macOS.
+La version 0.13.0 prépare des archives `.tar.gz` pour Linux et ZIP pour Windows/macOS.
 Le bundle macOS contient son cœur, ses ressources Web et ses licences. Voir le
 [guide des paquets et de compilation croisée Linux](docs/packaging.md) (anglais).
 
@@ -271,9 +277,11 @@ avoir un commit et ne pas être en HEAD détachée. Les changements non commité
 L'import crée `refs/remotes/cysynck/<peer>/<branch>` ; la revue, le merge et les conflits
 restent des décisions Git explicites. Les commits et leurs auteurs sont conservés.
 
-Le protocole v1 utilise des bundles Git complets avec un manifest SHA-256. Il ne transporte
-pas encore les objets Git LFS, ne signe pas les manifests et n'est pas compatible avec le
-protocole signé de CyRevision. Le dossier d'échange doit être partagé uniquement avec des membres autorisés.
+Le protocole v2 ajoute les objets Git LFS de l'historique exporté aux bundles et aux manifests
+SHA-256. Les imports vérifient les assets avant de publier la branche de suivi et préservent
+les modifications locales, y compris celles déjà indexées. `--lfs false` produit un bundle v1
+sans les assets. Les signatures et la compatibilité CyRevision restent à implémenter.
+Le dossier d'échange doit être partagé uniquement avec des membres autorisés.
 Les bundles Git ne sont pas collectés automatiquement. Les objets de sauvegarde inutilisés
 se nettoient explicitement depuis **Stockage** ou `storage prune` après aperçu.
 
@@ -359,7 +367,7 @@ sans nlohmann/json côté appelant. Chaque chaîne renvoyée doit être libéré
 - Installateurs natifs signés et mises à jour distribuées.
 - Packaging natif signé, installeurs et validation effective sur macOS/Linux.
 - Traversée NAT, rendez-vous et relais VPN optionnel pour les réseaux restrictifs.
-- Git LFS, protocole signé, compatibilité CyRevision et résolution graphique des conflits Git.
+- Stockage LFS personnalisé, verrous, protocole signé, compatibilité CyRevision et résolution graphique des conflits Git.
 - Sauvegardes incrémentales par blocs à grande échelle et augmentation de la taille des transferts directs.
 
 Les sources de Syncthing et CyRevision n'ont pas été incorporées. Les dépendances employées,

@@ -25,7 +25,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.12 (C++20)
+        return {{"help", R"(CySynck 0.13 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | events | api-token
   doctor [--probe true]  (test tool versions and engine connection only with --probe)
@@ -54,7 +54,7 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   restore ID SNAPSHOT_ID NEW_DIRECTORY
   storage status | storage prune [--apply true --plan PREVIEW_TOKEN]
   register ID | sync ID | status ID | pause ID | resume ID
-  git status|export|inbox ID
+  git status|export|inbox ID  (export: --lfs true includes Git LFS branch history)
   git import ID PEER_ID BUNDLE_ID
   vpn configure NAME 10.77.X.Y [--endpoint HOST:UDP_PORT] [--listen-port 51820] [--mesh-port 8485] [--device-id ID]
   vpn status|preview|write-config|up|down
@@ -72,7 +72,7 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   serve [--host 127.0.0.1] [--port 8484]
 Desktop: cysynck-desktop [--state DIR] [--plugin LIBRARY] [--background|--foreground] [--no-tray]
 Secrets: CYSYNCK_SYNCTHING_API_KEY, CYSYNCK_API_TOKEN, CYSYNCK_MESH_TOKEN.
-VPN up/down requires administrator/root. No automatic NAT traversal in 0.12.)"}};
+VPN up/down requires administrator/root. No automatic NAT traversal in 0.13.)"}};
     if (args[0] == "service") {
         if (args.size() < 2 || (args[1] != "plan" && args[1] != "export"))
             throw std::runtime_error("Use service plan|export");
@@ -337,6 +337,11 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.12.)"}}
             data = {{"peer", args[3]}, {"bundle", args[4]}};
         } else
             require(3);
+        if (command == "export" && flags.contains("--lfs")) {
+            if (flags.at("--lfs") != "true" && flags.at("--lfs") != "false")
+                throw std::runtime_error("Choose --lfs true|false");
+            data["lfs"] = flags.at("--lfs") == "true";
+        }
         return core.request("POST",
                             "/api/projects/" + args[2] + "/" +
                                 (command == "status" ? "git-status" : command),

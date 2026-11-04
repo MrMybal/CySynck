@@ -2,7 +2,7 @@
 const $ = id => document.getElementById(id);
 const {t, setText: translated, init: initLanguages} = CySynckI18n;
 initLanguages();
-let token = "", selected = "", transferLoad = 0;
+let token = "", selected = "", transferLoad = 0, gitLoad = 0;
 try { token = sessionStorage.getItem("cysynck-token") || ""; } catch (_) { /* Storage may be disabled. */ }
 let storagePlan = null, servicePreview = null;
 let backupStorageDirty = false;
@@ -168,6 +168,9 @@ async function select(project) {
     $("recovery-records").replaceChildren();
     $("received-records").replaceChildren();
     $("transfer-records").replaceChildren();
+    $("git-records").replaceChildren();
+    $("git-result").replaceChildren();
+    ++gitLoad;
     $("transfer-result").replaceChildren();
     $("transfer-peer").value = "";
     $("transfer-path").value = "";
@@ -176,6 +179,7 @@ async function select(project) {
   }
   selected = project.id;
   selectedProject = project;
+  $("git-panel").hidden = project.mode !== "git-bundles";
   $("recovery-panel").hidden = false;
   $("received-panel").hidden = false;
   $("transfer-panel").hidden = false;
@@ -373,6 +377,44 @@ async function loadReceived() {
   }
 }
 $("received-load").addEventListener("click", () => safe(loadReceived));
+async function loadGitExchange() {
+  const project = selected, request = ++gitLoad;
+  if (!project) return;
+  const result = await api("projects/" + project + "/inbox", "POST", {});
+  if (project !== selected || request !== gitLoad) return;
+  $("git-records").replaceChildren();
+  for (const item of result) {
+    const card = text("div", "", "snapshot");
+    card.append(text("p", item.branch + " · " + item.peer + " · " + item.head));
+    if (item.lfs_status) {
+      card.append(label("p", "Git LFS objects: {count} / {bytes} bytes", {count: item.lfs_status.objects, bytes: item.lfs_status.bytes}));
+      if (!item.lfs_status.complete) card.append(label("p", "Waiting for Git LFS objects"));
+    }
+    const button = label("button", "Import tracking branch");
+    button.disabled = !!item.lfs_status && !item.lfs_status.complete;
+    button.addEventListener("click", () => safe(async () => {
+      button.disabled = true;
+      try {
+        const output = await api("projects/" + project + "/import", "POST", {peer: item.peer, bundle: item.id});
+        if (selected === project) $("git-result").textContent = JSON.stringify(output, null, 2);
+      } finally { button.disabled = false; }
+    }));
+    card.append(button);
+    $("git-records").append(card);
+  }
+}
+$("git-refresh").addEventListener("click", () => safe(loadGitExchange));
+$("git-export").addEventListener("click", () => safe(async () => {
+  const project = selected, lfs = $("git-lfs").checked;
+  if (!project) return;
+  $("git-export").disabled = true;
+  try {
+    const output = await api("projects/" + project + "/export", "POST", {lfs});
+    if (project !== selected) return;
+    $("git-result").textContent = JSON.stringify(output, null, 2);
+    await loadGitExchange();
+  } finally { $("git-export").disabled = false; }
+}));
 async function loadTransfers() {
   const project = selected;
   if (!project) return;

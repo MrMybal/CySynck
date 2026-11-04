@@ -9,7 +9,7 @@ A project-based synchronization and backup companion written in **C++20**, power
 One shared core powers the native desktop app, CLI, local Web console and integration SDK.
 Build a headless server without graphical dependencies. No Python or .NET runtime is required.
 
-**Status: 0.12.0, under active development.** Windows x64 is validated locally. The headless
+**Status: 0.13.0, under active development.** Windows x64 is validated locally. The headless
 Linux core, CLI and test binaries also cross-compile from Windows with Zig.
 Native Linux and macOS execution still needs validation on those platforms.
 The Unreal bridge is an integration example and has not yet been compiled inside Unreal.
@@ -19,7 +19,7 @@ those fixes and the new package smoke checks still need another native CI run.
 
 ## Features
 
-| Area | Available in 0.12 |
+| Area | Available in 0.13 |
 | --- | --- |
 | Projects | Separate folders, settings and modes; overlapping project roots are rejected |
 | Sync modes | Two-way, send only, receive only, local backup and Git bundle exchange |
@@ -33,7 +33,7 @@ those fixes and the new package smoke checks still need another native CI run.
 | Diffs | Snapshot or two-file comparison, side-by-side and unified views, statistics and Git-compatible patches |
 | Conflicts | Version selection or manual text merge, checked preview, preserved sources and exportable recovery history |
 | Syncthing | Supervised isolated instance, crash restart, device and folder management, existing-instance support and access to the original Web UI |
-| Git collaboration | Exchange committed branches as bundles; import into tracking refs for explicit Git review and merging |
+| Git collaboration | Bundles plus verified Git LFS history; import assets and tracking refs for explicit review and merging |
 | Plugins | Explicitly loaded native libraries, versioned C ABI, additional modes and events |
 | VPN | WireGuard identities, public profile exchange through Syncthing, peer trust and official tunnel tools |
 | Direct chat and files | VPN transport, project permissions, pairing secret, local history and SHA-256 verification |
@@ -218,8 +218,11 @@ rather than synchronizing a live `.git` directory. Export requires a committed, 
 Uncommitted changes stay local. Import creates `refs/remotes/cysynck/<peer>/<branch>`;
 review and merging remain explicit Git operations. Commits and authors are preserved.
 
-Version 1 exchanges full Git bundles with SHA-256 manifests. Git LFS transport, signed manifests
-and CyRevision protocol compatibility remain planned. Exchange folders should contain only trusted peers.
+Version 2 includes Git LFS objects from the exported branch history, including deleted versions,
+with SHA-256 verification and deduplication. Import preserves HEAD, the index and working files.
+Both peers need 0.13 or later; `git export ID --lfs false` produces a legacy pointer-only bundle.
+See [Git LFS exchange](docs/git-lfs.md) for limits and the default cache layout. Signed manifests,
+LFS locks and CyRevision protocol compatibility remain planned. Exchange folders should contain only trusted peers.
 
 ## VPN, direct chat and file transfer
 

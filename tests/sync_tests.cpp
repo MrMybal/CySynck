@@ -315,13 +315,26 @@ int main(int argc, char **argv) {
         engine(a, "share", {{"project", "git-team"}, {"device_id", peerB}});
         engine(b, "share", {{"project", "git-team"}, {"device_id", peerA}});
         auto before = git(repoB, {"rev-parse", "HEAD"});
-        auto bundle = action(a, "git-team", "export");
+        std::string asset(1024 * 1024 + 37, '\x89');
+        auto assetHash = sha256(asset);
+        auto lfsPath = "lfs/objects/" + assetHash.substr(0, 2) + "/" + assetHash.substr(2, 2) +
+                       "/" + assetHash;
+        auto rootA = fs::u8path(repoA.at("root").get<std::string>());
+        atomic_write(rootA / ".git" / lfsPath, asset, true);
+        atomic_write(rootA / "Asset.uasset",
+                     "version https://git-lfs.github.com/spec/v1\noid sha256:" + assetHash +
+                         "\nsize " + std::to_string(asset.size()) + "\n");
+        git(repoA, {"add", "Asset.uasset"});
+        git(repoA, {"-c", "user.name=CySynck Test", "-c", "user.email=test@example.invalid",
+                    "commit", "-m", "Shared LFS asset"});
+        auto bundle = action(a, "git-team", "export", {{"lfs", true}});
         action(a, "git-team", "sync");
         eventually(
             [&] {
                 auto inbox = action(b, "git-team", "inbox");
                 for (auto &item : inbox)
-                    if (item["id"] == bundle["id"])
+                    if (item["id"] == bundle["id"] &&
+                        item.at("lfs_status").at("complete").get<bool>())
                         return true;
                 return false;
             },
@@ -333,6 +346,10 @@ int main(int argc, char **argv) {
               "Tracking branch must contain the transported commit");
         check(git(repoB, {"rev-parse", "HEAD"}) == before,
               "Real Git exchange must preserve the local working branch");
+        check(imported.at("lfs").at("verified") &&
+                  sha256_file(fs::u8path(repoB.at("root").get<std::string>()) / ".git" / lfsPath) ==
+                      assetHash,
+              "Real Syncthing transports verified Git LFS assets into the local cache");
         std::cout
             << "PASS Git bundles transported by real Syncthing and imported without checkout\n";
         engine(a, "stop");

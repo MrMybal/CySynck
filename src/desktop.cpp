@@ -69,6 +69,12 @@ static void localize() {
     c::registerTranslations(
         "fr",
         {{"Direct transfers", "Transferts directs"},
+         {"Include Git LFS history", "Inclure l'historique Git LFS"},
+         {"Git LFS objects", "Objets Git LFS"},
+         {"Waiting for Git LFS objects", "En attente des objets Git LFS"},
+         {"Git and LFS imports preserve the working tree. Review and merge using Git.",
+          "Les imports Git et LFS préservent le dossier de travail. Vérifiez et fusionnez avec "
+          "Git."},
          {"Profile transfer limits", "Limites de transfert du profil"},
          {"These limits apply to all projects. Existing transfers keep their reserved size.",
           "Ces limites concernent tous les projets. Les transferts existants conservent leur "
@@ -477,8 +483,10 @@ class App {
     int comparison_source = 0, resolution_choice = 0;
     bool history_loaded = false;
     bool received_loaded = false;
+    bool git_loaded = false;
     bool reuse_blocks = true;
     bool send_legacy = false;
+    bool include_git_lfs = true;
     bool transfer_limits_dirty = false;
     int transfer_file_mib = 1024, transfer_inbox_mib = 4096, transfer_outbox_mib = 4096;
     int mode = 0, interval = 60, keep = 30;
@@ -652,6 +660,7 @@ class App {
         changed = Json::array();
         diff = nullptr;
         incoming = Json::array();
+        git_loaded = false;
         messages = Json::array();
         received_state = nullptr;
         transfer_state = nullptr;
@@ -1794,16 +1803,28 @@ class App {
             c::callout(c::Tone::info, c::tr("Use Git exchange mode for this view.").c_str());
             return;
         }
-        c::callout(c::Tone::info,
-                   c::tr("Git imports create tracking refs. Review and merge using Git.").c_str());
+        c::callout(
+            c::Tone::info,
+            c::tr("Git and LFS imports preserve the working tree. Review and merge using Git.")
+                .c_str());
+        auto load = [this] {
+            action("inbox", Json::object(), [this](const Json &r) {
+                incoming = r;
+                git_loaded = true;
+            });
+        };
+        if (!git_loaded && !busy())
+            load();
+        ImGui::Checkbox(c::trLabel("Include Git LFS history").c_str(), &include_git_lfs);
         if (button("Export committed branch", true))
-            action("export");
+            action("export", {{"lfs", include_git_lfs}},
+                   [this](const Json &) { git_loaded = false; });
         ImGui::SameLine();
         if (button("Inspect Git"))
             action("git-status", Json::object(), [this](const Json &r) { git_state = r; });
         ImGui::SameLine();
         if (button("Refresh"))
-            action("inbox", Json::object(), [this](const Json &r) { incoming = r; });
+            load();
         if (!git_state.is_null())
             text(git_state.dump(2));
         for (auto &b : incoming)
@@ -1815,8 +1836,19 @@ class App {
                                .c_str(),
                            3);
                 c::textDim("%s", b["peer"].get<std::string>().c_str());
+                if (b.contains("lfs_status")) {
+                    c::textDim("%s: %zu / %llu B", c::tr("Git LFS objects").c_str(),
+                               b.at("lfs_status").at("objects").get<size_t>(),
+                               static_cast<unsigned long long>(
+                                   b.at("lfs_status").at("bytes").get<uintmax_t>()));
+                    if (!b.at("lfs_status").at("complete").get<bool>())
+                        c::textDim("%s", c::tr("Waiting for Git LFS objects").c_str());
+                }
+                ImGui::BeginDisabled(b.contains("lfs_status") &&
+                                     !b.at("lfs_status").at("complete").get<bool>());
                 if (button("Import tracking branch"))
                     action("import", {{"peer", b["peer"]}, {"bundle", b["id"]}});
+                ImGui::EndDisabled();
                 c::endCard();
                 ImGui::PopID();
             }
