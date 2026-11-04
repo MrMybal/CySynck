@@ -13,4 +13,6 @@ void copy_lfs_object(const fs::path &source, const fs::path &store, const Json &
 Json lfs_availability(const fs::path &store, const Json &inventory);
 std::string offline_git(const Json &project, const std::vector<std::string> &args,
                         const std::string &input = {});
+ProcessResult offline_git_result(const Json &project, const std::vector<std::string> &args,
+                                 const std::string &input = {});
 } // namespace cysynck

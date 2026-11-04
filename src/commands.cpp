@@ -26,7 +26,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.15 (C++20)
+        return {{"help", R"(CySynck 0.16 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | events | api-token
   doctor [--probe true]  (test tool versions and engine connection only with --probe)
@@ -58,12 +58,14 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   register ID | sync ID | status ID | pause ID | resume ID
   git status|export|inbox ID  (export: --lfs true includes Git LFS branch history)
   git import ID PEER_ID BUNDLE_ID
+  git setup ID [--branch main --object-format sha1|sha256] [--apply true --plan PREVIEW_TOKEN]
   git review ID PEER_ID BRANCH
   git branches ID
-  git review-file ID PEER_ID BRANCH RELATIVE_PATH [--base COMMIT --head COMMIT]
-  git history ID PEER_ID BRANCH [--limit 50 --offset 0 --base COMMIT --head COMMIT]
+  git review-file ID PEER_ID BRANCH RELATIVE_PATH [--base COMMIT|unborn --head COMMIT]
+  git history ID PEER_ID BRANCH [--limit 50 --offset 0 --base COMMIT|unborn --head COMMIT]
   git commit ID PEER_ID BRANCH COMMIT [--parent 1]
-  git commit-file ID PEER_ID BRANCH COMMIT RELATIVE_PATH [--parent 1 --base COMMIT --head COMMIT]
+  git commit-file ID PEER_ID BRANCH COMMIT RELATIVE_PATH [--parent 1 --base COMMIT|unborn --head COMMIT]
+  Git review/history/commit commands also accept --local-ref refs/heads/BRANCH|detached.
   git storage ID [--exports ID1,ID2] [--apply true --plan PREVIEW_TOKEN]
   vpn configure NAME 10.77.X.Y [--endpoint HOST:UDP_PORT] [--listen-port 51820] [--mesh-port 8485] [--device-id ID]
   vpn status|preview|write-config|up|down
@@ -81,7 +83,7 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   serve [--host 127.0.0.1] [--port 8484]
 Desktop: cysynck-desktop [--state DIR] [--plugin LIBRARY] [--background|--foreground] [--no-tray]
 Secrets: CYSYNCK_SYNCTHING_API_KEY, CYSYNCK_API_TOKEN, CYSYNCK_MESH_TOKEN.
-VPN up/down requires administrator/root. No automatic NAT traversal in 0.15.)"}};
+VPN up/down requires administrator/root. No automatic NAT traversal in 0.16.)"}};
     if (args[0] == "service") {
         if (args.size() < 2 || (args[1] != "plan" && args[1] != "export"))
             throw std::runtime_error("Use service plan|export");
@@ -370,6 +372,12 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.15.)"}}
             for (auto key : {"base", "head"})
                 if (flags.contains("--" + std::string(key)))
                     data[key] = flags.at("--" + std::string(key));
+            if (data.value("base", std::string{}) == "unborn")
+                data["base"] = nullptr;
+            if (flags.contains("--local-ref"))
+                data["local_ref"] = flags.at("--local-ref") == "detached"
+                                        ? Json(nullptr)
+                                        : Json(flags.at("--local-ref"));
             for (auto key : {"offset", "limit", "parent"})
                 if (flags.contains("--" + std::string(key))) {
                     const auto &value = flags.at("--" + std::string(key));
@@ -390,6 +398,19 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.15.)"}}
             if (flags.at("--lfs") != "true" && flags.at("--lfs") != "false")
                 throw std::runtime_error("Choose --lfs true|false");
             data["lfs"] = flags.at("--lfs") == "true";
+        }
+        if (command == "setup") {
+            for (const auto &[flag, key] : std::vector<std::pair<std::string, std::string>>{
+                     {"--branch", "branch"},
+                     {"--object-format", "object_format"},
+                     {"--plan", "plan"}})
+                if (flags.contains(flag))
+                    data[key] = flags.at(flag);
+            if (flags.contains("--apply")) {
+                if (flags.at("--apply") != "true" && flags.at("--apply") != "false")
+                    throw std::runtime_error("Choose --apply true|false");
+                data["apply"] = flags.at("--apply") == "true";
+            }
         }
         if (command == "storage") {
             data["exports"] = Json::array();
@@ -416,7 +437,7 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.15.)"}}
                                  : command == "review" || command == "review-file" ||
                                          command == "branches" || command == "storage" ||
                                          command == "history" || command == "commit" ||
-                                         command == "commit-file"
+                                         command == "commit-file" || command == "setup"
                                      ? "git-" + command
                                      : command),
                             data);

@@ -20,10 +20,15 @@ programs are disabled; identities are recorded metadata and are not proof of tru
 
 Pages default to 50 commits and accept `limit` from 1 to 100 and `offset` from 0 to 100000.
 The response includes `commits`, `offset`, `limit`, `next_offset` and `truncated`, along with
-the branch review context (`base`, `head`, `peer`, `branch`, `tracking_ref`). Continuation pages
+the branch review context (`base`, `head`, `local_ref`, `peer`, `branch`, `tracking_ref`). Continuation pages
 require the original `base` and `head`. A changed local HEAD or imported ref invalidates the
 request; refresh the branch review before continuing. `next_offset:null` indicates the end or
 the offset bound; `truncated:true` distinguishes that bound from the actual end of history.
+
+From 0.16, history is also available before the first local commit. Pass `base:null` to the API
+or `--base unborn` in the CLI and retain `head` plus `local_ref` from the first response. This
+ref pin detects switching between unborn branches; a new first commit invalidates the null
+base. Detached HEAD uses `local_ref:null` (`--local-ref detached`).
 
 Metadata fields are limited to 16 KiB, parent lists to 256 entries and captured history output
 to 8 MiB. Invalid UTF-8 or incomplete metadata fails explicitly. Complete, non-shallow
@@ -48,7 +53,8 @@ textconv, hooks, replacement objects and network protocols are disabled. No chec
 ref change or index refresh occurs, and uncommitted work stays intact.
 
 The implementation uses Git's documented [history formats](https://git-scm.com/docs/git-log)
-and [recursive root diff](https://git-scm.com/docs/git-diff-tree).
+and [tree comparisons](https://git-scm.com/docs/git-diff). Empty trees are hashed for the
+repository's object format without writing objects.
 
 ## API and SDK
 

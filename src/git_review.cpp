@@ -56,14 +56,14 @@ Json side(const std::string &mode, const std::string &hash) {
             {"sha256", nullptr}};
 }
 Json changed_files(const Json &project, const std::string &base, const std::string &head) {
-    std::vector<std::string> args =
-        base.empty() ? std::vector<std::string>{"diff-tree", "--root", "--no-commit-id", "-r"}
-                     : std::vector<std::string>{"diff"};
+    auto before =
+        base.empty() ? trim(offline_git(project, {"hash-object", "-t", "tree", "--stdin"})) : base;
+    if (!oid(before))
+        throw std::runtime_error("Invalid Git comparison tree");
+    std::vector<std::string> args{"diff"};
     args.insert(args.end(), {"--raw", "-z", "--no-abbrev", "--no-renames", "--no-ext-diff",
                              "--no-textconv", "--ignore-submodules=none"});
-    if (!base.empty())
-        args.push_back(base);
-    args.insert(args.end(), {head, "--"});
+    args.insert(args.end(), {before, head, "--"});
     auto raw = offline_git(project, args);
     Json files = Json::array();
     std::set<std::string> objects;
@@ -181,16 +181,15 @@ Json preview(const Json &project, Json file, const std::string &base, const std:
         file[key]["sha256"] = sha256(bytes);
         file[std::string("lfs_") + target] = lfs_pointer(bytes);
     }
-    std::vector<std::string> args{"-c", "core.quotePath=true"};
-    if (base.empty())
-        args.insert(args.end(), {"diff-tree", "--root", "--no-commit-id", "-r", "-p"});
-    else
-        args.push_back("diff");
+    auto before =
+        base.empty() ? trim(offline_git(project, {"hash-object", "-t", "tree", "--stdin"})) : base;
+    if (!oid(before))
+        throw std::runtime_error("Invalid Git comparison tree");
+    std::vector<std::string> args{"-c", "core.quotePath=true", "diff"};
     args.insert(args.end(), {"--text", "--no-ext-diff", "--no-textconv", "--no-color",
                              "--no-renames", "--src-prefix=a/", "--dst-prefix=b/", "-U3"});
-    if (!base.empty())
-        args.push_back(base);
-    args.insert(args.end(), {head, "--", ":(literal)" + file.at("path").get<std::string>()});
+    args.insert(args.end(),
+                {before, head, "--", ":(literal)" + file.at("path").get<std::string>()});
     auto patch = offline_git(project, args);
     if (patch.size() > 4 * 1024 * 1024 || !utf8(patch))
         throw std::runtime_error("Git patch exceeds its preview bound");
@@ -221,6 +220,29 @@ Json preview(const Json &project, Json file, const std::string &base, const std:
         file["reason"] = "lfs_pointer";
     return file;
 }
+Json local_head(const Json &project) {
+    auto symbolic = offline_git_result(project, {"symbolic-ref", "--quiet", "HEAD"});
+    Json reference = nullptr;
+    if (symbolic.code == 0) {
+        auto ref = trim(symbolic.out);
+        if (!ref.starts_with("refs/") || ref.size() > 4096 ||
+            ref.find_first_of("\r\n\0", 0, 3) != ref.npos)
+            throw std::runtime_error("Invalid local Git HEAD reference");
+        reference = ref;
+    } else if (symbolic.code != 1)
+        throw std::runtime_error("Cannot read local Git HEAD");
+    auto resolved =
+        offline_git_result(project, {"rev-parse", "--verify", "--quiet", "HEAD^{commit}"});
+    auto value = trim(resolved.out);
+    if (!resolved.code && oid(value))
+        return {{"base", value}, {"local_ref", reference}};
+    // A missing branch is a valid unborn HEAD. Existing broken refs are not empty history.
+    if (resolved.code == 1 && reference.is_string() &&
+        reference.get<std::string>().starts_with("refs/heads/") &&
+        offline_git_result(project, {"show-ref", "--verify", "--quiet", reference}).code == 1)
+        return {{"base", nullptr}, {"local_ref", reference}};
+    throw std::runtime_error("Local Git HEAD is missing, corrupt or is not a commit");
+}
 Json context(const Json &project, const Json &data) {
     if (project.at("mode") != "git-bundles")
         throw std::runtime_error("Git review requires git-bundles mode");
@@ -230,18 +252,22 @@ Json context(const Json &project, const Json &data) {
         throw std::runtime_error("Invalid Git review branch identity");
     auto reference = "refs/remotes/cysynck/" + peer + "/" + branch;
     git(project, {"check-ref-format", reference});
-    auto base = resolve(project, "HEAD"), head = resolve(project, reference);
-    if ((data.contains("base") && data.at("base") != base) ||
+    auto local = local_head(project);
+    auto head = resolve(project, reference);
+    if ((data.contains("base") && data.at("base") != local.at("base")) ||
+        (data.contains("local_ref") && data.at("local_ref") != local.at("local_ref")) ||
         (data.contains("head") && data.at("head") != head))
         throw std::runtime_error("Git review changed; refresh the branch comparison");
-    return {{"base", base},
+    return {{"base", local.at("base")},
+            {"local_ref", local.at("local_ref")},
             {"head", head},
             {"tracking_ref", reference},
             {"peer", peer},
             {"branch", branch}};
 }
 void unchanged(const Json &project, const Json &review) {
-    if (resolve(project, "HEAD") != review.at("base").get<std::string>() ||
+    auto local = local_head(project);
+    if (local.at("base") != review.at("base") || local.at("local_ref") != review.at("local_ref") ||
         resolve(project, review.at("tracking_ref")) != review.at("head").get<std::string>())
         throw std::runtime_error("Git refs changed during comparison; refresh the review");
 }
@@ -297,6 +323,7 @@ Json commit_log(const Json &project, const std::string &head, uintmax_t offset, 
     return records;
 }
 } // namespace
+Json git_local_head(const Json &project) { return local_head(project); }
 Json imported_git_branches(const Json &project) {
     if (project.at("mode") != "git-bundles")
         throw std::runtime_error("Git review requires git-bundles mode");
@@ -328,7 +355,8 @@ Json imported_git_branches(const Json &project) {
 }
 Json review_git_branch(const Json &project, const Json &data, bool filePreview) {
     auto review = context(project, data);
-    auto base = review.at("base").get<std::string>(), head = review.at("head").get<std::string>();
+    auto base = review.at("base").is_null() ? std::string{} : review.at("base").get<std::string>();
+    auto head = review.at("head").get<std::string>();
     auto files = changed_files(project, base, head);
     Json result;
     if (filePreview) {
@@ -339,19 +367,22 @@ Json review_git_branch(const Json &project, const Json &data, bool filePreview) 
             throw std::runtime_error("Choose a changed file from this Git review");
         result = preview(project, *found, base, head);
     } else {
-        auto counts = trim(
-            offline_git(project, {"rev-list", "--left-right", "--count", base + "..." + head}));
+        auto counts = base.empty()
+                          ? "0 " + trim(offline_git(project, {"rev-list", "--count", head, "--"}))
+                          : trim(offline_git(project, {"rev-list", "--left-right", "--count",
+                                                       base + "..." + head}));
         std::istringstream input(counts);
         std::string left, right, extra;
         if (!(input >> left >> right) || (input >> extra))
             throw std::runtime_error("Invalid Git ancestry counts");
         auto local = number(left), remote = number(right);
-        auto common = merge_base(project, base, head);
-        auto relation = local == 0 && remote == 0 ? "identical"
-                        : local == 0              ? "fast_forward"
-                        : remote == 0             ? "local_ahead"
-                        : common.is_null()        ? "unrelated"
-                                                  : "diverged";
+        auto common = base.empty() ? Json(nullptr) : merge_base(project, base, head);
+        auto relation = base.empty()                ? "unborn"
+                        : local == 0 && remote == 0 ? "identical"
+                        : local == 0                ? "fast_forward"
+                        : remote == 0               ? "local_ahead"
+                        : common.is_null()          ? "unrelated"
+                                                    : "diverged";
         result = {{"files", files},
                   {"local_only_commits", local},
                   {"peer_only_commits", remote},

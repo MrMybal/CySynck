@@ -15,6 +15,7 @@
 #include "diff.hpp"
 #include "git_lfs.hpp"
 #include "git_review.hpp"
+#include "git_setup.hpp"
 #include "git_storage.hpp"
 #ifdef _WIN32
 #define NOMINMAX
@@ -894,7 +895,11 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
         result = git_action(p, action, data);
     else if (action == "git-branches")
         result = imported_git_branches(p);
-    else if (action == "git-review" || action == "git-review-file")
+    else if (action == "git-setup") {
+        result = setup_git_repository(p, data);
+        if (result.value("applied", false))
+            event(p.at("id"), "git", "Local Git repository initialized without checking out files");
+    } else if (action == "git-review" || action == "git-review-file")
         result = review_git_branch(p, data, action == "git-review-file");
     else if (action == "git-history")
         result = git_branch_history(p, data);

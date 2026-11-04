@@ -3,6 +3,9 @@
 CySynck compares the current committed `HEAD` with a previously imported
 `refs/remotes/cysynck/PEER/BRANCH`. Review is local and read-only: it does not check out files,
 merge, refresh the index or fetch missing Git/LFS objects. Dirty and staged changes stay local.
+From 0.16, a valid branch without its first local commit is also supported: `base:null`,
+`relation:"unborn"`, zero local-only commits and the complete imported tree compared with an
+empty tree. This includes files unchanged by the peer's latest commit. See [first setup](git-setup.md).
 
 ```sh
 cysynck git branches PROJECT_ID
@@ -39,13 +42,18 @@ and text patches to 4 MiB. Exceeding a bound fails explicitly instead of reporti
 
 ## Stable review context
 
-File-preview requests can include the overview's `base` and `head`. If either current ref has
+File-preview requests can include the overview's `base`, `head` and `local_ref`. If a pinned ref has
 changed, the request is refused and the interface must refresh. Ref identities are checked again
 after comparison. Interfaces pin these values automatically and discard stale responses.
 
 ```sh
 cysynck git review-file PROJECT_ID PEER_ID BRANCH path.cpp --base LOCAL_COMMIT --head PEER_COMMIT
+cysynck git review-file PROJECT_ID PEER_ID BRANCH path.cpp --base unborn --head PEER_COMMIT --local-ref refs/heads/main
 ```
+
+`local_ref` is the symbolic HEAD target, or null for detached HEAD (`--local-ref detached` in
+the CLI). Pinning it also detects a switch between two unborn branches. Corrupt or non-commit
+HEAD targets fail explicitly and are never interpreted as empty history.
 
 The local token-protected API and C/C++ SDK expose POST project routes:
 

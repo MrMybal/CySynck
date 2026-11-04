@@ -1,5 +1,17 @@
 # Development milestones
 
+## Delivered in 0.16
+
+New Git-mode projects can initialize their repository from a preview tied to the project,
+folder, branch and SHA-1/SHA-256 format. Existing metadata, bare repositories and files are
+preserved. The CLI, C/C++ SDK and bilingual interfaces share this explicit setup flow.
+
+First imports can be reviewed before the first local commit. The complete peer tree is
+compared with an empty tree, while history and individual commits remain available. Nullable
+local commit IDs and pinned symbolic refs distinguish an unborn branch from detached or
+corrupt HEAD and invalidate stale requests. Native and Web history lists scroll independently.
+See [Git setup](git-setup.md). Checking out or merging imported files remains a separate Git action.
+
 ## Delivered in 0.15
 
 Imported branches now expose paginated topological commit history, recorded authors and

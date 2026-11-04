@@ -91,6 +91,18 @@
   </section>
   <section id="git-panel" hidden>
       <h3 data-i18n>Git exchange</h3>
+      <div id="git-setup-panel" hidden>
+        <h4 data-i18n>Repository setup</h4>
+        <p id="git-setup-root"></p>
+        <p data-i18n>Initialization creates Git metadata and preserves existing files. It does not check out peer files.</p>
+        <form id="git-setup-form">
+          <label><span data-i18n>Initial branch</span><input id="git-setup-branch" value="main" required></label>
+          <label><span data-i18n>Git object format</span><select id="git-setup-format"><option value="sha1">SHA-1</option><option value="sha256">SHA-256</option></select></label>
+          <button data-i18n>Preview Git setup</button>
+          <button type="button" id="git-setup-apply" disabled data-i18n>Initialize repository</button>
+        </form>
+      </div>
+      <div id="git-ready" hidden>
       <details><summary data-i18n>Git project settings</summary>
         <form id="git-settings">
           <label><input type="checkbox" id="git-policy"><span data-i18n>Use Git LFS during synchronization</span></label>
@@ -114,6 +126,7 @@
         <div id="git-storage-exports"></div><div id="git-storage-summary" aria-live="polite"></div>
       </details>
       <div id="git-records"></div>
+      </div>
   </section>
   <section id="transfer-panel" hidden>
     <h3 data-i18n>Direct transfers</h3>

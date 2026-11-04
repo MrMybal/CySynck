@@ -9,7 +9,7 @@ A project-based synchronization and backup companion written in **C++20**, power
 One shared core powers the native desktop app, CLI, local Web console and integration SDK.
 Build a headless server without graphical dependencies. No Python or .NET runtime is required.
 
-**Status: 0.15.0, under active development.** Windows x64 is validated locally. The headless
+**Status: 0.16.0, under active development.** Windows x64 is validated locally. The headless
 Linux core, CLI and test binaries also cross-compile from Windows with Zig.
 Native Linux and macOS execution still needs validation on those platforms.
 The Unreal bridge is an integration example and has not yet been compiled inside Unreal.
@@ -19,7 +19,7 @@ those fixes and the new package smoke checks still need another native CI run.
 
 ## Features
 
-| Area | Available in 0.15 |
+| Area | Available in 0.16 |
 | --- | --- |
 | Projects | Separate folders, settings and modes; overlapping project roots are rejected |
 | Sync modes | Two-way, send only, receive only, local backup and Git bundle exchange |
@@ -33,13 +33,18 @@ those fixes and the new package smoke checks still need another native CI run.
 | Diffs | Snapshot or two-file comparison, side-by-side and unified views, statistics and Git-compatible patches |
 | Conflicts | Version selection or manual text merge, checked preview, preserved sources and exportable recovery history |
 | Syncthing | Supervised isolated instance, crash restart, device and folder management, existing-instance support and access to the original Web UI |
-| Git collaboration | Bundles and verified LFS history, per-project cache policy, branch/commit diffs, paginated history and reviewed export cleanup |
+| Git collaboration | Explicit repository setup, first-import review before a local commit, bundles and verified LFS history, branch/commit diffs, paginated history and reviewed export cleanup |
 | Plugins | Explicitly loaded native libraries, versioned C ABI, additional modes and events |
 | VPN | WireGuard identities, public profile exchange through Syncthing, peer trust and official tunnel tools |
 | Direct chat and files | VPN transport, project permissions, pairing secret, local history and SHA-256 verification |
 | Resumable transfers | Verified 1 MiB chunks, files up to 4 GiB, configurable profile quotas, frozen source and manual resume |
 | Received files | Durable inbox catalog, integrity verification and export to a separate directory |
 | Integration | C++ library, C ABI with UTF-8 JSON and an Unreal/Blueprint bridge example |
+
+New Git projects can initialize their repository through a reviewed preview in the CLI, SDK,
+desktop or Web console. Imported branches remain readable before the first local commit;
+branch comparison then shows their complete tree against an empty tree. Existing files and
+staged work are preserved. See [Git setup and the first import](docs/git-setup.md).
 
 Large-file backup storage now reuses unchanged blocks across snapshots and projects. The
 default policy uses 4 MiB blocks for files from 8 MiB to 256 GiB; `project set ID --storage whole`

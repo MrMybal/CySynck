@@ -72,8 +72,8 @@ fs::path checked_directory(fs::path path) {
     return fs::weakly_canonical(path);
 }
 } // namespace
-std::string offline_git(const Json &project, const std::vector<std::string> &args,
-                        const std::string &input) {
+ProcessResult offline_git_result(const Json &project, const std::vector<std::string> &args,
+                                 const std::string &input) {
     std::vector<std::string> command{"git",
                                      "--no-pager",
                                      "--no-replace-objects",
@@ -90,7 +90,11 @@ std::string offline_git(const Json &project, const std::vector<std::string> &arg
                                      "-C",
                                      project.at("root").get<std::string>()};
     command.insert(command.end(), args.begin(), args.end());
-    auto result = process(command, {}, input, 120);
+    return process(command, {}, input, 120);
+}
+std::string offline_git(const Json &project, const std::vector<std::string> &args,
+                        const std::string &input) {
+    auto result = offline_git_result(project, args, input);
     if (result.code)
         throw std::runtime_error(
             "Offline Git object inspection failed; check repository completeness");

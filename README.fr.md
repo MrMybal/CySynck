@@ -12,6 +12,12 @@ par profil pour le desktop et dans le navigateur pour le Web.
 
 ## Démarrer
 
+La version 0.16 ajoute l'initialisation Git avec aperçu depuis le CLI, le SDK, CyUI et le Web.
+Après un premier import, les branches, l'historique et les fichiers sont consultables avant
+le premier commit local. Les fichiers déjà présents et les changements indexés sont préservés.
+La liste des commits défile indépendamment pour garder le détail accessible.
+Voir [l'initialisation Git et le premier import](docs/git-setup.md) (anglais).
+
 La version 0.15 ajoute l'historique paginé des branches importées, les auteurs et validateurs,
 et la revue des fichiers d'un commit précis. Les commits initiaux et vides sont pris en charge ;
 pour une fusion, le parent de comparaison est sélectionnable. CyUI, le Web, le CLI et le SDK

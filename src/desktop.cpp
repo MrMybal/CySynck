@@ -80,6 +80,16 @@ static void localize() {
          {"Unused LFS objects", "Objets LFS inutilisés"},
          {"Reclaimable bytes", "Octets récupérables"},
          {"Imported branches", "Branches importées"},
+         {"Repository setup", "Initialisation du dépôt"},
+         {"Initial branch", "Branche initiale"},
+         {"Git object format", "Format des objets Git"},
+         {"Preview Git setup", "Prévisualiser l'initialisation Git"},
+         {"Initialize repository", "Initialiser le dépôt"},
+         {"Initialization creates Git metadata and preserves existing files. It does not check out "
+          "peer files.",
+          "L'initialisation crée les données Git et préserve les fichiers existants. Elle "
+          "n'extrait pas les fichiers des pairs."},
+         {"No local commit yet", "Aucun commit local pour le moment"},
          {"Branch history", "Historique de la branche"},
          {"Load branch history", "Charger l'historique de la branche"},
          {"Previous page", "Page précédente"},
@@ -521,7 +531,9 @@ class App {
         resolution_preview, resolution_preview_input, resolution_history, received_state,
         doctor_state, service_preview, service_preview_input, transfer_state, transfer_limits_state,
         git_branches, git_review_state, git_review_diff, git_storage_state, git_history_state,
-        git_commit_state;
+        git_commit_state, git_setup_state;
+    std::string git_initial_branch = "main";
+    int git_object_format = 0;
     std::set<std::string> git_storage_selected;
     bool git_storage_current = false;
     std::string view = "Overview", selected, theme = "mid-grey", language = "en", error, output,
@@ -533,7 +545,7 @@ class App {
     int comparison_source = 0, resolution_choice = 0;
     bool history_loaded = false;
     bool received_loaded = false;
-    bool git_loaded = false;
+    bool git_loaded = false, git_setup_requested = false;
     bool reuse_blocks = true;
     bool send_legacy = false;
     bool include_git_lfs = true;
@@ -732,6 +744,10 @@ class App {
         git_state = nullptr;
         git_branches = git_review_state = git_review_diff = git_history_state = git_commit_state =
             nullptr;
+        git_setup_state = nullptr;
+        git_setup_requested = false;
+        git_initial_branch = "main";
+        git_object_format = 0;
         git_storage_state = nullptr;
         git_storage_selected.clear();
         git_storage_current = false;
@@ -1863,13 +1879,14 @@ class App {
     }
     Json git_context() const {
         Json query;
-        for (auto key : {"peer", "branch", "base", "head"})
+        for (auto key : {"peer", "branch", "base", "head", "local_ref"})
             query[key] = git_review_state.at(key);
         return query;
     }
     bool current_git_context(const Json &result) const {
         return !git_review_state.is_null() && result.at("base") == git_review_state.at("base") &&
                result.at("head") == git_review_state.at("head") &&
+               result.at("local_ref") == git_review_state.at("local_ref") &&
                result.at("tracking_ref") == git_review_state.at("tracking_ref");
     }
     void load_git_history(uintmax_t offset = 0) {
@@ -1903,6 +1920,53 @@ class App {
             c::callout(c::Tone::info, c::tr("Use Git exchange mode for this view.").c_str());
             return;
         }
+        if (button("Refresh")) {
+            git_branches = git_review_state = git_review_diff = git_history_state =
+                git_commit_state = git_setup_state = nullptr;
+            git_setup_requested = false;
+            git_loaded = git_storage_current = false;
+        }
+        auto setupQuery = Json{{"branch", git_initial_branch},
+                               {"object_format", git_object_format ? "sha256" : "sha1"}};
+        if (git_setup_state.is_null()) {
+            if (!git_setup_requested && !busy()) {
+                git_setup_requested = true;
+                action("git-setup", setupQuery, [this](const Json &r) { git_setup_state = r; });
+            }
+            return;
+        }
+        if (git_setup_state.value("can_initialize", false)) {
+            c::beginCard("git-setup", c::tr("Repository setup").c_str());
+            text(git_setup_state.at("root"));
+            if (c::beginProperties("git-setup-properties")) {
+                field("Initial branch", git_initial_branch);
+                c::property(c::tr("Git object format").c_str());
+                ImGui::Combo("##git-object-format", &git_object_format, "SHA-1\0SHA-256\0");
+                c::endProperties();
+            }
+            ImGui::TextWrapped("%s", c::tr("Initialization creates Git metadata and preserves "
+                                           "existing files. It does not check out peer files.")
+                                         .c_str());
+            auto input = Json{{"branch", git_initial_branch},
+                              {"object_format", git_object_format ? "sha256" : "sha1"}};
+            if (button("Preview Git setup"))
+                action("git-setup", input, [this](const Json &r) { git_setup_state = r; });
+            ImGui::SameLine();
+            ImGui::BeginDisabled(git_setup_state.at("branch") != input.at("branch") ||
+                                 git_setup_state.at("object_format") != input.at("object_format"));
+            if (button("Initialize repository", true)) {
+                input["apply"] = true;
+                input["plan"] = git_setup_state.at("plan");
+                action("git-setup", input, [this](const Json &r) {
+                    git_setup_state = r;
+                    git_loaded = false;
+                    git_branches = nullptr;
+                });
+            }
+            ImGui::EndDisabled();
+            c::endCard();
+            return;
+        }
         c::callout(
             c::Tone::info,
             c::tr("Git and LFS imports preserve the working tree. Review and merge using Git.")
@@ -1926,13 +1990,6 @@ class App {
         ImGui::SameLine();
         if (button("Inspect Git"))
             action("git-status", Json::object(), [this](const Json &r) { git_state = r; });
-        ImGui::SameLine();
-        if (button("Refresh")) {
-            git_branches = git_review_state = git_review_diff = git_history_state =
-                git_commit_state = nullptr;
-            git_storage_current = false;
-            load();
-        }
         c::beginCard("git-storage", c::tr("Git exchange storage").c_str());
         ImGui::TextWrapped("%s", c::tr("Select exports to remove. Peers can no longer import "
                                        "removed exports. Local Git data is preserved.")
@@ -2007,7 +2064,8 @@ class App {
                                                    {"fast_forward", "Fast-forward is possible"},
                                                    {"local_ahead", "Local branch is ahead"},
                                                    {"diverged", "Branches have diverged"},
-                                                   {"unrelated", "Histories are unrelated"}};
+                                                   {"unrelated", "Histories are unrelated"},
+                                                   {"unborn", "No local commit yet"}};
             c::callout(c::Tone::info,
                        c::tr(labels.at(git_review_state.at("relation")).c_str()).c_str());
             text(c::tr("Local commits") + ": " + git_review_state.at("local_only_commits").dump() +
@@ -2030,6 +2088,12 @@ class App {
                 ImGui::EndDisabled();
                 if (git_history_state.at("truncated"))
                     text(c::tr("History page limit reached"));
+                ImGui::BeginChild(
+                    "git-history-list",
+                    ImVec2(0,
+                           std::min(280.f,
+                                    std::max(90.f, git_history_state.at("commits").size() * 78.f))),
+                    ImGuiChildFlags_Borders);
                 for (const auto &entry : git_history_state.at("commits")) {
                     auto oid = entry.at("oid").get<std::string>();
                     ImGui::PushID(oid.c_str());
@@ -2040,6 +2104,7 @@ class App {
                         load_git_commit(oid);
                     ImGui::PopID();
                 }
+                ImGui::EndChild();
             }
             if (!git_commit_state.is_null()) {
                 const auto &entry = git_commit_state.at("commit");

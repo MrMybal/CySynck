@@ -11,6 +11,32 @@ try { token = sessionStorage.getItem("cysynck-token") || ""; } catch (_) { /* St
 let storagePlan = null, servicePreview = null;
 let backupStorageDirty = false;
 let gitSettingsDirty = false;
+let gitSetupPlan = null, gitSetupLoad = 0;
+function gitSetupInput() { return {branch:$("git-setup-branch").value,object_format:$("git-setup-format").value}; }
+function invalidateGitSetup() { gitSetupPlan=null; ++gitSetupLoad; $("git-setup-apply").disabled=true; }
+function showGitSetup(project,input,result) {
+  $("git-setup-root").textContent=result.root;
+  $("git-setup-panel").hidden=!result.can_initialize; $("git-ready").hidden=result.can_initialize;
+  gitSetupPlan=result.can_initialize?{project,input,plan:result.plan}:null;
+  $("git-setup-apply").disabled=!gitSetupPlan;
+}
+$("git-setup-form").addEventListener("input",invalidateGitSetup);
+$("git-setup-form").addEventListener("submit",event=>{
+  event.preventDefault(); safe(async()=>{
+    const project=selected,input=gitSetupInput(); if(!project) return;
+    invalidateGitSetup(); const request=gitSetupLoad;
+    const result=await api("projects/"+project+"/git-setup","POST",input);
+    if(project!==selected || request!==gitSetupLoad || JSON.stringify(input)!==JSON.stringify(gitSetupInput())) return;
+    showGitSetup(project,input,result);
+    if(!result.can_initialize) await loadGitExchange();
+  });
+});
+$("git-setup-apply").addEventListener("click",()=>safe(async()=>{
+  const preview=gitSetupPlan; if(!preview || preview.project!==selected) return;
+  invalidateGitSetup();
+  await api("projects/"+preview.project+"/git-setup","POST",{...preview.input,apply:true,plan:preview.plan});
+  if(selected===preview.project) await loadGitExchange();
+}));
 let gitStorageSelected = new Set(), gitStoragePlan = null, gitStorageLoad = 0;
 function invalidateGitStorage() {
   gitStoragePlan = null; ++gitStorageLoad;
@@ -237,6 +263,8 @@ async function select(project) {
     $("git-result").replaceChildren();
     $("git-branches").replaceChildren(); clearGitReview();
     resetGitStorage();
+    invalidateGitSetup(); $("git-setup-branch").value="main"; $("git-setup-format").value="sha1";
+    $("git-setup-panel").hidden=true; $("git-ready").hidden=true;
     ++gitLoad;
     $("transfer-result").replaceChildren();
     $("transfer-peer").value = "";
@@ -452,6 +480,11 @@ async function loadGitExchange() {
   invalidateGitStorage();
   const project = selected, request = ++gitLoad;
   if (!project) return;
+  const setupInput=gitSetupInput(),setupRequest=++gitSetupLoad;
+  const setup=await api("projects/"+project+"/git-setup","POST",setupInput);
+  if(project!==selected || request!==gitLoad || setupRequest!==gitSetupLoad || JSON.stringify(setupInput)!==JSON.stringify(gitSetupInput())) return;
+  showGitSetup(project,setupInput,setup);
+  if(setup.can_initialize) {clearGitReview();$("git-branches").replaceChildren();$("git-records").replaceChildren();return;}
   const [result,branches] = await Promise.all([api("projects/" + project + "/inbox", "POST", {}),api("projects/"+project+"/git-branches","POST",{})]);
   if (project !== selected || request !== gitLoad) return;
   clearGitReview();
@@ -494,7 +527,7 @@ async function loadGitExchange() {
 }
 function showGitReview(project,review) {
   ++gitHistoryLoad;
-  const names={identical:"Branches are identical",fast_forward:"Fast-forward is possible",local_ahead:"Local branch is ahead",diverged:"Branches have diverged",unrelated:"Histories are unrelated"};
+  const names={identical:"Branches are identical",fast_forward:"Fast-forward is possible",local_ahead:"Local branch is ahead",diverged:"Branches have diverged",unrelated:"Histories are unrelated",unborn:"No local commit yet"};
   $("git-review").replaceChildren(label("p",names[review.relation]),label("p","{local} local commits · {peer} peer commits",{local:review.local_only_commits,peer:review.peer_only_commits}));
   $("git-review-patch").textContent="";
   const load=label("button","Load branch history"), history=text("div",""), details=text("div",""), files=text("div","");
@@ -502,7 +535,7 @@ function showGitReview(project,review) {
   load.addEventListener("click",()=>safe(()=>loadGitHistory(project,review,history,details,files)));
   showGitFiles(project,review,review,files);
 }
-function gitContext(review) {return {peer:review.peer,branch:review.branch,base:review.base,head:review.head};}
+function gitContext(review) {return {peer:review.peer,branch:review.branch,base:review.base,head:review.head,local_ref:review.local_ref};}
 function showGitFiles(project,review,comparison,container) {
   container.replaceChildren(); $("git-review-patch").textContent=""; ++gitReviewLoad;
   if(!comparison.files.length) container.append(label("p","No changed files"));
@@ -532,11 +565,12 @@ async function loadGitHistory(project,review,container,details,files,offset=0) {
   next.addEventListener("click",()=>safe(()=>loadGitHistory(project,review,container,details,files,result.next_offset)));
   container.append(previous,next);
   if(result.truncated) container.append(label("p","History page limit reached"));
+  const list=text("div","","git-commit-list");container.append(list);
   for(const entry of result.commits) {
     const row=text("div","","snapshot"), button=label("button","Review commit");
     row.append(text("p",entry.oid.slice(0,12)+" / "+entry.subject),text("p",entry.author.name+" / "+entry.author.date),button);
     button.addEventListener("click",()=>safe(()=>loadGitCommit(project,review,entry.oid,details,files,request)));
-    container.append(row);
+    list.append(row);
   }
 }
 async function loadGitCommit(project,review,oid,details,files,historyRequest,parent) {

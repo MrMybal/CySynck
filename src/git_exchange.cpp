@@ -1,6 +1,7 @@
 #include "git_lfs.hpp"
 #include "backup.hpp"
 #include "git_storage.hpp"
+#include "git_review.hpp"
 #include <regex>
 #include <stdexcept>
 
@@ -47,13 +48,21 @@ Json git_exchange_manifest(const fs::path &file, const std::string &project) {
     return read_manifest(file, project);
 }
 Json Core::git_action(const Json &p, const std::string &action, const Json &data) {
-    if (action == "git-status")
+    if (action == "git-status") {
+        auto local = git_local_head(p);
+        auto reference = local.at("local_ref");
         return {
-            {"branch", git(p, {"symbolic-ref", "--short", "HEAD"})},
-            {"head", git(p, {"rev-parse", "HEAD"})},
+            {"branch",
+             reference.is_string() && reference.get<std::string>().starts_with("refs/heads/")
+                 ? Json(reference.get<std::string>().substr(11))
+                 : Json(nullptr)},
+            {"head", local.at("base")},
+            {"local_ref", reference},
+            {"unborn", local.at("base").is_null()},
             {"changes", git(p, {"status", "--short"})},
             {"tracking", git(p, {"for-each-ref", "--format=%(refname:short) %(objectname:short)",
                                  "refs/remotes/cysynck/"})}};
+    }
     if (p.at("mode") != "git-bundles")
         throw std::runtime_error("This operation requires git-bundles mode");
     auto exchange = fs::u8path(p.at("exchange_path").get<std::string>());
