@@ -530,12 +530,39 @@ function showGitReview(project,review) {
   const names={identical:"Branches are identical",fast_forward:"Fast-forward is possible",local_ahead:"Local branch is ahead",diverged:"Branches have diverged",unrelated:"Histories are unrelated",unborn:"No local commit yet"};
   $("git-review").replaceChildren(label("p",names[review.relation]),label("p","{local} local commits · {peer} peer commits",{local:review.local_only_commits,peer:review.peer_only_commits}));
   $("git-review-patch").textContent="";
-  const load=label("button","Load branch history"), history=text("div",""), details=text("div",""), files=text("div","");
-  $("git-review").append(load,history,details,files);
+  const integration=text("div",""), load=label("button","Load branch history"), history=text("div",""), details=text("div",""), files=text("div","");
+  $("git-review").append(integration,load,history,details,files);
+  showGitIntegration(project,review,integration);
   load.addEventListener("click",()=>safe(()=>loadGitHistory(project,review,history,details,files)));
   showGitFiles(project,review,review,files);
 }
 function gitContext(review) {return {peer:review.peer,branch:review.branch,base:review.base,head:review.head,local_ref:review.local_ref};}
+function showGitIntegration(project,review,container) {
+  const card=text("div","","snapshot"), preview=label("button","Preview integration"), apply=label("button","Apply fast-forward"), output=text("div","");
+  apply.disabled=true;
+  card.append(label("h4","Integrate imported branch"),label("p","Updates the local branch, index and working files. Requires a clean project; LFS and checkout filters use separate extraction."),text("p",review.head),preview,apply,output);
+  container.append(card);
+  let plan=null,request=0;
+  const current=()=>selected===project && card.isConnected;
+  preview.addEventListener("click",()=>safe(async()=>{
+    plan=null;apply.disabled=true;const generation=++request;
+    const query=gitContext(review),result=await api("projects/"+project+"/git-integrate","POST",query);
+    if(!current() || generation!==request)return;
+    output.replaceChildren();
+    if(result.errors.length){output.append(label("p","Integration blocked"));for(const reason of result.errors)output.append(label("p",reason));}
+    if(result.can_integrate){plan={input:query,token:result.plan};apply.disabled=false;}
+  }));
+  apply.addEventListener("click",()=>safe(async()=>{
+    const saved=plan;if(!saved || !current())return;
+    plan=null;apply.disabled=true;preview.disabled=true;++request;
+    try {
+      const result=await api("projects/"+project+"/git-integrate","POST",{...saved.input,apply:true,plan:saved.token});
+      if(!current())return;
+      $("git-result").textContent=t("Integration complete")+"\n"+result.receipt_path;
+      await loadGitExchange();
+    } finally {preview.disabled=false;}
+  }));
+}
 function showGitExtraction(project,review,comparison,container) {
   const card=text("div","","snapshot"), form=document.createElement("form"), destination=document.createElement("input"), lfs=document.createElement("input");
   destination.required=true; lfs.type="checkbox";lfs.checked=true;

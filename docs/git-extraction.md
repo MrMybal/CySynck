@@ -2,8 +2,9 @@
 
 CySynck extracts the complete file tree of an imported peer branch, or a selected commit
 reachable from that branch, into a separate new directory. The result is a file snapshot;
-Git metadata and history stay in the source repository. Branch application, merging and
-rebasing remain explicit Git operations. Extraction works before the first local commit and
+Git metadata and history stay in the source repository. Clean fast-forward branch application
+has a separate [reviewed integration flow](git-integration.md); divergent merges and rebases
+remain manual Git operations. Extraction works before the first local commit and
 preserves the source HEAD, staging index and working files, including dirty or staged work.
 
 ## Preview, then extract

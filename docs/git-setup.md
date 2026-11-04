@@ -59,8 +59,9 @@ null and `--local-ref refs/heads/main` pins the local branch. Switching that bra
 its first commit or updating the peer ref invalidates pinned requests. Corrupt HEAD targets
 fail explicitly. `git status team` reports `unborn`, nullable `head`, `branch` and `local_ref`.
 
-Checking out files, creating a local commit or merging the imported branch remains an explicit
-Git operation. Review and import preserve existing work and do not apply the peer's changes.
+After setup and review, a clean project can use [explicit first-import integration](git-integration.md)
+to apply the peer branch. Creating commits and divergent merges remain manual Git operations.
+Review and import themselves preserve existing work.
 
 ## API and SDK
 

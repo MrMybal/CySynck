@@ -63,7 +63,8 @@ The local token-protected API and C/C++ SDK expose POST project routes:
 | `/api/projects/ID/git-review` | `{"peer":"PEER","branch":"main"}` |
 | `/api/projects/ID/git-review-file` | `{"peer":"PEER","branch":"main","path":"file.cpp","base":"...","head":"..."}` |
 
-Applying or merging the reviewed branch remains an explicit Git operation outside this view.
+From 0.19, the branch comparison view also offers [reviewed fast-forward integration](git-integration.md)
+as a separate explicit action. Divergent merges still require manual Git handling.
 
 Version 0.15 adds [paginated history and per-commit review](git-history.md), including root
 commits and explicit selection of a merge parent. These views use the same preview bounds.

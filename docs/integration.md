@@ -67,3 +67,6 @@ The package smoke check extracts a fresh archive, builds and runs both included 
 then calls diagnostics and service planning through the C ABI, exercises a UTF-8 profile
 path and checks a JSON error. This is separate from compiling the Unreal bridge example:
 `integrations/unreal/CySynck` still needs an actual Unreal build and runtime test.
+
+Reviewed first-import and fast-forward branch integration uses the same request interface; see
+[Git integration](git-integration.md) for preview tokens, working-tree restrictions and receipts.

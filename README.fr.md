@@ -10,6 +10,12 @@ Le cœur, le CLI et les identifiants d'API sont en anglais. Les interfaces deskt
 démarrent en anglais et proposent le français comme deuxième langue. Le choix est mémorisé
 par profil pour le desktop et dans le navigateur pour le Web.
 
+L'intégration des branches importées propose désormais une avance rapide dans le projet
+local, y compris avant son premier commit. Un aperçu vérifié précède la mise à jour de la
+branche, de l'index et des fichiers. Les changements locaux, fichiers ignorés ou non suivis,
+historiques divergents, pointeurs LFS et filtres bloquent l'opération.
+Voir le [guide d'intégration Git](docs/git-integration.md).
+
 ## Démarrer
 
 La version 0.18 porte l'extraction des fichiers Git ordinaires à **1 Gio par fichier**, grâce

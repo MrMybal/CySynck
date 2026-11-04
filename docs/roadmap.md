@@ -1,5 +1,15 @@
 # Development milestones
 
+## Delivered in 0.19
+
+Imported branch heads can be integrated into a clean local project by reviewed fast-forward,
+including unborn local branches. CLI, C/C++ SDK, CyUI and Web share a context/configuration/tree
+preview token and private complete/incomplete receipt. Native Git updates HEAD, index and
+working files with hooks, filters, fsmonitor, automatic stash and network protocols disabled.
+Modified, staged, untracked or ignored payloads, unsafe paths, detached HEAD, in-progress Git
+operations, sparse/shared indices, LFS pointers and checkout conversions are refused.
+Divergent history still requires manual Git merge. See [Git integration](git-integration.md).
+
 ## Delivered in 0.18
 
 Ordinary Git revision files stream through bounded subprocess buffers, raising their per-file
@@ -139,7 +149,7 @@ macOS notarization, signed Windows installers and automatic updates remain separ
 
 - Exercise multi-gigabyte resumable transfers and native Linux/macOS transport and services.
 - Evaluate content-defined block boundaries and benchmark much larger project trees.
-- Extend Git LFS storage/locking support and verify CyRevision interoperability.
+- Extend reviewed integration to LFS assets and divergent merges; extend LFS storage/locking support and verify CyRevision interoperability.
 - Design and test WireGuard rendezvous/NAT traversal against real network configurations;
   Syncthing discovery and relays do not themselves provide that transport.
 

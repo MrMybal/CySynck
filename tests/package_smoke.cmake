@@ -300,6 +300,42 @@ string(JSON sdk_policy GET "${c_git_policy}" git_lfs)
 if(sdk_policy)
   message(FATAL_ERROR "Packaged C ABI must persist per-project LFS policy")
 endif()
+# Pure C ABI first-import integration uses an independent ordinary-file repository.
+file(TO_CMAKE_PATH "${WORK_DIR}/Git integration source été" integration_source)
+file(TO_CMAKE_PATH "${WORK_DIR}/Git integration target été" integration_target)
+file(TO_CMAKE_PATH "${WORK_DIR}/Git integration exchange été" integration_exchange)
+file(MAKE_DIRECTORY "${integration_source}" "${integration_target}")
+sdk_git("${integration_source}" init --initial-branch=main)
+# Compare exact committed bytes, independent of the host's global CRLF policy.
+sdk_git("${integration_source}" config core.autocrlf false)
+file(WRITE "${integration_source}/hello.txt" "Packaged integration été\n")
+sdk_git("${integration_source}" add hello.txt)
+sdk_git("${integration_source}" commit -m "Integration fixture")
+foreach(side IN ITEMS source target)
+  run_response("${c_consumer}" c_integration "${WORK_DIR}/C integration ${side} été" POST /api/projects
+    "{\"id\":\"team\",\"name\":\"Integration\",\"mode\":\"git-bundles\",\"git_lfs\":false,\"backup_interval_minutes\":0,\"root\":\"${integration_${side}}\",\"exchange_path\":\"${integration_exchange}\"}")
+endforeach()
+run_response("${c_consumer}" c_integration "${WORK_DIR}/C integration target été" POST /api/projects/team/git-setup "{}")
+string(JSON integration_setup GET "${c_integration}" plan)
+run_response("${c_consumer}" c_integration "${WORK_DIR}/C integration target été" POST /api/projects/team/git-setup
+  "{\"apply\":true,\"plan\":\"${integration_setup}\"}")
+run_response("${c_consumer}" c_integration "${WORK_DIR}/C integration source été" POST /api/projects/team/export "{}")
+string(JSON integration_peer GET "${c_integration}" peer)
+string(JSON integration_bundle GET "${c_integration}" id)
+run_response("${c_consumer}" c_integration "${WORK_DIR}/C integration target été" POST /api/projects/team/import
+  "{\"peer\":\"${integration_peer}\",\"bundle\":\"${integration_bundle}\"}")
+run_response("${c_consumer}" c_integration "${WORK_DIR}/C integration target été" POST /api/projects/team/git-integrate
+  "{\"peer\":\"${integration_peer}\",\"branch\":\"main\"}")
+string(JSON integration_plan GET "${c_integration}" plan)
+run_response("${c_consumer}" c_integration "${WORK_DIR}/C integration target été" POST /api/projects/team/git-integrate
+  "{\"peer\":\"${integration_peer}\",\"branch\":\"main\",\"apply\":true,\"plan\":\"${integration_plan}\"}")
+string(JSON integration_done GET "${c_integration}" applied)
+string(JSON integration_receipt GET "${c_integration}" receipt_path)
+file(SHA256 "${integration_source}/hello.txt" integration_expected)
+file(SHA256 "${integration_target}/hello.txt" integration_actual)
+if(NOT integration_done OR NOT EXISTS "${integration_receipt}" OR NOT integration_expected STREQUAL integration_actual)
+  message(FATAL_ERROR "Packaged C ABI integration changed file bytes or lost its receipt")
+endif()
 execute_process(COMMAND "${c_consumer}" "${WORK_DIR}/C profil été" GET /api/unknown
   RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE error)
 if(NOT result EQUAL 1 OR NOT error MATCHES "error")

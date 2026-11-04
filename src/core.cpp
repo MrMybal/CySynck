@@ -17,6 +17,7 @@
 #include "git_review.hpp"
 #include "git_setup.hpp"
 #include "git_extract.hpp"
+#include "git_integrate.hpp"
 #include "git_storage.hpp"
 #ifdef _WIN32
 #define NOMINMAX
@@ -904,6 +905,10 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
         result = extract_git_revision(state_, registry_.at("projects"), p, data);
         if (result.value("applied", false))
             event(p.at("id"), "git", "Reviewed Git revision extracted to a new directory");
+    } else if (action == "git-integrate") {
+        result = integrate_git_branch(state_, p, data);
+        if (result.value("applied", false))
+            event(p.at("id"), "git", "Reviewed imported branch integrated by fast-forward");
     } else if (action == "git-review" || action == "git-review-file")
         result = review_git_branch(p, data, action == "git-review-file");
     else if (action == "git-history")

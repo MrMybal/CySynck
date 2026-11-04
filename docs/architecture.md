@@ -77,6 +77,7 @@ Routes principales :
 | `/api/projects/<id>/git-status`, `export`, `inbox`, `import` | POST |
 | `/api/projects/<id>/git-setup` (preview, then explicit initialization with plan) | POST |
 | `/api/projects/<id>/git-extract` (preview, then extraction to a new directory with plan) | POST |
+| `/api/projects/<id>/git-integrate` (preview, then clean fast-forward with plan) | POST |
 | `/api/network/status` | GET |
 | `/api/network/configure`, `publish`, `discover`, `trust`, `revoke`, `preview`, `write-config` | POST |
 | `/api/network/chat`, `send-file`, `history` | POST |

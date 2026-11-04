@@ -2,6 +2,7 @@
 #include "backup.hpp"
 #include "git_lfs.hpp"
 #include "git_review.hpp"
+#include "git_paths.hpp"
 #include <algorithm>
 #include <charconv>
 #include <cstdio>
@@ -20,20 +21,6 @@ namespace cysynck {
 namespace {
 constexpr uintmax_t blob_limit = 1024ull * 1024 * 1024;
 constexpr uintmax_t total_limit = 16ull * 1024 * 1024 * 1024;
-struct PathLess {
-    bool operator()(const std::string &a, const std::string &b) const {
-#ifdef _WIN32
-        auto x = fs::u8path(a).native(), y = fs::u8path(b).native();
-        return CompareStringOrdinal(x.c_str(), static_cast<int>(x.size()), y.c_str(),
-                                    static_cast<int>(y.size()), TRUE) == CSTR_LESS_THAN;
-#else
-        auto fold = [](unsigned char c) { return c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c; };
-        return std::lexicographical_compare(
-            a.begin(), a.end(), b.begin(), b.end(),
-            [&](unsigned char x, unsigned char y) { return fold(x) < fold(y); });
-#endif
-    }
-};
 uintmax_t number(const std::string &text) {
     uintmax_t n = 0;
     auto parsed = std::from_chars(text.data(), text.data() + text.size(), n);
@@ -53,37 +40,6 @@ std::string blob(const Json &project, const Json &entry) {
         throw std::runtime_error("Git extraction blob is missing, corrupted or truncated");
     return bytes;
 }
-void validate_path(const std::string &name, std::map<std::string, std::string, PathLess> &paths) {
-    auto path = fs::u8path(name);
-    (void)Json(name).dump();
-    if (name.empty() || name.size() > 4096 || name.front() == '/' || name.back() == '/' ||
-        name.find("//") != name.npos || name.find_first_of("\\:") != name.npos ||
-        name.find('\0') != name.npos || path.is_absolute())
-        throw std::runtime_error("Git extraction contains an unsafe relative path");
-    fs::path prefix;
-    for (const auto &part : path) {
-        auto segment = path_string(part), lower = segment;
-        std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
-            return c >= 'A' && c <= 'Z' ? static_cast<char>(c + 'a' - 'A') : static_cast<char>(c);
-        });
-        if (segment.empty() || segment == "." || segment == ".." || lower == ".git" ||
-            std::regex_match(lower, std::regex("git~[0-9]+")))
-            throw std::runtime_error("Git extraction excludes repository metadata paths");
-#ifdef _WIN32
-        if (segment.back() == '.' || segment.back() == ' ' ||
-            segment.find_first_of("<>\"|?*") != segment.npos ||
-            std::any_of(segment.begin(), segment.end(), [](unsigned char c) { return c < 32; }) ||
-            std::regex_match(segment, std::regex("(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\\..*)?",
-                                                 std::regex::icase)))
-            throw std::runtime_error("Git extraction contains a reserved Windows filename");
-#endif
-        prefix /= part;
-        auto spelling = path_string(prefix);
-        auto [it, inserted] = paths.emplace(spelling, spelling);
-        if (!inserted && it->second != spelling)
-            throw std::runtime_error("Git extraction paths collide on this platform");
-    }
-}
 Json inspect(const fs::path &state, const Json &projects, const Json &project, const Json &data) {
     auto root = fs::absolute(fs::u8path(project.at("root").get<std::string>()));
     fs::path current;
@@ -101,8 +57,8 @@ Json inspect(const fs::path &state, const Json &projects, const Json &project, c
     if (raw.size() >= 8 * 1024 * 1024)
         throw std::runtime_error("Git extraction tree listing exceeds the process output bound");
     Json entries = Json::array(), errors = Json::array();
-    std::map<std::string, std::string, PathLess> paths;
-    std::set<std::string, PathLess> files;
+    std::map<std::string, std::string, GitPathLess> paths;
+    std::set<std::string, GitPathLess> files;
     std::map<std::string, uintmax_t> assets;
     fs::path store;
     uintmax_t total = 0, lfsBytes = 0, lfsFiles = 0;
@@ -118,7 +74,7 @@ Json inspect(const fs::path &state, const Json &projects, const Json &project, c
             oid.find_first_not_of("0123456789abcdef") != oid.npos)
             throw std::runtime_error("Invalid Git extraction object metadata");
         auto name = raw.substr(tab + 1, end - tab - 1);
-        validate_path(name, paths);
+        validate_git_path(name, paths);
         if (!files.insert(name).second)
             throw std::runtime_error("Git extraction contains duplicate file paths");
         position = end + 1;

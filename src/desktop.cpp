@@ -82,6 +82,41 @@ static void localize() {
          {"Imported branches", "Branches importées"},
          {"Repository setup", "Initialisation du dépôt"},
          {"Extract Git revision", "Extraire la révision Git"},
+         {"The imported branch is already applied", "La branche importée est déjà appliquée"},
+         {"Select a local branch before integrating; detached HEAD is preserved",
+          "Sélectionnez une branche locale avant l'intégration ; le HEAD détaché est préservé"},
+         {"Integration requires a fast-forward; divergent or older branches need manual Git merge",
+          "L'intégration exige une avance rapide ; les branches divergentes ou plus anciennes "
+          "nécessitent une fusion Git manuelle"},
+         {"Commit or preserve staged changes before integration",
+          "Commitez ou préservez les changements de l'index avant l'intégration"},
+         {"Preserve staged files before the first integration",
+          "Préservez les fichiers de l'index avant la première intégration"},
+         {"Clear assume-unchanged and skip-worktree index flags before integration",
+          "Retirez les indicateurs assume-unchanged et skip-worktree avant l'intégration"},
+         {"Preserve modified or missing working files before integration",
+          "Préservez les fichiers de travail modifiés ou manquants avant l'intégration"},
+         {"Move untracked and ignored files outside the project before integration",
+          "Déplacez les fichiers non suivis et ignorés hors du projet avant l'intégration"},
+         {"The working tree must be clean before integration",
+          "Le dossier de travail doit être propre avant l'intégration"},
+         {"LFS revisions require separate extraction; Git integration does not hydrate assets yet",
+          "Les révisions LFS nécessitent une extraction séparée ; l'intégration Git ne restaure "
+          "pas encore les assets"},
+         {"Git integration excludes checkout filters, encodings and text conversions; use separate "
+          "extraction",
+          "Les filtres, encodages et conversions de texte nécessitent une extraction séparée"},
+         {"Git integration excludes linked files and submodules",
+          "Les liens et sous-modules nécessitent une intégration Git manuelle"},
+         {"Integrate imported branch", "Intégrer la branche importée"},
+         {"Preview integration", "Prévisualiser l'intégration"},
+         {"Apply fast-forward", "Appliquer l'avance rapide"},
+         {"Integration complete", "Intégration terminée"},
+         {"Integration blocked", "Intégration bloquée"},
+         {"Updates the local branch, index and working files. Requires a clean project; LFS and "
+          "checkout filters use separate extraction.",
+          "Met à jour la branche locale, l'index et les fichiers du projet. Le projet doit être "
+          "propre ; les fichiers LFS et les filtres nécessitent une extraction séparée."},
          {"Preview extraction", "Prévisualiser l'extraction"},
          {"Extract to new directory", "Extraire vers un nouveau dossier"},
          {"New extraction directory", "Nouveau dossier d'extraction"},
@@ -543,7 +578,8 @@ class App {
         resolution_preview, resolution_preview_input, resolution_history, received_state,
         doctor_state, service_preview, service_preview_input, transfer_state, transfer_limits_state,
         git_branches, git_review_state, git_review_diff, git_storage_state, git_history_state,
-        git_commit_state, git_setup_state, git_extract_state, git_extract_input;
+        git_commit_state, git_setup_state, git_extract_state, git_extract_input,
+        git_integrate_state, git_integrate_input;
     std::string git_extract_destination;
     bool git_extract_lfs = true;
     std::string git_initial_branch = "main";
@@ -760,6 +796,7 @@ class App {
             nullptr;
         git_setup_state = nullptr;
         git_extract_state = git_extract_input = nullptr;
+        git_integrate_state = git_integrate_input = nullptr;
         git_extract_destination.clear();
         git_extract_lfs = true;
         git_setup_requested = false;
@@ -1938,6 +1975,7 @@ class App {
             return;
         }
         if (button("Refresh")) {
+            git_integrate_state = git_integrate_input = nullptr;
             git_branches = git_review_state = git_review_diff = git_history_state =
                 git_commit_state = git_setup_state = nullptr;
             git_setup_requested = false;
@@ -2059,6 +2097,10 @@ class App {
         }
         c::endCard();
         if (!git_branches.is_null()) {
+            if (!git_integrate_state.is_null() && git_integrate_state.value("applied", false)) {
+                text(c::tr("Integration complete"));
+                text(git_integrate_state.at("receipt_path"));
+            }
             c::heading(c::tr("Imported branches").c_str(), 3);
             for (const auto &branch : git_branches) {
                 auto label = branch.at("peer").get<std::string>() + "/" +
@@ -2070,6 +2112,7 @@ class App {
                            {{"peer", branch.at("peer")}, {"branch", branch.at("branch")}},
                            [this](const Json &r) {
                                git_review_state = r;
+                               git_integrate_state = git_integrate_input = nullptr;
                                git_review_diff = git_history_state = git_commit_state = nullptr;
                            });
                 ImGui::PopID();
@@ -2145,6 +2188,47 @@ class App {
             }
             const auto &comparison =
                 git_commit_state.is_null() ? git_review_state : git_commit_state;
+            if (git_commit_state.is_null()) {
+                c::beginCard("git-integrate", c::tr("Integrate imported branch").c_str());
+                ImGui::TextWrapped(
+                    "%s", c::tr("Updates the local branch, index and working files. Requires a "
+                                "clean project; LFS and checkout filters use separate extraction.")
+                              .c_str());
+                auto integrateQuery = git_context();
+                text(git_review_state.at("head"));
+                if (button("Preview integration")) {
+                    git_integrate_state = git_integrate_input = nullptr;
+                    action("git-integrate", integrateQuery, [this, integrateQuery](const Json &r) {
+                        if (current_git_context(r)) {
+                            git_integrate_state = r;
+                            git_integrate_input = integrateQuery;
+                        }
+                    });
+                }
+                ImGui::SameLine();
+                ImGui::BeginDisabled(git_integrate_state.is_null() ||
+                                     git_integrate_input != integrateQuery ||
+                                     !git_integrate_state.value("can_integrate", false) ||
+                                     git_integrate_state.value("applied", false));
+                if (button("Apply fast-forward", true)) {
+                    integrateQuery.update(
+                        {{"apply", true}, {"plan", git_integrate_state.at("plan")}});
+                    git_integrate_input = nullptr;
+                    action("git-integrate", integrateQuery, [this](const Json &r) {
+                        git_integrate_state = r;
+                        git_review_state = git_review_diff = git_history_state = git_commit_state =
+                            nullptr;
+                        git_loaded = git_storage_current = false;
+                    });
+                }
+                ImGui::EndDisabled();
+                if (!git_integrate_state.is_null() && !git_integrate_state.at("errors").empty()) {
+                    text(c::tr("Integration blocked"));
+                    for (const auto &reason : git_integrate_state.at("errors"))
+                        text(c::tr(reason.get<std::string>().c_str()));
+                }
+                c::endCard();
+            }
             c::beginCard("git-extract", c::tr("Extract Git revision").c_str());
             ImGui::TextWrapped("%s", c::tr("Copies the complete selected revision. Local Git files "
                                            "and changes are preserved.")
