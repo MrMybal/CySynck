@@ -87,7 +87,12 @@ static Json add_project(Core &core, const std::string &id, const fs::path &root,
 }
 static Json action(Core &core, const std::string &project, const std::string &name,
                    const Json &data = Json::object()) {
-    return core.request("POST", "/api/projects/" + project + "/" + name, data);
+    try {
+        return core.request("POST", "/api/projects/" + project + "/" + name, data);
+    } catch (const std::exception &error) {
+        // Fixture diagnostics do not contain credentials or raw engine output.
+        throw std::runtime_error("Project " + project + " action " + name + ": " + error.what());
+    }
 }
 static void eventually(const std::function<bool()> &condition, const std::string &message) {
     auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(25);
@@ -112,6 +117,8 @@ int main(int argc, char **argv) {
     auto root = fs::current_path() / "real-sync-data" / random_id();
     fs::create_directories(root);
     try {
+        check(fs::space(root).available >= 256ull * 1024 * 1024,
+              "Real-engine fixtures require at least 256 MiB of free disk space");
         auto executable = path_string(fs::canonical(fs::u8path(argv[1])));
         Core a(root / "node-a"), b(root / "node-b");
         int guiA = free_port(), guiB = free_port(), syncA = free_port(), syncB = free_port();
@@ -127,6 +134,15 @@ int main(int argc, char **argv) {
                 {"listen_port", syncB},
                 {"loopback_only", true}});
         auto statusA = engine(a, "start"), statusB = engine(b, "start");
+        // Small isolated fixtures need an absolute reserve: 1% of a multi-TB developer
+        // disk can exceed its available space even when these tests fit comfortably.
+        // Only these temporary engines are changed; keep a nonzero safety reserve.
+        for (auto node : {&a, &b}) {
+            api(*node, "PATCH", "config/options",
+                {{"minHomeDiskFree", {{"value", 128}, {"unit", "MB"}}}});
+            api(*node, "PATCH", "config/defaults/folder",
+                {{"minDiskFree", {{"value", 128}, {"unit", "MB"}}}});
+        }
         check(statusA["owned"].get<bool>() && statusB["owned"].get<bool>(),
               "Both nodes must own their exact child");
         check(statusA["device_id"] != statusB["device_id"],
