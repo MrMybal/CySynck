@@ -1,4 +1,5 @@
 #include "diff.hpp"
+#include "file_time.hpp"
 #include <algorithm>
 #include <chrono>
 #include <regex>
@@ -25,16 +26,16 @@ Side read_side(const fs::path &path, const std::string &expected = {}) {
     if (!fs::is_regular_file(path))
         throw std::runtime_error("Comparison expects regular files");
     auto size = fs::file_size(path);
-    auto time = fs::last_write_time(path).time_since_epoch().count();
+    auto time = fs::last_write_time(path);
+    auto ticks = file_time_ticks(time);
     side.info = {{"exists", true},
                  {"bytes", size},
                  {"sha256", nullptr},
-                 {"modified_ns", time},
-                 {"modified_ns_exact", std::to_string(time)}};
+                 {"modified_ns", ticks},
+                 {"modified_ns_exact", std::to_string(ticks)}};
     if (size <= preview_limit) {
         side.bytes = read_file(path, preview_limit);
-        if (fs::file_size(path) != size ||
-            fs::last_write_time(path).time_since_epoch().count() != time)
+        if (fs::file_size(path) != size || fs::last_write_time(path) != time)
             throw std::runtime_error("File changed during comparison; compare again");
         auto digest = sha256(side.bytes);
         if (!expected.empty() && digest != expected)

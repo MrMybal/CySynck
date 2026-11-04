@@ -61,6 +61,23 @@ static int run(const std::vector<std::string> &args) {
     try {
         Core core(root / fs::u8path("Profil & éspace % $données `"));
         auto executable = current_executable();
+        auto layout = root / "mac-package";
+        auto bundle_executable = layout / "CySynck.app/Contents/MacOS/CySynck";
+        atomic_write(bundle_executable, "bundle fixture");
+        check(desktop_executable(layout / "bin/cysynck", StartupBackend::macos) ==
+                  bundle_executable,
+              "An installed CLI locates the sibling macOS application bundle");
+        check(desktop_executable(layout / "cysynck", StartupBackend::macos) == bundle_executable,
+              "A build-tree CLI locates the macOS application bundle");
+        auto renamed_bundle = layout / "Renamed.app/Contents/MacOS/CySynck";
+        check(desktop_executable(renamed_bundle, StartupBackend::macos) == renamed_bundle,
+              "A renamed application registers its actual bundled executable");
+        check(desktop_executable(layout / "bin/cysynck", StartupBackend::freedesktop) ==
+                  layout / "bin/cysynck-desktop",
+              "Linux keeps the desktop in the CLI bin directory");
+        check(desktop_executable(layout / "bin/cysynck.exe", StartupBackend::windows) ==
+                  layout / "bin/cysynck-desktop.exe",
+              "Windows keeps the desktop in the CLI bin directory");
         auto bin = root / fs::u8path("Application éspace %") / "bin";
         fs::create_directories(bin);
         auto copy = bin / executable.filename();

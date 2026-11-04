@@ -9,6 +9,7 @@ struct LaunchSpec {
 };
 fs::path current_executable();
 fs::path desktop_executable();
+fs::path desktop_executable(const fs::path &executable, StartupBackend backend);
 StartupBackend native_startup_backend();
 fs::path user_startup_directory();
 // An explicit destination supports isolated tests and portable format generation.

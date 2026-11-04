@@ -220,12 +220,12 @@ fs::path project_child(const fs::path &root, const std::string &relative) {
         relative.find('\\') != std::string::npos || relative.find(':') != std::string::npos ||
         p.is_absolute())
         throw std::runtime_error("Expected a relative project path");
-    for (auto &part : p)
+    for (const auto &part : p)
         if (part == ".." || part == ".")
             throw std::runtime_error("Invalid relative path");
     auto output = root / p;
     auto current = root;
-    for (auto &part : p) {
+    for (const auto &part : p) {
         current /= part;
         if (path_is_link(current))
             throw std::runtime_error("Links and junctions are excluded");
@@ -268,7 +268,7 @@ bool project_excludes(const Json &project, const std::string &relative) {
         auto p = pattern.get<std::string>();
         if (glob(relative, p))
             return true;
-        for (auto &part : fs::u8path(relative)) {
+        for (const auto &part : fs::u8path(relative)) {
             auto component = path_string(part);
 #ifdef _WIN32
             if (p == ".git" || p == ".stfolder" || p == ".stversions" || p == ".stignore")

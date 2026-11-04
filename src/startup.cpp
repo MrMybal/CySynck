@@ -34,12 +34,24 @@ fs::path current_executable() {
 #endif
 }
 fs::path desktop_executable() {
-    return current_executable().parent_path() /
-#ifdef _WIN32
-           "cysynck-desktop.exe";
-#else
-           "cysynck-desktop";
-#endif
+    return desktop_executable(current_executable(), native_startup_backend());
+}
+fs::path desktop_executable(const fs::path &executable, StartupBackend backend) {
+    auto directory = executable.parent_path();
+    if (backend == StartupBackend::macos) {
+        if (executable.filename() == "CySynck" && directory.filename() == "MacOS" &&
+            directory.parent_path().filename() == "Contents" &&
+            directory.parent_path().parent_path().extension() == ".app")
+            return executable;
+        // CLI next to a build-tree bundle, or in an installed prefix's bin directory.
+        for (const auto &prefix : {directory, directory.parent_path()}) {
+            auto bundle = prefix / "CySynck.app/Contents/MacOS/CySynck";
+            if (fs::is_regular_file(bundle))
+                return bundle;
+        }
+    }
+    return directory /
+           (backend == StartupBackend::windows ? "cysynck-desktop.exe" : "cysynck-desktop");
 }
 StartupBackend native_startup_backend() {
 #ifdef _WIN32

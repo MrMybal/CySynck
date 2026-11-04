@@ -1,4 +1,5 @@
 #include "backup.hpp"
+#include "file_time.hpp"
 #include <algorithm>
 #include <fstream>
 #include <limits>
@@ -256,7 +257,7 @@ Json Core::storage(const Json &data) {
                 continue;
             }
             auto bytes = file.file_size();
-            objects.push_back({name, bytes, file.last_write_time().time_since_epoch().count()});
+            objects.push_back({name, bytes, file_time_ticks(file.last_write_time())});
             add_bytes(stored, bytes);
             if (references.contains(name))
                 ++retained;

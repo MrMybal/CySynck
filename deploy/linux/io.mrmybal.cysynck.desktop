@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=CySynck
+Comment=Project synchronization and backups
+Comment[fr]=Synchronisation et sauvegarde de projets
+Exec=cysynck-desktop
+TryExec=cysynck-desktop
+Icon=folder-sync
+Terminal=false
+Categories=Network;FileTransfer;Utility;
+StartupNotify=false

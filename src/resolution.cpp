@@ -1,6 +1,7 @@
 #include "backup.hpp"
 #include "diff.hpp"
 #include "error.hpp"
+#include "file_time.hpp"
 #include <algorithm>
 #include <fstream>
 #include <regex>
@@ -46,7 +47,7 @@ Json fingerprint(const fs::path &path) {
             {"bytes", bytes},
             {"sha256", digest},
             {"permissions", static_cast<unsigned>(mode)},
-            {"modified_ns", time.time_since_epoch().count()}};
+            {"modified_ns", file_time_ticks(time)}};
 }
 void private_directory(const fs::path &path) {
     plain_directory(path);

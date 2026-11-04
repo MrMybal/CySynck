@@ -1,0 +1,17 @@
+# CMake may change load paths during installation. Renew local signatures afterwards,
+# from nested libraries to the app, so Apple Silicon can execute the installed code.
+# This uses no certificate and does not provide Developer ID signing or notarization.
+set(root "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}")
+set(artifacts lib/libcysynck_core.dylib bin/cysynck)
+if(@CYSYNCK_DESKTOP@)
+  list(APPEND artifacts CySynck.app/Contents/Frameworks/libcysynck_core.dylib CySynck.app)
+endif()
+foreach(artifact IN LISTS artifacts)
+  if(EXISTS "${root}/${artifact}")
+    execute_process(COMMAND /usr/bin/codesign --force --sign - "${root}/${artifact}"
+      RESULT_VARIABLE result ERROR_VARIABLE error)
+    if(NOT result EQUAL 0)
+      message(FATAL_ERROR "Cannot apply local signature to ${artifact}: ${error}")
+    endif()
+  endif()
+endforeach()

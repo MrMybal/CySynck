@@ -9,11 +9,13 @@ A project-based synchronization and backup companion written in **C++20**, power
 One shared core powers the native desktop app, CLI, local Web console and integration SDK.
 Build a headless server without graphical dependencies. No Python or .NET runtime is required.
 
-**Status: 0.8, under active development.** Windows x64 is validated locally. Linux, macOS
-and headless Linux build jobs are provided; their results must be checked on GitHub.
+**Status: 0.8.1, under active development.** Windows x64 is validated locally. The headless
+Linux core, CLI and test binaries also cross-compile from Windows with Zig.
+Native Linux and macOS execution still needs validation on those platforms.
 The Unreal bridge is an integration example and has not yet been compiled inside Unreal.
 The initial GitHub run passed on Windows and exposed Linux and macOS configuration issues.
-The 0.8 sources address those blockers; those fixes still need another native CI run.
+The 0.8.1 sources address those blockers and additional libc++ portability issues;
+those fixes and the new package smoke checks still need another native CI run.
 
 ## Features
 
@@ -60,9 +62,14 @@ ctest --test-dir build -C Release --output-on-failure
 cmake --install build --config Release --prefix dist
 ```
 
-Run `dist/bin/cysynck-desktop.exe` on Windows, or `dist/bin/cysynck-desktop` on Linux/macOS.
+Run `dist/bin/cysynck-desktop.exe` on Windows, `dist/bin/cysynck-desktop` on Linux,
+or `open dist/CySynck.app` on macOS.
 Use `dist/bin/cysynck help` for CLI commands (append `.exe` on Windows).
 The scripts `scripts/build.ps1` and `scripts/build.sh` perform these steps.
+
+Create a platform archive with `cpack --config build/CPackConfig.cmake -C Release -B dist/packages`.
+Linux uses `.tar.gz`; Windows and macOS use ZIP. The macOS app includes its core and Web
+resources. See [platform packaging and Linux cross-compilation](docs/packaging.md).
 
 The Windows ZIP includes a per-user installer:
 

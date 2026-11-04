@@ -142,8 +142,8 @@ static fs::path assets() {
     executable = fs::read_symlink("/proc/self/exe");
 #endif
     for (auto path :
-         {executable.parent_path() / "web", executable.parent_path() / "../share/cysynck/web",
-          fs::current_path() / "assets/web"})
+         {executable.parent_path() / "web", executable.parent_path() / "../Resources/web",
+          executable.parent_path() / "../share/cysynck/web", fs::current_path() / "assets/web"})
         if (fs::is_directory(path))
             return path;
     throw std::runtime_error("Web assets missing; set CYSYNCK_WEB_ROOT");

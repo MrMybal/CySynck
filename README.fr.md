@@ -25,8 +25,13 @@ cmake --install build --config Release --prefix dist
 ```
 
 Windows : lancer `dist/bin/cysynck-desktop.exe` ou `dist/bin/cysynck.exe help`.
-Linux/macOS : `dist/bin/cysynck-desktop` ou `dist/bin/cysynck help`.
+Linux : `dist/bin/cysynck-desktop`. macOS : `open dist/CySynck.app`.
+Le CLI reste disponible avec `dist/bin/cysynck help` sur ces deux plateformes.
 Les scripts `scripts/build.ps1` et `scripts/build.sh` exécutent ces étapes.
+
+La version 0.8.1 prépare des archives `.tar.gz` pour Linux et ZIP pour Windows/macOS.
+Le bundle macOS contient son cœur, ses ressources Web et ses licences. Voir le
+[guide des paquets et de compilation croisée Linux](docs/packaging.md) (anglais).
 
 L'archive Windows contient `Install-CySynck.ps1`. Après extraction, exécuter :
 
@@ -47,8 +52,9 @@ cmake --build build-server --parallel
 ./build-server/cysynck serve --host 127.0.0.1 --port 8484
 ```
 
-La validation locale porte sur Windows x64. Le workflow CI est prévu pour Windows, Linux,
-macOS et Linux sans interface ; il doit être exécuté pour confirmer ces autres plateformes.
+La validation d'exécution locale porte sur Windows x64. Le cœur, le CLI et les binaires de
+tests Linux x86_64 compilent aussi depuis Windows avec Zig. Le workflow CI doit encore
+confirmer l'exécution native sur Linux et macOS, ainsi que les nouveaux essais des paquets.
 Le pont Unreal est fourni comme exemple d'intégration et n'a pas été compilé dans Unreal ici.
 
 ## Fonctions disponibles
