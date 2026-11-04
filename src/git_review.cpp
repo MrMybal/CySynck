@@ -324,6 +324,26 @@ Json commit_log(const Json &project, const std::string &head, uintmax_t offset, 
 }
 } // namespace
 Json git_local_head(const Json &project) { return local_head(project); }
+Json git_revision_context(const Json &project, const Json &data) {
+    require_default_git_environment();
+    auto promisor =
+        offline_git_result(project, {"config", "--get-regexp",
+                                     "^(extensions\\.partialclone|remote\\..*\\.promisor)$"});
+    if (promisor.code != 1)
+        throw std::runtime_error(
+            "Git extraction requires a repository without partial-clone or promisor configuration");
+    auto result = context(project, data);
+    if (trim(offline_git(project, {"rev-parse", "--is-shallow-repository"})) != "false")
+        throw std::runtime_error("Git extraction requires a complete, non-shallow repository");
+    auto commit = data.value("commit", result.at("head").get<std::string>());
+    if (!oid(commit) || resolve(project, commit) != commit ||
+        offline_git_result(project, {"merge-base", "--is-ancestor", commit, result.at("head")})
+            .code)
+        throw std::runtime_error("Choose a complete commit ID reachable from the imported branch");
+    result["commit"] = commit;
+    unchanged(project, result);
+    return result;
+}
 Json imported_git_branches(const Json &project) {
     if (project.at("mode") != "git-bundles")
         throw std::runtime_error("Git review requires git-bundles mode");

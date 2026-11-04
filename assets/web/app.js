@@ -536,8 +536,41 @@ function showGitReview(project,review) {
   showGitFiles(project,review,review,files);
 }
 function gitContext(review) {return {peer:review.peer,branch:review.branch,base:review.base,head:review.head,local_ref:review.local_ref};}
+function showGitExtraction(project,review,comparison,container) {
+  const card=text("div","","snapshot"), form=document.createElement("form"), destination=document.createElement("input"), lfs=document.createElement("input");
+  destination.required=true; lfs.type="checkbox";lfs.checked=true;
+  const destinationLabel=text("label",""), lfsLabel=text("label","");
+  destinationLabel.append(label("span","New extraction directory"),destination);lfsLabel.append(lfs,label("span","Expand verified LFS assets"));
+  const preview=label("button","Preview extraction"), apply=label("button","Extract to new directory"), output=text("div","");
+  apply.type="button";apply.disabled=true;
+  form.append(destinationLabel,lfsLabel,preview,apply);
+  card.append(label("h4","Extract Git revision"),label("p","Copies the complete selected revision. Local Git files and changes are preserved."),text("p",comparison.commit?comparison.commit.oid:review.head),form,output);container.append(card);
+  card.insertBefore(label("p","File snapshot limits: 4 MiB per Git blob, 4 GiB per LFS asset, 16 GiB total."),form);
+  let plan=null,request=0;
+  const input=()=>({...gitContext(review),commit:comparison.commit?comparison.commit.oid:review.head,destination:destination.value,lfs:lfs.checked});
+  const current=()=>selected===project && card.isConnected;
+  form.addEventListener("input",()=>{plan=null;++request;apply.disabled=true;output.replaceChildren();});
+  form.addEventListener("submit",event=>{
+    event.preventDefault();safe(async()=>{
+      const query=input(),generation=++request;plan=null;apply.disabled=true;
+      const result=await api("projects/"+project+"/git-extract","POST",query);
+      if(!current() || generation!==request || JSON.stringify(query)!==JSON.stringify(input())) return;
+      output.replaceChildren(label("p","{files} files · {bytes} bytes · {assets} LFS files",{files:result.file_count,bytes:result.bytes,assets:result.lfs_files}));
+      if(result.errors.length)output.append(label("p","Extraction blocked"),text("pre",JSON.stringify(result.errors,null,2)));
+      if(result.can_extract){plan={input:query,token:result.plan};apply.disabled=false;}
+    });
+  });
+  apply.addEventListener("click",()=>safe(async()=>{
+    const saved=plan;if(!saved || !current())return;
+    plan=null;apply.disabled=true;const generation=++request;
+    const result=await api("projects/"+project+"/git-extract","POST",{...saved.input,apply:true,plan:saved.token});
+    if(!current() || generation!==request)return;
+    output.replaceChildren(label("p","Extraction complete"),text("p",result.destination),text("p",result.receipt_path));
+  }));
+}
 function showGitFiles(project,review,comparison,container) {
   container.replaceChildren(); $("git-review-patch").textContent=""; ++gitReviewLoad;
+  showGitExtraction(project,review,comparison,container);
   if(!comparison.files.length) container.append(label("p","No changed files"));
   for (const file of comparison.files) {
     const row=text("div","","snapshot"), button=label("button","Review file");

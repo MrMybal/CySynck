@@ -50,6 +50,9 @@ and `base:null`. Its comparison includes the peer's entire current tree against 
 including files unchanged in the latest commit. History and root/merge commit reviews retain
 their usual parent comparison semantics. Dirty files and the staging index stay intact.
 
+Version 0.17 also provides [revision extraction](git-extraction.md): copy an imported tree and
+its verified LFS assets into a separate new folder after preview, without changing this repository.
+
 The response's `local_ref` records the symbolic HEAD target. Send it together with `base` and
 `head` for stable continuation or file requests. In the CLI, `--base unborn` represents JSON
 null and `--local-ref refs/heads/main` pins the local branch. Switching that branch, creating

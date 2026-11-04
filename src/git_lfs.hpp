@@ -4,6 +4,8 @@
 namespace cysynck {
 // Offline exchange uses canonical Git LFS v1 objects; it never runs a filter or a fetch.
 Json lfs_inventory(const Json &project, const std::string &head);
+Json git_lfs_pointer(const std::string &bytes);
+void require_default_git_environment();
 Json validate_lfs_manifest(const Json &manifest);
 fs::path lfs_local_store(const Json &project);
 fs::path approved_lfs_directory(const std::string &path);

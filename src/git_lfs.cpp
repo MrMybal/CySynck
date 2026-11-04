@@ -2,6 +2,7 @@
 #include "backup.hpp"
 #include <algorithm>
 #include <charconv>
+#include <cstdlib>
 #include <map>
 #include <sstream>
 #include <stdexcept>
@@ -72,6 +73,23 @@ fs::path checked_directory(fs::path path) {
     return fs::weakly_canonical(path);
 }
 } // namespace
+void require_default_git_environment() {
+    for (auto key :
+         {"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+          "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_NAMESPACE", "GIT_QUARANTINE_PATH"}) {
+        auto value = std::getenv(key);
+        if (value && *value)
+            throw std::runtime_error("Git operation requires repository-specific GIT_* environment "
+                                     "overrides to be unset");
+    }
+}
+Json git_lfs_pointer(const std::string &bytes) {
+    std::map<std::string, uintmax_t> objects;
+    pointer(bytes, objects);
+    if (objects.empty())
+        return nullptr;
+    return {{"sha256", objects.begin()->first}, {"size", objects.begin()->second}};
+}
 ProcessResult offline_git_result(const Json &project, const std::vector<std::string> &args,
                                  const std::string &input) {
     std::vector<std::string> command{"git",

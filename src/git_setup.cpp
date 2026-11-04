@@ -1,7 +1,6 @@
 #include "git_setup.hpp"
 #include "git_lfs.hpp"
 #include "backup.hpp"
-#include <cstdlib>
 #include <stdexcept>
 
 namespace cysynck {
@@ -40,14 +39,7 @@ Json setup_git_repository(const Json &project, const Json &data) {
                               : bare  ? "Project folder is a bare Git repository"
                                       : ""}};
     if (!present && !bare) {
-        for (auto key : {"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
-                         "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-                         "GIT_NAMESPACE", "GIT_QUARANTINE_PATH"}) {
-            auto value = std::getenv(key);
-            if (value && *value)
-                throw std::runtime_error("Git setup requires repository-specific GIT_* environment "
-                                         "overrides to be unset");
-        }
+        require_default_git_environment();
         offline_git(project, {"check-ref-format", "refs/heads/" + branch});
         result["plan"] = sha256(Json{{"project", project.at("id")},
                                      {"root", path_string(fs::canonical(root))},

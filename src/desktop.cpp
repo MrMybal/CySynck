@@ -81,6 +81,18 @@ static void localize() {
          {"Reclaimable bytes", "Octets récupérables"},
          {"Imported branches", "Branches importées"},
          {"Repository setup", "Initialisation du dépôt"},
+         {"Extract Git revision", "Extraire la révision Git"},
+         {"Preview extraction", "Prévisualiser l'extraction"},
+         {"Extract to new directory", "Extraire vers un nouveau dossier"},
+         {"New extraction directory", "Nouveau dossier d'extraction"},
+         {"Expand verified LFS assets", "Extraire les assets LFS vérifiés"},
+         {"Copies the complete selected revision. Local Git files and changes are preserved.",
+          "Copie toute la révision sélectionnée. Les fichiers Git locaux et les modifications sont "
+          "préservés."},
+         {"Extraction complete", "Extraction terminée"},
+         {"Extraction blocked", "Extraction bloquée"},
+         {"File snapshot limits: 4 MiB per Git blob, 4 GiB per LFS asset, 16 GiB total.",
+          "Limites de la copie : 4 Mio par blob Git, 4 Gio par asset LFS, 16 Gio au total."},
          {"Initial branch", "Branche initiale"},
          {"Git object format", "Format des objets Git"},
          {"Preview Git setup", "Prévisualiser l'initialisation Git"},
@@ -531,7 +543,9 @@ class App {
         resolution_preview, resolution_preview_input, resolution_history, received_state,
         doctor_state, service_preview, service_preview_input, transfer_state, transfer_limits_state,
         git_branches, git_review_state, git_review_diff, git_storage_state, git_history_state,
-        git_commit_state, git_setup_state;
+        git_commit_state, git_setup_state, git_extract_state, git_extract_input;
+    std::string git_extract_destination;
+    bool git_extract_lfs = true;
     std::string git_initial_branch = "main";
     int git_object_format = 0;
     std::set<std::string> git_storage_selected;
@@ -745,6 +759,9 @@ class App {
         git_branches = git_review_state = git_review_diff = git_history_state = git_commit_state =
             nullptr;
         git_setup_state = nullptr;
+        git_extract_state = git_extract_input = nullptr;
+        git_extract_destination.clear();
+        git_extract_lfs = true;
         git_setup_requested = false;
         git_initial_branch = "main";
         git_object_format = 0;
@@ -2128,6 +2145,63 @@ class App {
             }
             const auto &comparison =
                 git_commit_state.is_null() ? git_review_state : git_commit_state;
+            c::beginCard("git-extract", c::tr("Extract Git revision").c_str());
+            ImGui::TextWrapped("%s", c::tr("Copies the complete selected revision. Local Git files "
+                                           "and changes are preserved.")
+                                         .c_str());
+            ImGui::TextWrapped(
+                "%s",
+                c::tr(
+                    "File snapshot limits: 4 MiB per Git blob, 4 GiB per LFS asset, 16 GiB total.")
+                    .c_str());
+            if (c::beginProperties("git-extract-properties")) {
+                field("New extraction directory", git_extract_destination);
+                c::endProperties();
+            }
+            ImGui::Checkbox(c::trLabel("Expand verified LFS assets").c_str(), &git_extract_lfs);
+            auto extractQuery = git_context();
+            extractQuery["commit"] = git_commit_state.is_null()
+                                         ? git_review_state.at("head")
+                                         : git_commit_state.at("commit").at("oid");
+            extractQuery["destination"] = git_extract_destination;
+            extractQuery["lfs"] = git_extract_lfs;
+            text(extractQuery.at("commit"));
+            ImGui::BeginDisabled(git_extract_destination.empty());
+            if (button("Preview extraction")) {
+                git_extract_state = git_extract_input = nullptr;
+                action("git-extract", extractQuery, [this, extractQuery](const Json &r) {
+                    if (current_git_context(r)) {
+                        git_extract_state = r;
+                        git_extract_input = extractQuery;
+                    }
+                });
+            }
+            ImGui::SameLine();
+            ImGui::BeginDisabled(git_extract_state.is_null() || git_extract_input != extractQuery ||
+                                 !git_extract_state.value("can_extract", false) ||
+                                 git_extract_state.value("applied", false));
+            if (button("Extract to new directory", true)) {
+                extractQuery.update({{"apply", true}, {"plan", git_extract_state.at("plan")}});
+                git_extract_input = nullptr;
+                action("git-extract", extractQuery,
+                       [this](const Json &r) { git_extract_state = r; });
+            }
+            ImGui::EndDisabled();
+            ImGui::EndDisabled();
+            if (!git_extract_state.is_null()) {
+                text(c::tr("Files") + ": " + git_extract_state.at("file_count").dump() + " / " +
+                     git_extract_state.at("bytes").dump() +
+                     " B / LFS: " + git_extract_state.at("lfs_files").dump());
+                if (git_extract_state.value("applied", false)) {
+                    text(c::tr("Extraction complete"));
+                    text(git_extract_state.at("receipt_path"));
+                }
+                if (!git_extract_state.at("errors").empty()) {
+                    text(c::tr("Extraction blocked"));
+                    text(git_extract_state.at("errors").dump(2));
+                }
+            }
+            c::endCard();
             if (comparison.at("files").empty())
                 text(c::tr("No changed files"));
             for (const auto &file : comparison.at("files")) {

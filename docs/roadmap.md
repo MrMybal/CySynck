@@ -1,5 +1,19 @@
 # Development milestones
 
+## Delivered in 0.17
+
+An imported branch head or selected reachable commit can be extracted as a file snapshot in
+a separate new directory. The preview pins the revision, symbolic HEAD, destination, inventory
+and LFS policy/cache. Application verifies Git blobs and streamed LFS output, uses exclusive
+file creation and saves a private completion receipt with SHA-256 hashes. Failures preserve
+partial output and an incomplete receipt. Local Git refs, index and working files stay intact.
+
+The CLI, C/C++ SDK and bilingual CyUI/Web comparison views share this operation. Raw-pointer
+extraction is explicit. Limits are 10,000 files, 4 MiB per ordinary Git blob, 4 GiB per LFS asset,
+4,096 distinct LFS assets and 16 GiB total output. Linked files, submodules, unsafe or colliding
+paths, shallow history and promisor configurations are refused. See [Git extraction](git-extraction.md).
+Applying a branch to an existing working tree, merging and rebasing remain separate Git operations.
+
 ## Delivered in 0.16
 
 New Git-mode projects can initialize their repository from a preview tied to the project,

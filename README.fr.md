@@ -12,6 +12,13 @@ par profil pour le desktop et dans le navigateur pour le Web.
 
 ## Démarrer
 
+La version 0.17 ajoute l'extraction d'une branche importée ou d'un commit choisi vers un nouveau
+dossier. L'aperçu vérifie les assets LFS du cache local ; un reçu conserve les empreintes et
+l'état de la copie. Les fichiers Git ordinaires sont limités à 4 Mio chacun, les assets LFS
+à 4 Gio chacun, avec 16 Gio de sortie au total. Le dépôt source et les modifications locales
+sont préservés. Disponible dans le CLI, le SDK, CyUI et le Web en EN/FR.
+Voir le [guide d'extraction Git](docs/git-extraction.md) (anglais).
+
 La version 0.16 ajoute l'initialisation Git avec aperçu depuis le CLI, le SDK, CyUI et le Web.
 Après un premier import, les branches, l'historique et les fichiers sont consultables avant
 le premier commit local. Les fichiers déjà présents et les changements indexés sont préservés.
