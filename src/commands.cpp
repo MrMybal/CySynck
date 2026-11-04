@@ -1,5 +1,6 @@
 #include <cysynck/core.hpp>
 #include <map>
+#include <charconv>
 #include <stdexcept>
 
 namespace cysynck {
@@ -25,7 +26,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.14 (C++20)
+        return {{"help", R"(CySynck 0.15 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | events | api-token
   doctor [--probe true]  (test tool versions and engine connection only with --probe)
@@ -60,6 +61,9 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   git review ID PEER_ID BRANCH
   git branches ID
   git review-file ID PEER_ID BRANCH RELATIVE_PATH [--base COMMIT --head COMMIT]
+  git history ID PEER_ID BRANCH [--limit 50 --offset 0 --base COMMIT --head COMMIT]
+  git commit ID PEER_ID BRANCH COMMIT [--parent 1]
+  git commit-file ID PEER_ID BRANCH COMMIT RELATIVE_PATH [--parent 1 --base COMMIT --head COMMIT]
   git storage ID [--exports ID1,ID2] [--apply true --plan PREVIEW_TOKEN]
   vpn configure NAME 10.77.X.Y [--endpoint HOST:UDP_PORT] [--listen-port 51820] [--mesh-port 8485] [--device-id ID]
   vpn status|preview|write-config|up|down
@@ -77,7 +81,7 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   serve [--host 127.0.0.1] [--port 8484]
 Desktop: cysynck-desktop [--state DIR] [--plugin LIBRARY] [--background|--foreground] [--no-tray]
 Secrets: CYSYNCK_SYNCTHING_API_KEY, CYSYNCK_API_TOKEN, CYSYNCK_MESH_TOKEN.
-VPN up/down requires administrator/root. No automatic NAT traversal in 0.14.)"}};
+VPN up/down requires administrator/root. No automatic NAT traversal in 0.15.)"}};
     if (args[0] == "service") {
         if (args.size() < 2 || (args[1] != "plan" && args[1] != "export"))
             throw std::runtime_error("Use service plan|export");
@@ -351,14 +355,32 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.14.)"}}
             throw std::runtime_error("Expected git command and project ID");
         Json data = Json::object();
         auto command = args[1];
-        if (command == "review" || command == "review-file") {
-            require(command == "review" ? 5 : 6);
+        if (command == "review" || command == "review-file" || command == "history" ||
+            command == "commit" || command == "commit-file") {
+            require(command == "commit-file"                          ? 7
+                    : command == "review-file" || command == "commit" ? 6
+                                                                      : 5);
             data = {{"peer", args[3]}, {"branch", args[4]}};
             if (command == "review-file")
                 data["path"] = args[5];
+            if (command == "commit" || command == "commit-file")
+                data["commit"] = args[5];
+            if (command == "commit-file")
+                data["path"] = args[6];
             for (auto key : {"base", "head"})
                 if (flags.contains("--" + std::string(key)))
                     data[key] = flags.at("--" + std::string(key));
+            for (auto key : {"offset", "limit", "parent"})
+                if (flags.contains("--" + std::string(key))) {
+                    const auto &value = flags.at("--" + std::string(key));
+                    uint64_t number = 0;
+                    auto parsed =
+                        std::from_chars(value.data(), value.data() + value.size(), number);
+                    if (value.empty() || parsed.ec != std::errc{} ||
+                        parsed.ptr != value.data() + value.size())
+                        throw std::runtime_error(std::string("Expected an integer --") + key);
+                    data[key] = number;
+                }
         } else if (command == "import") {
             require(5);
             data = {{"peer", args[3]}, {"bundle", args[4]}};
@@ -392,7 +414,9 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.14.)"}}
                             "/api/projects/" + args[2] + "/" +
                                 (command == "status" ? "git-status"
                                  : command == "review" || command == "review-file" ||
-                                         command == "branches" || command == "storage"
+                                         command == "branches" || command == "storage" ||
+                                         command == "history" || command == "commit" ||
+                                         command == "commit-file"
                                      ? "git-" + command
                                      : command),
                             data);

@@ -56,9 +56,15 @@ Json side(const std::string &mode, const std::string &hash) {
             {"sha256", nullptr}};
 }
 Json changed_files(const Json &project, const std::string &base, const std::string &head) {
-    auto raw =
-        offline_git(project, {"diff", "--raw", "-z", "--no-abbrev", "--no-renames", "--no-ext-diff",
-                              "--no-textconv", "--ignore-submodules=none", base, head, "--"});
+    std::vector<std::string> args =
+        base.empty() ? std::vector<std::string>{"diff-tree", "--root", "--no-commit-id", "-r"}
+                     : std::vector<std::string>{"diff"};
+    args.insert(args.end(), {"--raw", "-z", "--no-abbrev", "--no-renames", "--no-ext-diff",
+                             "--no-textconv", "--ignore-submodules=none"});
+    if (!base.empty())
+        args.push_back(base);
+    args.insert(args.end(), {head, "--"});
+    auto raw = offline_git(project, args);
     Json files = Json::array();
     std::set<std::string> objects;
     size_t offset = 0;
@@ -175,10 +181,17 @@ Json preview(const Json &project, Json file, const std::string &base, const std:
         file[key]["sha256"] = sha256(bytes);
         file[std::string("lfs_") + target] = lfs_pointer(bytes);
     }
-    auto patch = offline_git(
-        project, {"-c", "core.quotePath=true", "diff", "--text", "--no-ext-diff", "--no-textconv",
-                  "--no-color", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/", "-U3", base,
-                  head, "--", ":(literal)" + file.at("path").get<std::string>()});
+    std::vector<std::string> args{"-c", "core.quotePath=true"};
+    if (base.empty())
+        args.insert(args.end(), {"diff-tree", "--root", "--no-commit-id", "-r", "-p"});
+    else
+        args.push_back("diff");
+    args.insert(args.end(), {"--text", "--no-ext-diff", "--no-textconv", "--no-color",
+                             "--no-renames", "--src-prefix=a/", "--dst-prefix=b/", "-U3"});
+    if (!base.empty())
+        args.push_back(base);
+    args.insert(args.end(), {head, "--", ":(literal)" + file.at("path").get<std::string>()});
+    auto patch = offline_git(project, args);
     if (patch.size() > 4 * 1024 * 1024 || !utf8(patch))
         throw std::runtime_error("Git patch exceeds its preview bound");
     size_t added = 0, removed = 0, hunks = 0;
@@ -207,6 +220,81 @@ Json preview(const Json &project, Json file, const std::string &base, const std:
         !file.value("lfs_after", Json(nullptr)).is_null())
         file["reason"] = "lfs_pointer";
     return file;
+}
+Json context(const Json &project, const Json &data) {
+    if (project.at("mode") != "git-bundles")
+        throw std::runtime_error("Git review requires git-bundles mode");
+    auto peer = data.at("peer").get<std::string>(), branch = data.at("branch").get<std::string>();
+    if (!std::regex_match(peer, std::regex("[A-Za-z0-9][A-Za-z0-9_-]{0,79}")) || branch.empty() ||
+        branch.size() > 1024 || branch.find('\0') != std::string::npos)
+        throw std::runtime_error("Invalid Git review branch identity");
+    auto reference = "refs/remotes/cysynck/" + peer + "/" + branch;
+    git(project, {"check-ref-format", reference});
+    auto base = resolve(project, "HEAD"), head = resolve(project, reference);
+    if ((data.contains("base") && data.at("base") != base) ||
+        (data.contains("head") && data.at("head") != head))
+        throw std::runtime_error("Git review changed; refresh the branch comparison");
+    return {{"base", base},
+            {"head", head},
+            {"tracking_ref", reference},
+            {"peer", peer},
+            {"branch", branch}};
+}
+void unchanged(const Json &project, const Json &review) {
+    if (resolve(project, "HEAD") != review.at("base").get<std::string>() ||
+        resolve(project, review.at("tracking_ref")) != review.at("head").get<std::string>())
+        throw std::runtime_error("Git refs changed during comparison; refresh the review");
+}
+uintmax_t bounded(const Json &data, const char *key, uintmax_t fallback, uintmax_t low,
+                  uintmax_t high) {
+    auto value = data.value(key, Json(fallback));
+    if (!value.is_number_integer() || (!value.is_number_unsigned() && value.get<int64_t>() < 0))
+        throw std::runtime_error(std::string("Expected an integer Git ") + key);
+    auto n = value.get<uintmax_t>();
+    if (n < low || n > high)
+        throw std::runtime_error(std::string("Git ") + key + " exceeds the supported range");
+    return n;
+}
+Json commit_log(const Json &project, const std::string &head, uintmax_t offset, uintmax_t limit) {
+    auto raw = offline_git(
+        project,
+        {"log", "--no-patch", "--no-decorate", "--no-notes", "--no-show-signature",
+         "--no-use-mailmap", "--no-color", "--encoding=UTF-8", "--topo-order", "-z",
+         "--format=%H%x00%P%x00%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI%x00%s",
+         "--skip=" + std::to_string(offset), "--max-count=" + std::to_string(limit), head, "--"});
+    if (raw.size() >= 8 * 1024 * 1024)
+        throw std::runtime_error("Git history exceeds the process output bound");
+    Json records = Json::array();
+    size_t position = 0;
+    while (position < raw.size()) {
+        std::vector<std::string> fields;
+        for (int i = 0; i < 9; ++i) {
+            auto end = raw.find('\0', position);
+            if (end == std::string::npos || end - position > 16384)
+                throw std::runtime_error("Invalid or oversized Git history metadata");
+            auto value = raw.substr(position, end - position);
+            (void)Json(value).dump();
+            fields.push_back(std::move(value));
+            position = end + 1;
+        }
+        if (!oid(fields[0]) || records.size() >= limit)
+            throw std::runtime_error("Invalid Git history commit identity");
+        Json parents = Json::array();
+        std::istringstream input(fields[1]);
+        std::string parent;
+        while (input >> parent) {
+            if (!oid(parent) || parents.size() >= 256)
+                throw std::runtime_error("Invalid or oversized Git commit parent list");
+            parents.push_back(parent);
+        }
+        records.push_back(
+            {{"oid", fields[0]},
+             {"parents", parents},
+             {"author", {{"name", fields[2]}, {"email", fields[3]}, {"date", fields[4]}}},
+             {"committer", {{"name", fields[5]}, {"email", fields[6]}, {"date", fields[7]}}},
+             {"subject", fields[8]}});
+    }
+    return records;
 }
 } // namespace
 Json imported_git_branches(const Json &project) {
@@ -239,18 +327,8 @@ Json imported_git_branches(const Json &project) {
     return result;
 }
 Json review_git_branch(const Json &project, const Json &data, bool filePreview) {
-    if (project.at("mode") != "git-bundles")
-        throw std::runtime_error("Git review requires git-bundles mode");
-    auto peer = data.at("peer").get<std::string>(), branch = data.at("branch").get<std::string>();
-    if (!std::regex_match(peer, std::regex("[A-Za-z0-9][A-Za-z0-9_-]{0,79}")) || branch.empty() ||
-        branch.size() > 1024 || branch.find('\0') != std::string::npos)
-        throw std::runtime_error("Invalid Git review branch identity");
-    auto reference = "refs/remotes/cysynck/" + peer + "/" + branch;
-    git(project, {"check-ref-format", reference});
-    auto base = resolve(project, "HEAD"), head = resolve(project, reference);
-    if ((data.contains("base") && data.at("base") != base) ||
-        (data.contains("head") && data.at("head") != head))
-        throw std::runtime_error("Git review changed; refresh the branch comparison");
+    auto review = context(project, data);
+    auto base = review.at("base").get<std::string>(), head = review.at("head").get<std::string>();
     auto files = changed_files(project, base, head);
     Json result;
     if (filePreview) {
@@ -280,13 +358,70 @@ Json review_git_branch(const Json &project, const Json &data, bool filePreview) 
                   {"merge_base", common},
                   {"relation", relation}};
     }
-    if (resolve(project, "HEAD") != base || resolve(project, reference) != head)
-        throw std::runtime_error("Git refs changed during comparison; refresh the review");
-    result["base"] = base;
-    result["head"] = head;
-    result["tracking_ref"] = reference;
-    result["peer"] = peer;
-    result["branch"] = branch;
+    unchanged(project, review);
+    result.update(review);
+    return result;
+}
+Json git_branch_history(const Json &project, const Json &data) {
+    auto review = context(project, data);
+    if (trim(offline_git(project, {"rev-parse", "--is-shallow-repository"})) != "false")
+        throw std::runtime_error("Git history review requires a complete, non-shallow repository");
+    auto offset = bounded(data, "offset", 0, 0, 100000);
+    auto limit = bounded(data, "limit", 50, 1, 100);
+    if (offset && (!data.contains("base") || !data.contains("head")))
+        throw std::runtime_error("Paginated Git history requires the original base and head");
+    auto commits = commit_log(project, review.at("head"), offset, limit + 1);
+    bool more = commits.size() > limit;
+    if (more)
+        commits.erase(commits.end() - 1);
+    review.update(
+        {{"commits", commits},
+         {"offset", offset},
+         {"limit", limit},
+         {"next_offset", more && offset + limit <= 100000 ? Json(offset + limit) : Json(nullptr)},
+         {"truncated", more && offset + limit > 100000}});
+    unchanged(project, review);
+    return review;
+}
+Json review_git_commit(const Json &project, const Json &data, bool filePreview) {
+    auto review = context(project, data);
+    if (trim(offline_git(project, {"rev-parse", "--is-shallow-repository"})) != "false")
+        throw std::runtime_error("Git history review requires a complete, non-shallow repository");
+    auto commit = data.at("commit").get<std::string>();
+    if (!oid(commit) || resolve(project, commit) != commit)
+        throw std::runtime_error("Choose a complete Git commit object ID");
+    auto ancestor =
+        process({"git", "--no-replace-objects", "-c", "protocol.allow=never", "-C",
+                 project.at("root"), "merge-base", "--is-ancestor", commit, review.at("head")},
+                {}, {}, 120);
+    if (ancestor.code != 0)
+        throw std::runtime_error("Git commit is not reachable from the imported branch");
+    auto records = commit_log(project, commit, 0, 1);
+    if (records.size() != 1 || records[0].at("oid") != commit)
+        throw std::runtime_error("Git commit metadata is incomplete");
+    auto metadata = records[0];
+    const auto &parents = metadata.at("parents");
+    auto parent =
+        bounded(data, "parent", parents.empty() ? 0 : 1, parents.empty() ? 0 : 1, parents.size());
+    auto base = parents.empty() ? std::string{}
+                                : parents.at(static_cast<size_t>(parent - 1)).get<std::string>();
+    auto files = changed_files(project, base, commit);
+    Json result;
+    if (filePreview) {
+        auto path = data.at("path").get<std::string>();
+        auto found = std::find_if(files.begin(), files.end(),
+                                  [&](const Json &f) { return f.at("path") == path; });
+        if (found == files.end())
+            throw std::runtime_error("Choose a changed file from this Git commit");
+        result = preview(project, *found, base, commit);
+    } else
+        result = {{"files", files}};
+    unchanged(project, review);
+    result.update(review);
+    result["commit"] = metadata;
+    result["parent"] = parent;
+    result["comparison_base"] = base.empty() ? Json(nullptr) : Json(base);
+    result["comparison_head"] = commit;
     return result;
 }
 } // namespace cysynck

@@ -896,6 +896,10 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
         result = imported_git_branches(p);
     else if (action == "git-review" || action == "git-review-file")
         result = review_git_branch(p, data, action == "git-review-file");
+    else if (action == "git-history")
+        result = git_branch_history(p, data);
+    else if (action == "git-commit" || action == "git-commit-file")
+        result = review_git_commit(p, data, action == "git-commit-file");
     else if (action == "git-storage") {
         result = git_exchange_storage(p, registry_.at("peer_id"), data);
         if (result.value("applied", false))
