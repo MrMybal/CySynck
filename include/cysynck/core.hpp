@@ -98,6 +98,7 @@ class Core {
     Json sync_action(Json &project, const std::string &action, const Json &data);
     Json network_action(const std::string &action, const Json &data);
     Json direct_inbox(const Json &project, const std::string &action, const Json &data);
+    Json diagnostics(const Json &data);
     void hook(const std::string &event, const Json &context);
     Json request_plugin_mode(const Json &project);
     void event(const std::string &project, const std::string &kind, const std::string &message);

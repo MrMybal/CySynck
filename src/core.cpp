@@ -718,6 +718,8 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
     load();
     if (!data.is_object())
         throw std::runtime_error("Expected a JSON object");
+    if (path == "/api/doctor" && (method == "GET" || method == "POST"))
+        return diagnostics(method == "GET" ? Json::object() : data);
     if (path == "/api/overview" && method == "GET") {
         auto projects = registry_["projects"];
         for (auto &p : projects) {

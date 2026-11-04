@@ -51,6 +51,21 @@ async function api(path, method = "GET", data) {
 function text(tag, content, className) { const node = document.createElement(tag); node.textContent = content; if (className) node.className = className; return node; }
 function label(tag, key, values = {}, className) { return translated(text(tag, "", className), key, values); }
 async function safe(fn) { $("error").textContent = ""; try { await fn(); } catch (error) { $("error").textContent = error.message; } }
+async function diagnostics(probe) {
+  const result = await api("doctor", probe ? "POST" : "GET", probe ? {probe_tools: true, probe_engine: true} : undefined);
+  $("doctor-output").replaceChildren(label("p", "{errors} errors · {warnings} warnings", result));
+  for (const row of result.checks) {
+    const card = text("div", "", "snapshot");
+    card.append(row.details.project ? text("strong", row.label) : label("strong", row.label),
+      text("span", " · "), label("span", row.message));
+    if (row.hint) card.append(label("p", row.hint));
+    if (row.details.path) card.append(text("div", row.details.path));
+    if (row.details.version) card.append(text("div", row.details.version));
+    $("doctor-output").append(card);
+  }
+}
+$("doctor-inspect").addEventListener("click", () => safe(() => diagnostics(false)));
+$("doctor-probe").addEventListener("click", () => safe(() => diagnostics(true)));
 async function refresh() {
   const data = await api("overview");
   $("summary").replaceChildren(text("div", String(data.projects.length), "stat"), label("div", "{projects} projects · {backups} with a backup", {projects: data.projects.length, backups: data.projects.filter(p => p.latest_snapshot).length}));

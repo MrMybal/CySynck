@@ -68,7 +68,45 @@ static void field(const char *label, std::string &value) {
 static void localize() {
     c::registerTranslations(
         "fr",
-        {{"Overview", "Vue d'ensemble"},
+        {{"Diagnostics", "Diagnostic"},
+         {"Inspect diagnostics", "Actualiser le diagnostic"},
+         {"Test tools and connection", "Tester les outils et la connexion"},
+         {"Errors", "Erreurs"},
+         {"Warnings", "Avertissements"},
+         {"Tool not found", "Outil introuvable"},
+         {"Tool available", "Outil disponible"},
+         {"Version probe failed", "Échec du test de version"},
+         {"WireGuard tools", "Outils WireGuard"},
+         {"WireGuard activation", "Activation WireGuard"},
+         {"Syncthing connection", "Connexion Syncthing"},
+         {"Syncthing API", "API Syncthing"},
+         {"Connection configured", "Connexion configurée"},
+         {"Connection not configured", "Connexion non configurée"},
+         {"Connection available", "Connexion disponible"},
+         {"Connection unavailable", "Connexion indisponible"},
+         {"Directory available", "Dossier disponible"},
+         {"Directory missing or linked", "Dossier absent ou lié"},
+         {"Git mode needs attention", "Mode Git à vérifier"},
+         {"Recovery review required", "Vérification de récupération nécessaire"},
+         {"Install Syncthing or configure an existing instance.",
+          "Installez Syncthing ou configurez une instance existante."},
+         {"Install Git and add it to PATH.", "Installez Git et ajoutez-le au PATH."},
+         {"Install WireGuard tools or configure CYSYNCK_WG.",
+          "Installez les outils WireGuard ou configurez CYSYNCK_WG."},
+         {"Install the official WireGuard application.",
+          "Installez l'application officielle WireGuard."},
+         {"Install wg-quick or configure CYSYNCK_WG_QUICK.",
+          "Installez wg-quick ou configurez CYSYNCK_WG_QUICK."},
+         {"Configure Syncthing in the Engine view.", "Configurez Syncthing dans la vue Moteur."},
+         {"Start Syncthing and verify the configured connection.",
+          "Démarrez Syncthing et vérifiez la connexion configurée."},
+         {"Restore the project directory or review its path.",
+          "Rétablissez le dossier du projet ou vérifiez son chemin."},
+         {"Use Git exchange for repositories; keep each active .git local.",
+          "Utilisez l'échange Git pour les dépôts ; gardez chaque .git actif localement."},
+         {"Review interrupted resolutions before resuming this project.",
+          "Vérifiez les résolutions interrompues avant de reprendre ce projet."},
+         {"Overview", "Vue d'ensemble"},
          {"Projects", "Projets"},
          {"Received files", "Fichiers reçus"},
          {"Open received files", "Ouvrir les fichiers reçus"},
@@ -374,7 +412,8 @@ class App {
         snapshots = Json::array(), changed = Json::array(), diff, git_state, network_state,
         incoming = Json::array(), messages = Json::array(), engine_state, engine_devices,
         startup_state, backup_check, restore_preview, storage_state, conflict_state, conflict_diff,
-        resolution_preview, resolution_preview_input, resolution_history, received_state;
+        resolution_preview, resolution_preview_input, resolution_history, received_state,
+        doctor_state;
     std::string view = "Overview", selected, theme = "mid-grey", language = "en", error, output,
                 query, baseline, comparison_snapshot, destination, restore_id, compare_left,
                 compare_right, selected_conflict, merged_content, selected_resolution,
@@ -678,8 +717,9 @@ class App {
         if (button("New project"))
             create = true;
         c::space(14);
-        for (auto page : {"Changes", "Conflicts", "Backups", "Git exchange", "Engine", "Network",
-                          "Activity", "Storage", "Command line", "Settings", "Application"})
+        for (auto page :
+             {"Changes", "Conflicts", "Backups", "Git exchange", "Engine", "Network", "Activity",
+              "Storage", "Diagnostics", "Command line", "Settings", "Application"})
             if (c::sidebarItem("", c::trLabel(page).c_str(),
                                view == page ||
                                    (std::string(page) == "Conflicts" && view == "Recovery") ||
@@ -705,7 +745,8 @@ class App {
         ImGui::BeginChild("workspace", ImVec2(0, 0));
         c::heading(c::tr(view.c_str()).c_str(), 1);
         auto p = project();
-        c::textDim("%s", view == "Storage"                    ? c::tr("All projects").c_str()
+        c::textDim("%s", (view == "Storage" || view == "Diagnostics")
+                             ? c::tr("All projects").c_str()
                          : !p.is_null() && view != "Overview" ? p["name"].get<std::string>().c_str()
                                                               : c::tr("Projects").c_str());
         if (!error.empty())
@@ -719,6 +760,8 @@ class App {
             engine_view();
         else if (view == "Application")
             application_view();
+        else if (view == "Diagnostics")
+            diagnostics_view();
         else if (view == "Storage")
             storage_view();
         else if (view == "Network")
@@ -753,6 +796,42 @@ class App {
         create_view();
         ImGui::End();
         c::renderNotifications();
+    }
+    void diagnostics_view() {
+        ImGui::BeginDisabled(busy());
+        bool inspect = button("Inspect diagnostics");
+        ImGui::SameLine();
+        bool probe = button("Test tools and connection", true);
+        ImGui::EndDisabled();
+        if ((inspect || probe || doctor_state.is_null()) && !busy())
+            submit(
+                [this, probe] {
+                    return core.request(probe ? "POST" : "GET", "/api/doctor",
+                                        {{"probe_tools", probe}, {"probe_engine", probe}});
+                },
+                [this](const Json &result) { doctor_state = result; });
+        if (doctor_state.is_null())
+            return;
+        c::textDim("%d %s / %d %s", doctor_state.at("errors").get<int>(), c::tr("Errors").c_str(),
+                   doctor_state.at("warnings").get<int>(), c::tr("Warnings").c_str());
+        for (const auto &row : doctor_state.at("checks")) {
+            auto label = row.at("label").get<std::string>();
+            c::beginCard(
+                row.at("id").get<std::string>().c_str(),
+                (row.at("details").contains("project") ? label : c::tr(label.c_str())).c_str());
+            auto status = row.at("status").get<std::string>();
+            c::badge(c::tr(row.at("message").get<std::string>().c_str()).c_str(),
+                     status == "error"     ? c::Tone::error
+                     : status == "warning" ? c::Tone::warning
+                                           : c::Tone::success);
+            ImGui::TextWrapped("%s", c::tr(row.at("hint").get<std::string>().c_str()).c_str());
+            if (row.at("details").contains("path"))
+                ImGui::TextWrapped("%s", row.at("details").at("path").get<std::string>().c_str());
+            if (row.at("details").contains("version"))
+                text(row.at("details").at("version"));
+            c::endCard();
+            c::space(6);
+        }
     }
     void application_view() {
         c::beginCard("desktop-preferences", c::tr("Notification area").c_str());

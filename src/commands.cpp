@@ -28,6 +28,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return {{"help", R"(CySynck 0.8 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | events | api-token
+  doctor [--probe true]  (test tool versions and engine connection only with --probe)
   desktop startup status|enable|disable  (local desktop installation only)
   engine configure --executable PATH [--port 8385] [--listen-port 22001] [--auto-start true]
   engine connect http://127.0.0.1:8384   (key from CYSYNCK_CONNECT_API_KEY)
@@ -66,6 +67,17 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
 Desktop: cysynck-desktop [--state DIR] [--plugin LIBRARY] [--background|--foreground] [--no-tray]
 Secrets: CYSYNCK_SYNCTHING_API_KEY, CYSYNCK_API_TOKEN, CYSYNCK_MESH_TOKEN.
 VPN up/down requires administrator/root. No automatic NAT traversal in 0.8.)"}};
+    if (args[0] == "doctor") {
+        require(1);
+        bool probe = false;
+        if (flags.contains("--probe")) {
+            if (flags.at("--probe") != "true" && flags.at("--probe") != "false")
+                throw std::runtime_error("Boolean flags require true or false");
+            probe = flags.at("--probe") == "true";
+        }
+        return core.request(probe ? "POST" : "GET", "/api/doctor",
+                            {{"probe_tools", probe}, {"probe_engine", probe}});
+    }
     if (args[0] == "overview" || args[0] == "modes") {
         require(1);
         auto result = core.request("GET", "/api/overview");
