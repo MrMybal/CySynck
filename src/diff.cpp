@@ -277,7 +277,7 @@ Json compare_backup(const fs::path &state, const Json &entry, const fs::path &ri
         before.info["sha256"] = entry.at("sha256");
     }
     auto result = compare_sides(before, read_side(right), target);
-    result["storage"] = block_entry(entry) ? "blocks-v1" : "whole";
+    result["storage"] = block_entry(entry) ? entry.at("storage") : Json("whole");
     return result;
 }
 Json Core::compare(const Json &p, const Json &data) {

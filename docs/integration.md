@@ -73,3 +73,8 @@ Reviewed first-import and fast-forward branch integration uses the same request 
 The same C ABI also lists integration receipts and verifies or acknowledges interrupted
 operations through `git-integrations`, `git-integration-check` and `git-integration-acknowledge`.
 These JSON routes require no ABI version change.
+
+Backup storage policies also use the existing ABI: create or update a project with
+`{"backup_storage":"cdc"}`, then use `backup`, `verify`, `restore-plan` and `restore`.
+CDC recipes require core 0.22 or later. See [backup storage](block-backups.md) for bounds,
+mixed-format history and storage statistics.

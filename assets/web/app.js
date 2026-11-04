@@ -288,33 +288,34 @@ async function select(project) {
   $("detail").hidden = false;
   $("project-name").textContent = project.name;
   $("project-root").textContent = project.root + " · " + project.mode;
-  if (!backupStorageDirty) $("backup-blocks").checked = (project.backup_storage || "auto") === "auto";
+  if (!backupStorageDirty) $("backup-storage-policy").value = project.backup_storage || "auto";
   const snapshots = await api("projects/" + selected + "/snapshots");
   if (selected !== project.id) return;
   $("snapshots").replaceChildren(...snapshots.map(s => {
     const card = text("div", "", "snapshot");
     card.append(label("div", "{created} · {count} files · {id}", {created: s.created.slice(0, 19), count: s.file_count, id: s.id}));
     if (s.block_storage) card.append(label("p", "Block data: {written} bytes written · {reused} bytes reused", {written: s.block_storage.new_block_bytes, reused: s.block_storage.reused_block_bytes}));
+    if (s.block_storage?.content_defined_files) card.append(label("p", "Content-defined file versions: {count}", {count:s.block_storage.content_defined_files}));
     return card;
   }));
   const revision = transferLimitsRevision;
   const limits = await api("network/transfer-limits");
   if (selected === project.id && revision === transferLimitsRevision) showTransferLimits(limits);
 }
-$("backup-blocks").addEventListener("change", () => {
+$("backup-storage-policy").addEventListener("change", () => {
   backupStorageDirty = true;
   $("backup-storage-result").replaceChildren();
 });
 $("backup-storage-form").addEventListener("submit", event => {
   event.preventDefault();
-  const project = selected, enabled = $("backup-blocks").checked;
+  const project = selected, policy = $("backup-storage-policy").value;
   if (!project) return;
   const button = event.currentTarget.querySelector("button");
   safe(async () => {
     button.disabled = true;
     try {
-      const updated = await api("projects/" + project, "PUT", {backup_storage: enabled ? "auto" : "whole"});
-      if (selected !== project || $("backup-blocks").checked !== enabled) return;
+      const updated = await api("projects/" + project, "PUT", {backup_storage: policy});
+      if (selected !== project || $("backup-storage-policy").value !== policy) return;
       selectedProject = updated;
       backupStorageDirty = false;
       $("backup-storage-result").replaceChildren(label("span", "Backup storage policy saved"));
@@ -807,6 +808,7 @@ $("inspect-storage").addEventListener("click", () => safe(async () => {
     label("div", "{objects} unused objects · {bytes} reclaimable bytes", {objects: result.unused_objects, bytes: result.reclaimable_bytes}),
     label("div", "{objects} missing objects", {objects: result.missing_objects}));
   $("storage-output").append(label("div", "{objects} block objects · {files} chunked file versions", {objects: result.block_objects, files: result.chunked_files}));
+  if (result.content_defined_files) $("storage-output").append(label("p", "Content-defined file versions: {count}", {count:result.content_defined_files}));
   $("storage-output").append(label("div", result.deduplication_complete ? "{bytes} deduplicated bytes" : "Deduplication size unavailable", {bytes: result.deduplicated_bytes}));
   for (const error of result.errors) $("storage-output").append(text("div", (error.path || "") + ": " + error.error));
   $("prune-storage").disabled = !result.can_prune || result.unused_objects === 0;

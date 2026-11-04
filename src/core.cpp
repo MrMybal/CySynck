@@ -535,8 +535,8 @@ Json Core::snapshots(const std::string &value) const {
 }
 Json Core::backup(const Json &p, const std::string &reason) {
     auto storage_policy = p.value("backup_storage", "auto");
-    if (storage_policy != "auto" && storage_policy != "whole")
-        throw std::runtime_error("Choose backup_storage auto or whole");
+    if (storage_policy != "auto" && storage_policy != "whole" && storage_policy != "cdc")
+        throw std::runtime_error("Choose backup_storage auto, whole or cdc");
     hook("before_backup", p);
     auto previous = snapshots(p.at("id"));
     auto order = std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -550,15 +550,20 @@ Json Core::backup(const Json &p, const std::string &reason) {
     uintmax_t total = 0;
     Json block_stats = {
         {"block_size", backup_block_size}, {"chunked_files", 0}, {"new_block_bytes", 0},
-        {"reused_block_bytes", 0},         {"new_blocks", 0},    {"reused_blocks", 0}};
+        {"reused_block_bytes", 0},         {"new_blocks", 0},    {"reused_blocks", 0},
+        {"content_defined_files", 0}};
     for (auto &[name, path] : project_files(p)) {
         Json entry;
         auto size = fs::file_size(path);
-        if (storage_policy == "auto" && size >= backup_block_threshold &&
-            size <= backup_block_size * backup_max_blocks) {
-            auto blocks = capture_blocks(state_, path);
+        bool cdc = storage_policy == "cdc";
+        auto block_limit = (cdc ? backup_cdc_min : backup_block_size) * backup_max_blocks;
+        if (storage_policy != "whole" && size >= backup_block_threshold && size <= block_limit) {
+            auto blocks = capture_blocks(state_, path, cdc);
             entry = blocks.entry;
             block_stats["chunked_files"] = block_stats["chunked_files"].get<uintmax_t>() + 1;
+            if (cdc)
+                block_stats["content_defined_files"] =
+                    block_stats["content_defined_files"].get<uintmax_t>() + 1;
             for (auto [key, value] : {std::pair{"new_block_bytes", blocks.written_bytes},
                                       {"reused_block_bytes", blocks.reused_bytes},
                                       {"new_blocks", blocks.written_blocks},
@@ -774,8 +779,8 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
             !p.at("excludes").is_array())
             throw std::runtime_error("Invalid project settings");
         auto backupStorage = p.value("backup_storage", "auto");
-        if (backupStorage != "auto" && backupStorage != "whole")
-            throw std::runtime_error("Choose backup_storage auto or whole");
+        if (backupStorage != "auto" && backupStorage != "whole" && backupStorage != "cdc")
+            throw std::runtime_error("Choose backup_storage auto, whole or cdc");
         p["backup_storage"] = backupStorage;
         if (!p.value("git_lfs", Json(true)).is_boolean() ||
             !p.value("git_lfs_storage", Json("")).is_string())

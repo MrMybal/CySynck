@@ -9,7 +9,7 @@ A project-based synchronization and backup companion written in **C++20**, power
 One shared core powers the native desktop app, CLI, local Web console and integration SDK.
 Build a headless server without graphical dependencies. No Python or .NET runtime is required.
 
-**Status: 0.21.0, under active development.** Windows x64 is validated locally. The headless
+**Status: 0.22.0, under active development.** Windows x64 is validated locally. The headless
 Linux core, CLI and test binaries also cross-compile from Windows with Zig.
 Native Linux and macOS execution still needs validation on those platforms.
 The Unreal bridge is an integration example and has not yet been compiled inside Unreal.
@@ -19,7 +19,7 @@ those fixes and the new package smoke checks still need another native CI run.
 
 ## Features
 
-| Area | Available in 0.21 |
+| Area | Available in 0.22 |
 | --- | --- |
 | Projects | Separate folders, settings and modes; overlapping project roots are rejected |
 | Sync modes | Two-way, send only, receive only, local backup and Git bundle exchange |
@@ -28,7 +28,7 @@ those fixes and the new package smoke checks still need another native CI run.
 | Startup | Explicit per-profile login registration; disabled by default |
 | Diagnostics | Project paths, required/optional tools, explicit version and Syncthing connection checks |
 | Services | Reviewed per-profile systemd/LaunchAgent export, with installation instructions |
-| Backups | Whole-file and 4 MiB block deduplication, scheduling, retention, integrity checks and restore preview |
+| Backups | Whole-file, fixed 4 MiB blocks or optional content-defined blocks, scheduling, retention, integrity checks and restore preview |
 | Storage | Explicit cleanup of unused objects, with a preview and checks across all retained manifests |
 | Diffs | Snapshot or two-file comparison, side-by-side and unified views, statistics and Git-compatible patches |
 | Conflicts | Version selection or manual text merge, checked preview, preserved sources and exportable recovery history |
@@ -40,6 +40,12 @@ those fixes and the new package smoke checks still need another native CI run.
 | Resumable transfers | Verified 1 MiB chunks, files up to 4 GiB, configurable profile quotas, frozen source and manual resume |
 | Received files | Durable inbox catalog, integrity verification and export to a separate directory |
 | Integration | C++ library, C ABI with UTF-8 JSON and an Unreal/Blueprint bridge example |
+
+Backup projects can select `--storage cdc` to reuse content-defined blocks after insertions or
+deletions shift the bytes of a large file. The optional mode uses 1–8 MiB blocks for files from
+8 MiB through 64 GiB; smaller or larger files use whole-file storage. SHA-256 checks cover each
+block and the assembled file. The default remains fixed 4 MiB blocks (`auto`). Existing snapshots
+remain restorable when policies change. See [backup storage](docs/block-backups.md).
 
 Imported branches can be integrated into the local project after a reviewed preview when
 history can advance by fast-forward, including the first local checkout. The operation updates

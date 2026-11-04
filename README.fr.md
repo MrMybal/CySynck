@@ -24,6 +24,12 @@ le SDK, CyUI et la console Web proposent ces actions.
 
 ## Démarrer
 
+La version 0.22 ajoute le stockage optionnel `--storage cdc` pour les sauvegardes. Des blocs de
+1 à 8 Mio, délimités selon le contenu, peuvent être réutilisés après une insertion ou une suppression
+dans un gros fichier. Ce mode couvre les fichiers de 8 Mio à 64 Gio ; chaque bloc et le fichier
+restauré sont vérifiés en SHA-256. Le choix est disponible dans le CLI, CyUI et le Web.
+Les blocs fixes de 4 Mio restent le mode par défaut. Voir [le stockage des sauvegardes](docs/block-backups.md).
+
 La version 0.18 porte l'extraction des fichiers Git ordinaires à **1 Gio par fichier**, grâce
 à une lecture en flux avec des blocs bornés. La copie vérifie l'identité de l'objet Git et
 l'empreinte SHA-256 complète. Les assets LFS gardent leur limite de 4 Gio chacun, avec 16 Gio

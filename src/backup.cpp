@@ -63,7 +63,7 @@ void validate_snapshot(const Json &m, const fs::path &path, const std::string &p
     if (format != 1 && format != 2)
         throw std::runtime_error("Unsupported snapshot format");
     std::set<std::string, PathLess> names, directories;
-    uintmax_t bytes = 0, block_files = 0, block_bytes = 0, block_count = 0;
+    uintmax_t bytes = 0, block_files = 0, block_bytes = 0, block_count = 0, cdc_files = 0;
     for (const auto &[name, entry] : m.at("files").items()) {
         auto relative = fs::u8path(name);
         if (name.empty() || name.find('\0') != std::string::npos || name.front() == '/' ||
@@ -96,6 +96,8 @@ void validate_snapshot(const Json &m, const fs::path &path, const std::string &p
             if (format != 2)
                 throw std::runtime_error("Block backup requires snapshot format 2");
             ++block_files;
+            if (entry.at("storage") == "blocks-cdc-v1")
+                ++cdc_files;
             add_bytes(block_bytes, nonnegative(entry.at("size")));
             add_bytes(block_count, references.size());
         }
@@ -115,7 +117,9 @@ void validate_snapshot(const Json &m, const fs::path &path, const std::string &p
         add_bytes(count, nonnegative(stats.at("reused_blocks")));
         if (nonnegative(stats.at("block_size")) != backup_block_size ||
             nonnegative(stats.at("chunked_files")) != block_files || stored != block_bytes ||
-            count != block_count)
+            count != block_count ||
+            (stats.contains("content_defined_files") &&
+             nonnegative(stats.at("content_defined_files")) != cdc_files))
             throw std::runtime_error("Snapshot block storage summary is inconsistent");
     }
 }
@@ -259,7 +263,7 @@ Json Core::storage(const Json &data) {
     std::map<std::string, fs::path> candidates;
     Json objects = Json::array();
     uintmax_t logical = 0, stored = 0, unused = 0, count = 0, retained = 0, referenced_bytes = 0;
-    uintmax_t block_objects = 0, block_bytes = 0, chunked_files = 0;
+    uintmax_t block_objects = 0, block_bytes = 0, chunked_files = 0, cdc_files = 0;
     auto directory = state_ / "snapshots";
     try {
         plain_directory(directory);
@@ -280,6 +284,7 @@ Json Core::storage(const Json &data) {
                             add_bytes(logical, m.at("bytes").get<uintmax_t>());
                             for (const auto &[name, entry] : m.at("files").items()) {
                                 chunked_files += block_entry(entry);
+                                cdc_files += entry.value("storage", "whole") == "blocks-cdc-v1";
                                 for (const auto &ref : backup_references(entry))
                                     references.insert(ref.at("namespace").get<std::string>() + "/" +
                                                       ref.at("sha256").get<std::string>());
@@ -340,6 +345,7 @@ Json Core::storage(const Json &data) {
                    {"block_objects", block_objects},
                    {"block_stored_bytes", block_bytes},
                    {"chunked_files", chunked_files},
+                   {"content_defined_files", cdc_files},
                    {"deduplication_complete", errors.empty() && references.size() == retained},
                    {"deduplicated_bytes",
                     errors.empty() && references.size() == retained && logical > referenced_bytes

@@ -69,7 +69,18 @@ static void field(const char *label, std::string &value) {
 static void localize() {
     c::registerTranslations(
         "fr",
-        {{"Git integration receipts", "Reçus d’intégration Git"},
+        {{"Backup storage", "Stockage des sauvegardes"},
+         {"Fixed blocks (4 MiB)", "Blocs fixes (4 Mio)"},
+         {"Whole files", "Fichiers entiers"},
+         {"Content-defined blocks (1–8 MiB)", "Blocs selon le contenu (1–8 Mio)"},
+         {"Content-defined blocks support files from 8 MiB to 64 GiB and can preserve reuse after "
+          "insertions. Other sizes use whole files.",
+          "Les blocs selon le contenu couvrent les fichiers de 8 Mio à 64 Gio et peuvent être "
+          "réutilisés après des insertions. Les autres tailles sont stockées en fichiers entiers."},
+         {"Content-defined file versions", "Versions de fichiers découpées selon le contenu"},
+         {"Content-defined file versions: {count}",
+          "Versions de fichiers découpées selon le contenu : {count}"},
+         {"Git integration receipts", "Reçus d’intégration Git"},
          {"Check the repository before marking an interruption as reviewed. Receipts and Git files "
           "are preserved.",
           "Vérifiez le dépôt avant de marquer une interruption comme examinée. Les reçus et les "
@@ -642,7 +653,24 @@ class App {
     bool history_loaded = false;
     bool received_loaded = false;
     bool git_loaded = false, git_setup_requested = false;
-    bool reuse_blocks = true;
+    int backup_policy = 0;
+    static const char *backup_policy_value(int index) {
+        return index == 1 ? "whole" : index == 2 ? "cdc" : "auto";
+    }
+    static int backup_policy_index(const Json &p) {
+        auto value = p.value("backup_storage", "auto");
+        return value == "whole" ? 1 : value == "cdc" ? 2 : 0;
+    }
+    void backup_policy_selector(const char *id) {
+        const char *labels[] = {"Fixed blocks (4 MiB)", "Whole files",
+                                "Content-defined blocks (1–8 MiB)"};
+        if (ImGui::BeginCombo(id, c::tr(labels[backup_policy]).c_str())) {
+            for (int i = 0; i < 3; ++i)
+                if (ImGui::Selectable(c::tr(labels[i]).c_str(), backup_policy == i))
+                    backup_policy = i;
+            ImGui::EndCombo();
+        }
+    }
     bool send_legacy = false;
     bool include_git_lfs = true;
     bool git_lfs_policy = true;
@@ -716,7 +744,7 @@ class App {
             interval = p["backup_interval_minutes"];
             keep = p["backup_keep"];
             before = p["backup_before_sync"];
-            reuse_blocks = p.value("backup_storage", "auto") == "auto";
+            backup_policy = backup_policy_index(p);
             git_lfs_policy = p.value("git_lfs", true);
             git_lfs_storage = p.value("git_lfs_storage", "");
             try {
@@ -867,7 +895,7 @@ class App {
         interval = p["backup_interval_minutes"];
         keep = p["backup_keep"];
         before = p["backup_before_sync"];
-        reuse_blocks = p.value("backup_storage", "auto") == "auto";
+        backup_policy = backup_policy_index(p);
         git_lfs_policy = p.value("git_lfs", true);
         git_lfs_storage = p.value("git_lfs_storage", "");
         refresh();
@@ -1844,6 +1872,9 @@ class App {
                            c::tr("Block data reused").c_str(),
                            static_cast<unsigned long long>(
                                stats.at("reused_block_bytes").get<uintmax_t>() / 1024));
+                if (stats.value("content_defined_files", uintmax_t{0}))
+                    text(c::tr("Content-defined file versions") + ": " +
+                         stats.at("content_defined_files").dump());
             }
         }
         if (!restore_id.empty()) {
@@ -1942,7 +1973,8 @@ class App {
                                       {"unused_objects", "Unused objects"},
                                       {"missing_objects", "Missing objects"},
                                       {"block_objects", "Block objects"},
-                                      {"chunked_files", "Chunked file versions"}}) {
+                                      {"chunked_files", "Chunked file versions"},
+                                      {"content_defined_files", "Content-defined file versions"}}) {
                 c::property(c::tr(label).c_str());
                 text(std::to_string(storage_state.at(key).get<uintmax_t>()));
             }
@@ -2504,8 +2536,8 @@ class App {
             ImGui::InputInt("##keep", &keep);
             c::property(c::tr("Backup before sync").c_str());
             c::toggleSwitch("##before", &before);
-            c::property(c::tr("Reuse blocks for large files").c_str());
-            c::toggleSwitch("##reuse-blocks", &reuse_blocks);
+            c::property(c::tr("Backup storage").c_str());
+            backup_policy_selector("##backup-storage");
             if (p.at("mode") == "git-bundles") {
                 c::property(c::tr("Use Git LFS during synchronization").c_str());
                 c::toggleSwitch("##git-lfs-policy", &git_lfs_policy);
@@ -2517,6 +2549,10 @@ class App {
                    c::tr("0 disables scheduling. Keep the desktop or server running.").c_str());
         ImGui::TextWrapped(
             "%s", c::tr("Blocks of 4 MiB are reused for files from 8 MiB to 256 GiB.").c_str());
+        ImGui::TextWrapped(
+            "%s", c::tr("Content-defined blocks support files from 8 MiB to 64 GiB and can "
+                        "preserve reuse after insertions. Other sizes use whole files.")
+                      .c_str());
         if (p.at("mode") == "git-bundles")
             ImGui::TextWrapped("%s",
                                c::tr("Leave empty for the default Git cache. A custom directory "
@@ -2526,7 +2562,7 @@ class App {
             auto id = selected;
             auto data = Json{{"backup_interval_minutes", interval},
                              {"backup_keep", keep},
-                             {"backup_storage", reuse_blocks ? "auto" : "whole"},
+                             {"backup_storage", backup_policy_value(backup_policy)},
                              {"backup_before_sync", before}};
             if (p.at("mode") == "git-bundles") {
                 data["git_lfs"] = git_lfs_policy;
@@ -2949,8 +2985,8 @@ class App {
             ImGui::InputInt("##new-interval", &interval);
             c::property(c::tr("Snapshots to keep").c_str());
             ImGui::InputInt("##new-keep", &keep);
-            c::property(c::tr("Reuse blocks for large files").c_str());
-            c::toggleSwitch("##new-blocks", &reuse_blocks);
+            c::property(c::tr("Backup storage").c_str());
+            backup_policy_selector("##new-backup-storage");
             c::endProperties();
         }
         c::textDim("%s", c::tr("Use a separate exchange directory and the same "
@@ -2963,7 +2999,7 @@ class App {
                 {"mode", overview["modes"][mode]["id"]},
                 {"exchange_path", overview["modes"][mode]["id"] == "git-bundles" ? exchange : ""},
                 {"backup_interval_minutes", interval},
-                {"backup_storage", reuse_blocks ? "auto" : "whole"},
+                {"backup_storage", backup_policy_value(backup_policy)},
                 {"backup_keep", keep}};
             if (!shared_id.empty())
                 data["id"] = shared_id;

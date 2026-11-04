@@ -2,6 +2,13 @@
 // English is the source language. Keep API identifiers and user content unchanged.
 globalThis.CySynckI18n = (() => {
   const french = {
+    "Backup storage": "Stockage des sauvegardes",
+    "Fixed blocks (4 MiB)": "Blocs fixes (4 Mio)",
+    "Whole files": "Fichiers entiers",
+    "Content-defined blocks (1–8 MiB)": "Blocs selon le contenu (1–8 Mio)",
+    "Content-defined blocks support files from 8 MiB to 64 GiB and can preserve reuse after insertions. Other sizes use whole files.": "Les blocs selon le contenu couvrent les fichiers de 8 Mio à 64 Gio et peuvent être réutilisés après des insertions. Les autres tailles sont stockées en fichiers entiers.",
+    "Content-defined file versions": "Versions de fichiers découpées selon le contenu",
+    "Content-defined file versions: {count}": "Versions de fichiers découpées selon le contenu : {count}",
     "Git integration receipts": "Reçus d’intégration Git",
     "Check the repository before marking an interruption as reviewed. Receipts and Git files are preserved.": "Vérifiez le dépôt avant de marquer une interruption comme examinée. Les reçus et les fichiers Git sont conservés.",
     "Load integration receipts": "Charger les reçus d’intégration",

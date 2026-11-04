@@ -1,5 +1,15 @@
 # Development milestones
 
+## Delivered in 0.22
+
+Optional content-defined backup storage (`backup_storage: cdc`) cuts large files into 1–8 MiB
+chunks and reuses content when insertions or deletions shift byte offsets. It supports files
+from 8 MiB through 64 GiB with at most 65,536 blocks; other sizes use whole-file storage.
+Fixed-block storage remains the default. CLI, CyUI and Web expose all three policies in English/French,
+and the C/C++ SDK uses the same JSON setting and snapshot/restore routes.
+Versioned recipes, per-block/full-file SHA-256 checks, retention, diffs and explicit cleanup
+support mixed whole/fixed/content-defined history. See [content-defined backup storage](block-backups.md#content-defined-storage-022).
+
 ## Delivered in 0.21
 
 Integration receipts are available as paginated summaries through CLI, API/SDK, CyUI and Web
@@ -168,7 +178,7 @@ macOS notarization, signed Windows installers and automatic updates remain separ
 ## Next functional milestones
 
 - Exercise multi-gigabyte resumable transfers and native Linux/macOS transport and services.
-- Evaluate content-defined block boundaries and benchmark much larger project trees.
+- Benchmark content-defined backup storage on much larger project trees and real asset workloads.
 - Extend reviewed integration to LFS assets and divergent merges; extend LFS storage/locking support and verify CyRevision interoperability.
 - Design and test WireGuard rendezvous/NAT traversal against real network configurations;
   Syncthing discovery and relays do not themselves provide that transport.

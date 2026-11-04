@@ -26,7 +26,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.21 (C++20)
+        return {{"help", R"(CySynck 0.22 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | events | api-token
   doctor [--probe true]  (test tool versions and engine connection only with --probe)
@@ -40,8 +40,8 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   engine share PROJECT_ID DEVICE_ID
   project list
   project add NAME ROOT [--mode sendreceive|sendonly|receiveonly|backup|git-bundles]
-      [--id SHARED_ID] [--exchange-path DIR] [--interval MINUTES] [--keep COUNT] [--storage auto|whole]
-  project set ID [--interval MINUTES] [--keep COUNT] [--storage auto|whole]
+      [--id SHARED_ID] [--exchange-path DIR] [--interval MINUTES] [--keep COUNT] [--storage auto|whole|cdc]
+  project set ID [--interval MINUTES] [--keep COUNT] [--storage auto|whole|cdc]
       [--git-lfs true|false] [--lfs-storage ABSOLUTE_DIRECTORY]
   backup ID | snapshots ID | changes ID [--snapshot ID]
   diff ID RELATIVE_PATH [--snapshot ID]

@@ -36,6 +36,11 @@
         <option value="git-bundles" data-i18n>Git exchange</option>
       </select>
       <input name="exchange_path" placeholder="Separate exchange folder (Git)" data-i18n-placeholder>
+      <label><span data-i18n>Backup storage</span><select name="backup_storage">
+        <option value="auto" data-i18n>Fixed blocks (4 MiB)</option>
+        <option value="whole" data-i18n>Whole files</option>
+        <option value="cdc" data-i18n>Content-defined blocks (1–8 MiB)</option>
+      </select></label>
       <button data-i18n>Create project</button>
     </form>
   </section>
@@ -52,8 +57,13 @@
     </div>
     <p data-i18n>Synchronize requests a scan. Syncthing continues to manage background transfers.</p>
     <form id="backup-storage-form">
-      <label><input type="checkbox" id="backup-blocks" checked><span data-i18n>Reuse blocks for large files</span></label>
+      <label><span data-i18n>Backup storage</span><select id="backup-storage-policy">
+        <option value="auto" data-i18n>Fixed blocks (4 MiB)</option>
+        <option value="whole" data-i18n>Whole files</option>
+        <option value="cdc" data-i18n>Content-defined blocks (1–8 MiB)</option>
+      </select></label>
       <p data-i18n>Blocks of 4 MiB are reused for files from 8 MiB to 256 GiB.</p>
+      <p data-i18n>Content-defined blocks support files from 8 MiB to 64 GiB and can preserve reuse after insertions. Other sizes use whole files.</p>
       <button data-i18n>Save backup storage policy</button>
       <span id="backup-storage-result" aria-live="polite"></span>
     </form>
