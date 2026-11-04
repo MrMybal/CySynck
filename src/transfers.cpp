@@ -2,10 +2,15 @@
 #include "backup.hpp"
 #include "inbox.hpp"
 #include <algorithm>
+#include <array>
+#include <charconv>
+#include <chrono>
 #include <fstream>
 #include <httplib.h>
+#include <picosha2.h>
 #include <regex>
 #include <stdexcept>
+#include <thread>
 
 namespace cysynck {
 namespace {
@@ -42,8 +47,10 @@ Json incoming_record(const Json &raw) {
     if (!chunks.is_array() || chunks.size() > chunk_count(record))
         throw std::runtime_error("Invalid transfer progress");
     for (const auto &hash : chunks)
-        if (!hash.is_string() ||
-            !std::regex_match(hash.get<std::string>(), std::regex("[0-9a-f]{64}")))
+        if (!hash.is_string() || hash.get_ref<const std::string &>().size() != 64 ||
+            !std::all_of(hash.get_ref<const std::string &>().begin(),
+                         hash.get_ref<const std::string &>().end(),
+                         [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }))
             throw std::runtime_error("Invalid transfer chunk digest");
     record["chunks"] = chunks;
     return record;
@@ -105,16 +112,31 @@ void remove_payloads(const fs::path &directory, const Json &record, bool outgoin
     for (const auto &entry : fs::directory_iterator(directory)) {
         auto name = path_string(entry.path().filename());
         bool owned = outgoing ? name == "snapshot" : name == "assembled";
-        if (!outgoing)
-            for (uintmax_t i = 0; i < chunk_count(record); ++i)
-                owned |= name == std::to_string(i) + ".block";
+        if (!outgoing && name.ends_with(".block")) {
+            auto digits = name.substr(0, name.size() - 6);
+            uintmax_t index = 0;
+            auto parsed = std::from_chars(digits.data(), digits.data() + digits.size(), index);
+            owned = parsed.ec == std::errc{} && parsed.ptr == digits.data() + digits.size() &&
+                    digits == std::to_string(index) && index < chunk_count(record);
+        }
         if (!owned || path_is_link(entry.path()) || !entry.is_regular_file())
             throw std::runtime_error(
                 "Transfer directory contains unexpected content; review it locally");
     }
     for (const auto &entry : fs::directory_iterator(directory))
         fs::remove(entry.path());
-    fs::remove(directory);
+    // Windows may keep a just-deleted block visible while filesystem filters finish with it.
+    // Retry only the empty-directory removal, never delete additional or unexpected content.
+    std::error_code error;
+    for (int attempt = 0; attempt < 20; ++attempt) {
+        fs::remove(directory, error);
+        if (!error)
+            return;
+        if (error != std::errc::directory_not_empty && error != std::errc::permission_denied)
+            break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    throw fs::filesystem_error("Cannot remove empty transfer directory", directory, error);
 }
 Json progress(const Json &record, uintmax_t next, bool delivered = false) {
     return {{"id", record.at("id")},
@@ -131,19 +153,100 @@ size_t pending_count(const Json &registry, const std::string &table) {
                 ++count;
     return count;
 }
+Json freeze_file(const fs::path &source, const fs::path &snapshot, uintmax_t limit) {
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        if (path_is_link(source) || !fs::is_regular_file(source))
+            throw std::runtime_error("Transfer source must be a regular file");
+        auto size = fs::file_size(source);
+        auto modified = fs::last_write_time(source);
+        if (size > limit)
+            throw std::runtime_error("Source exceeds the configured file or outgoing quota");
+        atomic_write(snapshot, "", true);
+        std::ifstream input(source, std::ios::binary);
+        std::ofstream output(snapshot, std::ios::binary | std::ios::app);
+        if (!input || !output)
+            throw std::runtime_error("Cannot create outgoing snapshot");
+        picosha2::hash256_one_by_one digest;
+        std::array<char, 65536> buffer;
+        uintmax_t copied = 0;
+        while (input) {
+            input.read(buffer.data(), buffer.size());
+            auto count = static_cast<size_t>(input.gcount());
+            if (count > limit - copied)
+                throw std::runtime_error("Source grew beyond the outgoing transfer limit");
+            output.write(buffer.data(), static_cast<std::streamsize>(count));
+            if (!output)
+                throw std::runtime_error("Cannot write outgoing snapshot");
+            digest.process(buffer.data(), buffer.data() + count);
+            copied += count;
+        }
+        output.flush();
+        if (!input.eof() || !output)
+            throw std::runtime_error("Outgoing snapshot capture failed");
+        output.close();
+        if (!output)
+            throw std::runtime_error("Cannot close outgoing snapshot");
+        if (!path_is_link(source) && fs::is_regular_file(source) && copied == size &&
+            fs::file_size(source) == size && fs::last_write_time(source) == modified) {
+            digest.finish();
+            return {{"bytes", copied}, {"sha256", picosha2::get_hash_hex_string(digest)}};
+        }
+    }
+    throw std::runtime_error("Transfer source kept changing; retry when it is stable");
+}
+Json usage(const fs::path &state, const Json &registry) {
+    auto result = transfer_limits(registry);
+    result["inbox_bytes"] = inbox_used(state);
+    result["reserved_incoming_bytes"] = transfer_reserved(registry);
+    result["reserved_outgoing_bytes"] = transfer_reserved(registry, true);
+    result["max_file_limit_mib"] = transfer_file_limit / transfer_chunk_size;
+    result["max_quota_mib"] = transfer_quota / transfer_chunk_size;
+    return result;
+}
 } // namespace
 
-uintmax_t transfer_reserved(const Json &registry) {
+Json transfer_limits(const Json &registry) {
+    auto raw = registry.value("transfer_limits", Json::object());
+    if (!raw.is_object())
+        throw std::runtime_error("Invalid transfer limits");
+    Json result = {{"file_limit_mib", 1024}, {"inbox_quota_mib", 4096}, {"outbox_quota_mib", 4096}};
+    for (auto &[key, value] : result.items()) {
+        value = raw.value(key, value);
+        auto maximum =
+            (key == "file_limit_mib" ? transfer_file_limit : transfer_quota) / transfer_chunk_size;
+        if (!value.is_number_integer() || value.get<int64_t>() < 1 ||
+            value.get<uintmax_t>() > maximum)
+            throw std::runtime_error(
+                "Transfer limits require whole MiB: file 1..4096, quotas 1..65536");
+    }
+    if (result.at("file_limit_mib") > result.at("inbox_quota_mib") ||
+        result.at("file_limit_mib") > result.at("outbox_quota_mib"))
+        throw std::runtime_error("Each transfer quota must cover the file limit");
+    return result;
+}
+uintmax_t transfer_reserved(const Json &registry, bool outgoing) {
     uintmax_t reserved = 0;
-    for (const auto &project : registry.value("transfers_in", Json::object()))
+    for (const auto &project :
+         registry.value(outgoing ? "transfers_out" : "transfers_in", Json::object()))
         for (const auto &raw : project) {
-            auto record = incoming_record(raw);
+            auto record = outgoing ? outgoing_record(raw) : incoming_record(raw);
+            if (outgoing && record.at("delivered").get<bool>())
+                continue;
             auto size = record.at("bytes").get<uintmax_t>();
-            if (reserved > transfer_quota - size)
+            if (size > transfer_quota || reserved > transfer_quota - size)
                 throw std::runtime_error("Pending transfer quota exceeded");
             reserved += size;
         }
     return reserved;
+}
+void check_incoming_capacity(const fs::path &state, const Json &registry, uintmax_t bytes) {
+    auto limits = transfer_limits(registry);
+    if (bytes > limits.at("file_limit_mib").get<uintmax_t>() * transfer_chunk_size)
+        throw std::runtime_error("File exceeds the configured transfer limit");
+    auto quota = limits.at("inbox_quota_mib").get<uintmax_t>() * transfer_chunk_size;
+    auto used = inbox_used(state), reserved = transfer_reserved(registry);
+    if (used > quota || reserved > quota - used || bytes > quota - used - reserved)
+        throw std::runtime_error("Received and pending files exceed the configured inbox quota");
 }
 
 Json Core::transfer_receive(const Json &data, const std::string &bytes) {
@@ -193,10 +296,7 @@ Json Core::transfer_receive(const Json &data, const std::string &bytes) {
         if (pending_count(registry_, "transfers_in") >= 32 ||
             receipts.size() + table.size() >= 10000)
             throw std::runtime_error("Incoming transfer catalog limit reached");
-        if (inbox_used(state_) + transfer_reserved(registry_) +
-                record.at("bytes").get<uintmax_t>() >
-            transfer_quota)
-            throw std::runtime_error("Received and pending file quota (1 GiB) reached");
+        check_incoming_capacity(state_, registry_, record.at("bytes").get<uintmax_t>());
         if (fs::exists(received_path(state_, projectId, id)))
             throw std::runtime_error("Transfer ID already exists in inbox");
         auto directory = transfer_directory(state_, record, false);
@@ -261,6 +361,8 @@ Json Core::transfer_receive(const Json &data, const std::string &bytes) {
         if (!output)
             throw std::runtime_error("Cannot assemble received transfer");
         output.close();
+        if (!output)
+            throw std::runtime_error("Cannot close assembled transfer");
         verify_received(assembled, record);
         private_directory(destination.parent_path());
         fs::rename(assembled, destination);
@@ -294,6 +396,30 @@ Json Core::transfer_receive(const Json &data, const std::string &bytes) {
 }
 
 Json Core::transfer_action(const std::string &action, const Json &data) {
+    if (action == "transfer-limits")
+        return usage(state_, registry_);
+    if (action == "transfer-configure") {
+        if (!data.is_object() || data.empty())
+            throw std::runtime_error("Provide at least one transfer limit");
+        auto proposed = transfer_limits(registry_);
+        for (const auto &[key, value] : data.items()) {
+            if (!proposed.contains(key))
+                throw std::runtime_error("Unknown transfer limit");
+            proposed[key] = value;
+        }
+        auto checked = transfer_limits(Json{{"transfer_limits", proposed}});
+        auto current = usage(state_, registry_);
+        auto quotaIn = checked.at("inbox_quota_mib").get<uintmax_t>() * transfer_chunk_size;
+        auto quotaOut = checked.at("outbox_quota_mib").get<uintmax_t>() * transfer_chunk_size;
+        auto used = current.at("inbox_bytes").get<uintmax_t>();
+        auto incoming = current.at("reserved_incoming_bytes").get<uintmax_t>();
+        if (used > quotaIn || incoming > quotaIn - used ||
+            current.at("reserved_outgoing_bytes").get<uintmax_t>() > quotaOut)
+            throw std::runtime_error(
+                "Transfer quotas cannot be lower than current usage and reservations");
+        registry_["transfer_limits"] = checked;
+        return usage(state_, registry_);
+    }
     auto projectId = identifier(data.at("project"));
     project(projectId);
     if (action == "transfers") {
@@ -377,38 +503,37 @@ Json Core::transfer_send(const Json &data) {
                 throw std::runtime_error("Outgoing transfer catalog limit reached");
             auto path = project_child(fs::u8path(p.at("root").get<std::string>()), data.at("path"));
             received_name(path_string(path.filename()));
-            if (!fs::is_regular_file(path) || fs::file_size(path) > transfer_file_limit)
-                throw std::runtime_error("Direct files are limited to 100 MiB");
-            auto sourceSize = fs::file_size(path);
-            uintmax_t reserved = sourceSize;
-            for (const auto &table : registry_.value("transfers_out", Json::object()))
-                for (const auto &item : table)
-                    if (!item.value("delivered", false))
-                        reserved += metadata(item).at("bytes").get<uintmax_t>();
-            if (reserved > transfer_quota)
-                throw std::runtime_error("Outgoing snapshot quota (1 GiB) reached");
-            auto entry = capture(path);
-            if (entry.at("size").get<uintmax_t>() > transfer_file_limit ||
-                reserved - sourceSize + entry.at("size").get<uintmax_t>() > transfer_quota)
-                throw std::runtime_error("Captured file exceeds the outgoing transfer quota");
+            auto limits = transfer_limits(registry_);
+            auto reserved = transfer_reserved(registry_, true);
+            auto quota = limits.at("outbox_quota_mib").get<uintmax_t>() * transfer_chunk_size;
+            if (reserved > quota)
+                throw std::runtime_error("Outgoing snapshots exceed the configured quota");
+            auto available =
+                std::min(quota - reserved,
+                         limits.at("file_limit_mib").get<uintmax_t>() * transfer_chunk_size);
             record = {{"id", random_id()},
                       {"project", projectId},
                       {"peer", peerId},
                       {"created", timestamp()},
                       {"name", path_string(path.filename())},
-                      {"bytes", entry.at("size")},
-                      {"sha256", entry.at("sha256")},
                       {"protocol", 1},
                       {"next", 0},
                       {"delivered", false},
                       {"error_code", ""},
                       {"error", ""}};
             auto directory = transfer_directory(state_, record, true);
+            if (fs::exists(directory))
+                throw std::runtime_error("Outgoing transfer directory already exists");
             private_directory(directory);
             auto snapshot = project_child(directory, "snapshot");
-            fs::copy_file(state_ / "objects" / entry.at("sha256").get<std::string>(), snapshot,
-                          fs::copy_options::none);
-            secure_state_path(snapshot, false);
+            try {
+                auto captured = freeze_file(path, snapshot, available);
+                record["bytes"] = captured.at("bytes");
+                record["sha256"] = captured.at("sha256");
+            } catch (...) {
+                remove_payloads(directory, record, true);
+                throw;
+            }
             registry_["transfers_out"][projectId][record.at("id").get<std::string>()] = record;
             save();
         }

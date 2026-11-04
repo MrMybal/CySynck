@@ -25,7 +25,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.11 (C++20)
+        return {{"help", R"(CySynck 0.12 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | events | api-token
   doctor [--probe true]  (test tool versions and engine connection only with --probe)
@@ -65,12 +65,14 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   send-file ID PEER_ID RELATIVE_PATH [--legacy true]
   transfers list ID | transfers resume ID TRANSFER_ID
   transfers cancel ID TRANSFER_ID --direction in|out
+  transfers limits
+  transfers configure [--file-limit-mib 1024] [--inbox-quota-mib 4096] [--outbox-quota-mib 4096]
   received list ID | received verify ID TRANSFER_ID
   received export ID TRANSFER_ID NEW_DIRECTORY
   serve [--host 127.0.0.1] [--port 8484]
 Desktop: cysynck-desktop [--state DIR] [--plugin LIBRARY] [--background|--foreground] [--no-tray]
 Secrets: CYSYNCK_SYNCTHING_API_KEY, CYSYNCK_API_TOKEN, CYSYNCK_MESH_TOKEN.
-VPN up/down requires administrator/root. No automatic NAT traversal in 0.11.)"}};
+VPN up/down requires administrator/root. No automatic NAT traversal in 0.12.)"}};
     if (args[0] == "service") {
         if (args.size() < 2 || (args[1] != "plan" && args[1] != "export"))
             throw std::runtime_error("Use service plan|export");
@@ -274,8 +276,33 @@ VPN up/down requires administrator/root. No automatic NAT traversal in 0.11.)"}}
     }
     if (args[0] == "transfers") {
         if (args.size() < 2)
-            throw std::runtime_error("Use transfers list|resume|cancel");
+            throw std::runtime_error("Use transfers limits|configure|list|resume|cancel");
         auto command = args[1];
+        if (command == "limits" || command == "configure") {
+            require(2);
+            Json limits = Json::object();
+            for (const auto &[flag, value] : flags) {
+                std::string key;
+                if (flag == "--file-limit-mib")
+                    key = "file_limit_mib";
+                else if (flag == "--inbox-quota-mib")
+                    key = "inbox_quota_mib";
+                else if (flag == "--outbox-quota-mib")
+                    key = "outbox_quota_mib";
+                else
+                    throw std::runtime_error("Unknown transfer limit flag");
+                if (value.empty() || value.find_first_not_of("0123456789") != std::string::npos)
+                    throw std::runtime_error("Transfer limits require whole MiB");
+                limits[key] = std::stoull(value);
+            }
+            if (command == "limits" && !limits.empty())
+                throw std::runtime_error("Use transfers configure to change limits");
+            return core.request(command == "limits" ? "GET" : "POST",
+                                "/api/network/transfer-" + (command == "limits"
+                                                                ? std::string("limits")
+                                                                : std::string("configure")),
+                                limits);
+        }
         require(command == "list" ? 3 : 4);
         Json data{{"project", args[2]}};
         if (command != "list")

@@ -1,5 +1,17 @@
 # Development milestones
 
+## Delivered in 0.12
+
+Resumable direct files now default to 1 GiB per file, with configurable limits up to 4 GiB
+and separate 4 GiB default inbox/outbox quotas (up to 64 GiB each). Settings and usage are
+available through the CLI, C/C++ API and bilingual desktop/Web views. Quota reductions preserve
+existing reservations and received payloads. Sender capture streams into one private snapshot
+without a duplicate backup object; exact-name partial cleanup scales linearly with chunk count.
+Tests send a real 101 MiB binary file over chunk HTTP with a lost acknowledgement, restart,
+changed source, resume and verified export. A 4 GiB metadata reservation exercises 64-bit
+boundaries without allocating a multi-gigabyte payload. Native Linux/macOS transfer execution
+and multi-gigabyte runtime benchmarking remain pending. See [direct transfers](transfers.md).
+
 ## Delivered in 0.11
 
 Large-file backups now use fixed 4 MiB blocks by default for files from 8 MiB to 256 GiB.
@@ -15,8 +27,8 @@ See [block backups](block-backups.md).
 Direct files now use restart-safe journals and 1 MiB SHA-256 chunks. Manual resume reconciles
 the receiver's verified prefix with the sender's frozen source, including a lost acknowledgement.
 The CLI, native desktop and bilingual Web console expose progress, resume and local removal.
-The legacy endpoint remains available explicitly. Files are still limited to 100 MiB; larger
-payloads are a separate milestone. See the [transfer protocol and limits](transfers.md).
+The legacy endpoint remains available explicitly. The initial 100 MiB resumable-file cap
+was raised in 0.12. See the [transfer protocol and limits](transfers.md).
 
 The real-engine fixtures keep an absolute 128 MB free-space reserve and require 256 MiB
 available before running. This makes their small files usable on large developer volumes
@@ -48,7 +60,7 @@ macOS notarization, signed Windows installers and automatic updates remain separ
 
 ## Next functional milestones
 
-- Extend resumable direct transfers beyond 100 MiB and exercise them on native Linux/macOS.
+- Exercise multi-gigabyte resumable transfers and native Linux/macOS transport and services.
 - Evaluate content-defined block boundaries and benchmark much larger project trees.
 - Expand Git collaboration with LFS and verify CyRevision interoperability.
 - Design and test WireGuard rendezvous/NAT traversal against real network configurations;

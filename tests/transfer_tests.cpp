@@ -2,6 +2,7 @@
 #include <httplib.h>
 #include <atomic>
 #include <functional>
+#include <fstream>
 #include <iostream>
 #include <thread>
 using namespace cysynck;
@@ -74,6 +75,51 @@ int main() {
     try {
         Core core(run / "receiver");
         setup(core, run / "project", "local", "remote");
+        auto limits = cli(core, {"transfers", "limits"});
+        check(limits.at("file_limit_mib") == 1024 && limits.at("inbox_quota_mib") == 4096,
+              "Old profiles receive bounded large-file defaults");
+        for (const auto &bad :
+             {Json(-1), Json(0), Json(4097), Json(1.5), Json("1024"), Json(uint64_t(-1))})
+            rejects(
+                [&] {
+                    core.request("POST", "/api/network/transfer-configure",
+                                 {{"file_limit_mib", bad}});
+                },
+                "Invalid file limits are rejected without integer overflow");
+        rejects(
+            [&] {
+                core.request("POST", "/api/network/transfer-configure",
+                             {{"inbox_quota_mib", 65537}});
+            },
+            "Quota maximum is enforced");
+        rejects(
+            [&] { core.request("POST", "/api/network/transfer-configure", {{"unexpected", 10}}); },
+            "Unknown limit fields are refused");
+        rejects([&] { cli(core, {"transfers", "configure", "--file-limit-mib", "1.5"}); },
+                "CLI accepts only whole MiB");
+        rejects([&] { cli(core, {"transfers", "configure", "--inbox-quota-mib", "1"}); },
+                "Each quota must cover the configured file limit");
+        cli(core,
+            {"transfers", "configure", "--file-limit-mib", "4096", "--inbox-quota-mib", "8192"});
+        auto boundary = begin("boundary", "");
+        boundary["bytes"] = 4096ull * blockSize;
+        check(core.direct_receive(boundary, "10.77.0.2").at("next") == 0 &&
+                  cli(core, {"transfers", "limits"}).at("reserved_incoming_bytes") ==
+                      4096ull * blockSize,
+              "4 GiB reservation uses 64-bit arithmetic without allocating the payload");
+        auto beyond = boundary;
+        beyond["id"] = "beyond";
+        beyond["bytes"] = 4096ull * blockSize + 1;
+        rejects([&] { core.direct_receive(beyond, "10.77.0.2"); }, "Hard file maximum is enforced");
+        rejects(
+            [&] {
+                cli(core, {"transfers", "configure", "--file-limit-mib", "1024",
+                           "--inbox-quota-mib", "1024"});
+            },
+            "Quotas cannot discard current reservations");
+        cli(core, {"transfers", "cancel", "team", "boundary", "--direction", "in"});
+        cli(core,
+            {"transfers", "configure", "--file-limit-mib", "1024", "--inbox-quota-mib", "4096"});
         auto start = begin("first", payload);
         rejects([&] { core.direct_receive(start, "10.77.0.3"); }, "VPN source is pinned");
         check(core.direct_receive(start, "10.77.0.2").at("next") == 0,
@@ -88,7 +134,8 @@ int main() {
         changed["id"] = "invalid";
         rejects([&] { core.direct_receive(changed, "10.77.0.2"); }, "Portable names required");
         changed = start;
-        changed["bytes"] = 100ull * blockSize + 1;
+        changed["id"] = "over-limit";
+        changed["bytes"] = 1024ull * blockSize + 1;
         rejects([&] { core.direct_receive(changed, "10.77.0.2"); }, "Per-file size is bounded");
         rejects([&] { core.direct_receive(finish("first"), "10.77.0.2"); },
                 "Incomplete file cannot finish");
@@ -102,6 +149,7 @@ int main() {
                 "Short block is rejected");
         check(core.direct_receive(chunk("first", 0, block), "10.77.0.2", block).at("next") == 1,
               "First block is journaled");
+        cli(core, {"transfers", "configure", "--file-limit-mib", "1"});
         Core restarted(run / "receiver");
         check(restarted.direct_receive(start, "10.77.0.2").at("next") == 1,
               "Restart returns the verified prefix");
@@ -136,6 +184,11 @@ int main() {
               "Completed replay is idempotent");
         check(cli(restarted, {"received", "verify", "team", "first"}).at("ok"),
               "Inbox accepts new protocol receipts");
+        check(cli(restarted, {"transfers", "limits"}).at("file_limit_mib") == 1,
+              "Reduced file limit persists and preserves existing transfers and receipts");
+        rejects([&] { cli(restarted, {"transfers", "configure", "--inbox-quota-mib", "1"}); },
+                "Received payloads prevent quota reduction below usage");
+        cli(restarted, {"transfers", "configure", "--file-limit-mib", "1024"});
         auto empty = begin("empty", "");
         restarted.direct_receive(empty, "10.77.0.2");
         check(restarted.direct_receive(finish("empty"), "10.77.0.2").at("delivered"),
@@ -201,6 +254,8 @@ int main() {
         rejects([&] { restarted.direct_receive(isolated, "10.77.0.2"); },
                 "Peer trust is scoped to its project");
         // Reservations, including legacy receives, share the inbox quota without allocating 1 GiB.
+        cli(restarted,
+            {"transfers", "configure", "--file-limit-mib", "100", "--inbox-quota-mib", "1024"});
         for (int i = 0; i < 10; ++i) {
             auto reservation = begin("reserved-" + std::to_string(i), "");
             reservation["bytes"] = 100 * blockSize;
@@ -221,6 +276,8 @@ int main() {
         for (int i = 0; i < 10; ++i)
             cli(restarted, {"transfers", "cancel", "team", "reserved-" + std::to_string(i),
                             "--direction", "in"});
+        cli(restarted,
+            {"transfers", "configure", "--file-limit-mib", "1024", "--inbox-quota-mib", "4096"});
         for (int i = 0; i < 32; ++i)
             restarted.direct_receive(begin("bounded-" + std::to_string(i), ""), "10.77.0.2");
         rejects([&] { restarted.direct_receive(begin("too-many", ""), "10.77.0.2"); },
@@ -241,8 +298,21 @@ int main() {
         Core sender(run / "sender"), receiver(run / "network-receiver");
         setup(sender, run / "sender-project", "sender", "receiver", "127.0.0.1");
         setup(receiver, run / "receiver-project", "receiver", "sender", "127.0.0.1");
-        std::string networkPayload = block + block + tail;
-        atomic_write(run / "sender-project/network.bin", networkPayload);
+        // Stream a real payload beyond the former 100 MiB cap; keep test memory bounded.
+        auto networkFile = run / "sender-project/network.bin";
+        {
+            std::ofstream output(networkFile, std::ios::binary);
+            for (int i = 0; i < 101; ++i)
+                output.write(block.data(), block.size());
+            output.write(tail.data(), tail.size());
+        }
+        auto networkHash = sha256_file(networkFile);
+        constexpr int networkChunks = 102;
+        cli(sender, {"transfers", "configure", "--file-limit-mib", "1"});
+        rejects([&] { cli(sender, {"send-file", "team", "receiver", "network.bin"}); },
+                "Oversized source fails before publishing an outgoing journal");
+        check(list(sender).at("files").empty(), "Failed capture does not publish a journal");
+        cli(sender, {"transfers", "configure", "--file-limit-mib", "1024"});
         httplib::Server proxy;
         std::atomic<int> sentBlocks = 0;
         std::atomic<bool> interrupt = true;
@@ -294,17 +364,34 @@ int main() {
                   "Failed acknowledgement keeps the outgoing transfer ID");
             check(list(receiver).at("files")[0].at("acknowledged_bytes") == 2 * blockSize,
                   "Receiver can be ahead of the sender after a lost response");
+            check(!fs::exists(sender.state() / "objects") ||
+                      fs::is_empty(sender.state() / "objects"),
+                  "Transfer capture creates one frozen copy without a backup object");
+            rejects(
+                [&] {
+                    cli(sender, {"transfers", "configure", "--file-limit-mib", "1",
+                                 "--outbox-quota-mib", "100"});
+                },
+                "Outgoing snapshot reservations prevent quota reduction");
             atomic_write(run / "sender-project/network.bin", "changed after interruption");
             Core senderRestarted(run / "sender");
             result = cli(senderRestarted, {"transfers", "resume", "team", id});
-            check(result.at("delivered") && sentBlocks == 3, "Resume sends only the missing tail");
-            check(read_file(receiver.state() / ("inbox/team/" + id + ".received"), 4 * blockSize) ==
-                      networkPayload,
+            check(result.at("delivered") && sentBlocks == networkChunks,
+                  "Resume sends only missing chunks");
+            auto receivedFile = receiver.state() / ("inbox/team/" + id + ".received");
+            check(fs::file_size(receivedFile) == 101ull * blockSize + tail.size() &&
+                      sha256_file(receivedFile) == networkHash,
                   "Resume uses the frozen snapshot after source changes");
+            auto exported = cli(
+                receiver, {"received", "export", "team", id, path_string(run / "large-export")});
+            check(exported.at("exported") &&
+                      sha256_file(fs::u8path(exported.at("path").get<std::string>())) ==
+                          networkHash,
+                  "Large received payload exports with full-file integrity verification");
             check(!fs::exists(sender.state() / ("transfers/outgoing/team/" + id + "/snapshot")),
                   "Delivery frees outgoing snapshot");
             check(cli(senderRestarted, {"transfers", "resume", "team", id}).at("delivered") &&
-                      sentBlocks == 3,
+                      sentBlocks == networkChunks,
                   "Resuming delivered transfer does not resend");
             check(senderRestarted.request("POST", "/api/network/history", {{"project", "team"}})
                           .size() == 1,
@@ -319,7 +406,7 @@ int main() {
             check(!emptyResult.at("delivered").get<bool>(),
                   "Lost final response keeps transfer resumable");
             check(cli(senderRestarted, {"transfers", "resume", "team", emptyId}).at("delivered") &&
-                      sentBlocks == 3,
+                      sentBlocks == networkChunks,
                   "Resume reconciles a delivery whose final response was lost");
             oldPeer = true;
             auto oldResult = cli(senderRestarted, {"send-file", "team", "receiver", "empty.bin"});

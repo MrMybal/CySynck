@@ -1,6 +1,7 @@
 #include "inbox.hpp"
 #include "backup.hpp"
 #include "error.hpp"
+#include "transfers.hpp"
 #include <algorithm>
 #include <regex>
 #include <set>
@@ -8,7 +9,6 @@
 
 namespace cysynck {
 namespace {
-constexpr uintmax_t file_limit = 100ull * 1024 * 1024;
 std::string identifier(const std::string &value) {
     if (!std::regex_match(value, std::regex("[A-Za-z0-9][A-Za-z0-9_-]{0,79}")))
         throw std::runtime_error("Invalid received file identifier");
@@ -52,7 +52,7 @@ Json received_record(const Json &record, const std::string &project, const std::
     if (record.at("id") != id || record.at("project") != project ||
         !record.at("created").is_string() || record.at("created").get<std::string>().size() > 64 ||
         !record.at("bytes").is_number_integer() || record.at("bytes").get<int64_t>() < 0 ||
-        record.at("bytes").get<uintmax_t>() > file_limit ||
+        record.at("bytes").get<uintmax_t>() > transfer_file_limit ||
         !std::regex_match(record.at("sha256").get<std::string>(), std::regex("[0-9a-f]{64}")))
         throw std::runtime_error("Invalid received file receipt");
     received_name(record.at("name"));
@@ -88,8 +88,8 @@ uintmax_t inbox_used(const fs::path &state) {
                 if (path_is_link(entry.path()) || !entry.is_regular_file())
                     throw std::runtime_error("Inbox contains an unexpected entry");
                 auto size = entry.file_size();
-                if (size > 1024ull * 1024 * 1024 || total > 1024ull * 1024 * 1024 - size)
-                    throw std::runtime_error("Received file quota (1 GiB) reached");
+                if (size > transfer_quota || total > transfer_quota - size)
+                    throw std::runtime_error("Inbox exceeds the supported quota");
                 total += size;
             }
         }

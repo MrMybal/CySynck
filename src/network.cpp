@@ -300,7 +300,13 @@ Json Core::direct_send(const Json &data, bool file) {
             auto path = project_child(fs::u8path(p.at("root").get<std::string>()), relative);
             if (fs::file_size(path) > 100 * 1024 * 1024)
                 throw std::runtime_error("Direct files are limited to 100 MiB");
+            auto limit = transfer_limits(registry_).at("file_limit_mib").get<uintmax_t>() *
+                         transfer_chunk_size;
+            if (fs::file_size(path) > limit)
+                throw std::runtime_error("File exceeds the configured transfer limit");
             entry = capture(path);
+            if (entry.at("size").get<uintmax_t>() > limit)
+                throw std::runtime_error("Captured file exceeds the configured transfer limit");
             body = read_file(state_ / "objects" / entry["sha256"].get<std::string>(),
                              100 * 1024 * 1024);
             entry["name"] = path_string(path.filename());
@@ -396,9 +402,7 @@ Json Core::direct_receive(const Json &data, const std::string &remote, const std
                                   .size() >=
             10000)
             throw std::runtime_error("Received file catalog limit (10000 per project) reached");
-        auto used = inbox_used(state_);
-        if (used + transfer_reserved(registry_) + bytes.size() > transfer_quota)
-            throw std::runtime_error("Received file quota (1 GiB) reached");
+        check_incoming_capacity(state_, registry_, bytes.size());
         auto destination = received_path(state_, projectId, messageId);
         if (fs::exists(destination))
             throw std::runtime_error("Transfer ID already exists");

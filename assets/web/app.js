@@ -6,6 +6,36 @@ let token = "", selected = "", transferLoad = 0;
 try { token = sessionStorage.getItem("cysynck-token") || ""; } catch (_) { /* Storage may be disabled. */ }
 let storagePlan = null, servicePreview = null;
 let backupStorageDirty = false;
+let transferLimitsDirty = false, transferLimitsRevision = 0;
+function transferLimitsInput() {
+  return {file_limit_mib: Number($("transfer-file-mib").value),
+    inbox_quota_mib: Number($("transfer-inbox-mib").value), outbox_quota_mib: Number($("transfer-outbox-mib").value)};
+}
+function showTransferLimits(result) {
+  if (!transferLimitsDirty) {
+    $("transfer-file-mib").value = result.file_limit_mib;
+    $("transfer-inbox-mib").value = result.inbox_quota_mib;
+    $("transfer-outbox-mib").value = result.outbox_quota_mib;
+  }
+  $("transfer-limits-usage").replaceChildren(
+    label("p", "Inbox: {bytes} B · reserved incoming: {incoming} B · reserved outgoing: {outgoing} B",
+      {bytes: result.inbox_bytes, incoming: result.reserved_incoming_bytes, outgoing: result.reserved_outgoing_bytes}));
+}
+$("transfer-limits-form").addEventListener("input", () => { transferLimitsDirty = true; });
+$("transfer-limits-form").addEventListener("submit", event => {
+  event.preventDefault();
+  const input = transferLimitsInput();
+  const button = event.currentTarget.querySelector("button");
+  safe(async () => {
+    button.disabled = true;
+    try {
+      const result = await api("network/transfer-configure", "POST", input);
+      ++transferLimitsRevision;
+      if (JSON.stringify(input) === JSON.stringify(transferLimitsInput())) transferLimitsDirty = false;
+      showTransferLimits(result);
+    } finally { button.disabled = false; }
+  });
+});
 function serviceInput() {
   return {platform: $("service-platform").value, executable: $("service-executable").value,
     target_state: $("service-state").value, port: Number($("service-port").value)};
@@ -163,6 +193,9 @@ async function select(project) {
     if (s.block_storage) card.append(label("p", "Block data: {written} bytes written · {reused} bytes reused", {written: s.block_storage.new_block_bytes, reused: s.block_storage.reused_block_bytes}));
     return card;
   }));
+  const revision = transferLimitsRevision;
+  const limits = await api("network/transfer-limits");
+  if (selected === project.id && revision === transferLimitsRevision) showTransferLimits(limits);
 }
 $("backup-blocks").addEventListener("change", () => {
   backupStorageDirty = true;
@@ -344,8 +377,10 @@ async function loadTransfers() {
   const project = selected;
   if (!project) return;
   const request = ++transferLoad;
-  const result = await api("network/transfers", "POST", {project});
+  const revision = transferLimitsRevision;
+  const [result, limits] = await Promise.all([api("network/transfers", "POST", {project}), api("network/transfer-limits")]);
   if (selected !== project || request !== transferLoad) return;
+  if (revision === transferLimitsRevision) showTransferLimits(limits);
   $("transfer-records").replaceChildren();
   if (!result.files.length) $("transfer-records").append(label("p", "No direct transfers"));
   for (const file of result.files) {

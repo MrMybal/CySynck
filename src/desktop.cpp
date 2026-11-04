@@ -69,6 +69,17 @@ static void localize() {
     c::registerTranslations(
         "fr",
         {{"Direct transfers", "Transferts directs"},
+         {"Profile transfer limits", "Limites de transfert du profil"},
+         {"These limits apply to all projects. Existing transfers keep their reserved size.",
+          "Ces limites concernent tous les projets. Les transferts existants conservent leur "
+          "taille réservée."},
+         {"File limit (MiB)", "Limite par fichier (Mio)"},
+         {"Inbox quota (MiB)", "Quota de réception (Mio)"},
+         {"Outbox quota (MiB)", "Quota d'envoi (Mio)"},
+         {"Save transfer limits", "Enregistrer les limites de transfert"},
+         {"Inbox bytes", "Octets reçus"},
+         {"Reserved incoming bytes", "Octets réservés en réception"},
+         {"Reserved outgoing bytes", "Octets réservés en envoi"},
          {"Reuse blocks for large files", "Réutiliser les blocs des gros fichiers"},
          {"Blocks of 4 MiB are reused for files from 8 MiB to 256 GiB.",
           "Les blocs de 4 Mio sont réutilisés pour les fichiers de 8 Mio à 256 Gio."},
@@ -456,7 +467,7 @@ class App {
         incoming = Json::array(), messages = Json::array(), engine_state, engine_devices,
         startup_state, backup_check, restore_preview, storage_state, conflict_state, conflict_diff,
         resolution_preview, resolution_preview_input, resolution_history, received_state,
-        doctor_state, service_preview, service_preview_input, transfer_state;
+        doctor_state, service_preview, service_preview_input, transfer_state, transfer_limits_state;
     std::string view = "Overview", selected, theme = "mid-grey", language = "en", error, output,
                 query, baseline, comparison_snapshot, destination, restore_id, compare_left,
                 compare_right, selected_conflict, merged_content, selected_resolution,
@@ -468,6 +479,8 @@ class App {
     bool received_loaded = false;
     bool reuse_blocks = true;
     bool send_legacy = false;
+    bool transfer_limits_dirty = false;
+    int transfer_file_mib = 1024, transfer_inbox_mib = 4096, transfer_outbox_mib = 4096;
     int mode = 0, interval = 60, keep = 30;
     std::string name, root, exchange, shared_id;
     std::string vpn_name, vpn_address = "10.77.0.1", vpn_endpoint, chat_peer, chat_text, send_path;
@@ -623,8 +636,9 @@ class App {
              std::function<void(const Json &)> done = {}) {
         submit(
             [this, action, data] {
-                return core.request(action == "status" ? "GET" : "POST", "/api/network/" + action,
-                                    data);
+                return core.request(action == "status" || action == "transfer-limits" ? "GET"
+                                                                                      : "POST",
+                                    "/api/network/" + action, data);
             },
             [this, done](const Json &result) {
                 output = result.dump(2);
@@ -1958,12 +1972,58 @@ class App {
             });
         };
         c::space(8);
+        if (transfer_limits_state.is_null() && !busy())
+            net("transfer-limits", Json::object(), [this](const Json &result) {
+                transfer_limits_state = result;
+                if (!transfer_limits_dirty) {
+                    transfer_file_mib = result.at("file_limit_mib");
+                    transfer_inbox_mib = result.at("inbox_quota_mib");
+                    transfer_outbox_mib = result.at("outbox_quota_mib");
+                }
+            });
+        c::beginCard("transfer-limits", c::tr("Profile transfer limits").c_str());
+        ImGui::TextWrapped(
+            "%s",
+            c::tr(
+                "These limits apply to all projects. Existing transfers keep their reserved size.")
+                .c_str());
+        ImGui::BeginDisabled(busy() || transfer_limits_state.is_null());
+        if (c::beginProperties("transfer-limit-fields")) {
+            c::property(c::tr("File limit (MiB)").c_str());
+            transfer_limits_dirty |= ImGui::InputInt("##transfer-file-mib", &transfer_file_mib);
+            c::property(c::tr("Inbox quota (MiB)").c_str());
+            transfer_limits_dirty |= ImGui::InputInt("##transfer-inbox-mib", &transfer_inbox_mib);
+            c::property(c::tr("Outbox quota (MiB)").c_str());
+            transfer_limits_dirty |= ImGui::InputInt("##transfer-outbox-mib", &transfer_outbox_mib);
+            c::endProperties();
+        }
+        if (button("Save transfer limits"))
+            net("transfer-configure",
+                {{"file_limit_mib", transfer_file_mib},
+                 {"inbox_quota_mib", transfer_inbox_mib},
+                 {"outbox_quota_mib", transfer_outbox_mib}},
+                [this](const Json &result) {
+                    transfer_limits_state = result;
+                    transfer_limits_dirty = false;
+                });
+        ImGui::EndDisabled();
+        if (!transfer_limits_state.is_null()) {
+            for (const auto &[key, title] : std::vector<std::pair<std::string, std::string>>{
+                     {"inbox_bytes", "Inbox bytes"},
+                     {"reserved_incoming_bytes", "Reserved incoming bytes"},
+                     {"reserved_outgoing_bytes", "Reserved outgoing bytes"}})
+                text(c::tr(title.c_str()) + ": " + transfer_limits_state.at(key).dump());
+        }
+        c::endCard();
+        c::space(8);
         c::beginCard("transfers", c::tr("Direct transfers").c_str());
         c::textDim("%s", c::tr("Resume uses a frozen copy of the source. Both peers need an active "
                                "VPN and receiver.")
                              .c_str());
-        if (button("Refresh transfers"))
-            load();
+        if (button("Refresh transfers")) {
+            transfer_limits_state = nullptr;
+            transfer_state = nullptr;
+        }
         if (transfer_state.is_null() && !busy())
             load();
         if (!transfer_state.is_null()) {
@@ -1994,8 +2054,10 @@ class App {
                                                  "and VPN, then resume.")
                                          .c_str());
                 auto doneAction = [this, id](const Json &) {
-                    if (selected == id)
+                    if (selected == id) {
                         transfer_state = nullptr;
+                        transfer_limits_state = nullptr;
+                    }
                 };
                 if (direction == "out" && !file.at("delivered").get<bool>()) {
                     if (button("Resume transfer"))
@@ -2141,8 +2203,10 @@ class App {
                  {"path", send_path},
                  {"legacy", send_legacy}},
                 [this, id = selected](const Json &) {
-                    if (selected == id)
+                    if (selected == id) {
                         transfer_state = nullptr;
+                        transfer_limits_state = nullptr;
+                    }
                 });
         ImGui::Checkbox(c::trLabel("Legacy peer (single request)").c_str(), &send_legacy);
         for (auto &m : messages) {

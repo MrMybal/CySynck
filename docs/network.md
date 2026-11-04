@@ -94,10 +94,12 @@ son propre chiffrement TLS. Les connexions sortantes se lient à l'adresse VPN c
 Le récepteur vérifie l'adresse VPN, le peer épinglé, son autorisation pour le projet et
 le secret de groupe. Ne pas configurer ces adresses sur une interface publique ou en clair.
 
-Limites actuelles : 16 Ko par message UTF-8, 100 Mio par fichier, 1 Gio de fichiers reçus,
+Limites par défaut : 16 Ko par message UTF-8, 1 Gio par fichier, 4 Gio par quota de réception et d'envoi,
 2000 éléments d'historique local. Depuis la version 0.10, les fichiers sont envoyés par blocs
 de 1 Mio vérifiés, avec copie source figée et reprise explicite après interruption :
 `transfers list PROJECT_ID`, puis `transfers resume PROJECT_ID TRANSFER_ID`.
+Depuis la version 0.12, `transfers configure` et les interfaces permettent de régler les limites
+jusqu'à 4 Gio par fichier et 64 Gio par quota. Ces valeurs concernent tous les projets du profil.
 Les réservations des fichiers en cours comptent dans le quota de réception. Pour un ancien
 récepteur, utiliser `send-file ... --legacy true`. Voir le [protocole et les limites](transfers.md)
 (anglais). Les accusés de lecture et la livraison différée restent à implémenter.

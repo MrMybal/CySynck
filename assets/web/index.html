@@ -92,6 +92,17 @@
   <section id="transfer-panel" hidden>
     <h3 data-i18n>Direct transfers</h3>
     <p data-i18n>Resume uses a frozen copy of the source. Both peers need an active VPN and receiver.</p>
+    <details>
+      <summary data-i18n>Profile transfer limits</summary>
+      <p data-i18n>These limits apply to all projects. Existing transfers keep their reserved size.</p>
+      <form id="transfer-limits-form">
+        <label><span data-i18n>File limit (MiB)</span><input type="number" id="transfer-file-mib" min="1" max="4096" step="1" required></label>
+        <label><span data-i18n>Inbox quota (MiB)</span><input type="number" id="transfer-inbox-mib" min="1" max="65536" step="1" required></label>
+        <label><span data-i18n>Outbox quota (MiB)</span><input type="number" id="transfer-outbox-mib" min="1" max="65536" step="1" required></label>
+        <button data-i18n>Save transfer limits</button>
+      </form>
+      <div id="transfer-limits-usage" aria-live="polite"></div>
+    </details>
     <form id="transfer-send">
       <input id="transfer-peer" required data-i18n-placeholder="Peer ID" data-i18n-aria="Peer ID">
       <input id="transfer-path" required data-i18n-placeholder="Relative file path" data-i18n-aria="Relative file path">

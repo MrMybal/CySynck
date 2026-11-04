@@ -12,6 +12,11 @@ par profil pour le desktop et dans le navigateur pour le Web.
 
 ## Démarrer
 
+La version 0.12 porte les transferts directs à 1 Gio par fichier par défaut, réglable jusqu'à
+4 Gio. Les quotas de réception et d'envoi sont séparés : 4 Gio par défaut, jusqu'à 64 Gio chacun.
+Le CLI, le desktop et le Web permettent de régler ces limites par profil. La copie source figée
+est créée en flux, sans objet de sauvegarde supplémentaire. Voir le [guide des transferts](docs/transfers.md).
+
 La version 0.11 ajoute la déduplication des sauvegardes par blocs de 4 Mio pour les fichiers
 de 8 Mio à 256 Gio. Les blocs inchangés sont réutilisés entre versions et projets ; les anciennes
 sauvegardes restent lisibles. Le mode est réglable dans le CLI, le desktop et le Web.
@@ -19,7 +24,7 @@ Voir le [guide du stockage par blocs](docs/block-backups.md) (anglais).
 
 La version 0.10 a ajouté les transferts directs reprenables : blocs de 1 Mio vérifiés par SHA-256,
 copie source figée et progression conservée après interruption. Le CLI, la vue Réseau du desktop
-et la console Web permettent de reprendre un transfert. La limite reste de 100 Mio par fichier.
+et la console Web permettent de reprendre un transfert. La limite initiale de 100 Mio a été relevée en 0.12.
 Voir le [guide des transferts](docs/transfers.md) (anglais).
 
 Prérequis : CMake 3.24+, Git et un compilateur C++20. Les dépendances sont récupérées par CMake.
@@ -39,7 +44,7 @@ Linux : `dist/bin/cysynck-desktop`. macOS : `open dist/CySynck.app`.
 Le CLI reste disponible avec `dist/bin/cysynck help` sur ces deux plateformes.
 Les scripts `scripts/build.ps1` et `scripts/build.sh` exécutent ces étapes.
 
-La version 0.11.0 prépare des archives `.tar.gz` pour Linux et ZIP pour Windows/macOS.
+La version 0.12.0 prépare des archives `.tar.gz` pour Linux et ZIP pour Windows/macOS.
 Le bundle macOS contient son cœur, ses ressources Web et ses licences. Voir le
 [guide des paquets et de compilation croisée Linux](docs/packaging.md) (anglais).
 
@@ -326,7 +331,10 @@ Elle ne transforme pas un relais Syncthing en relais WireGuard.
 
 L'activation du tunnel exige les droits système adaptés. Aucun tunnel ni route n'est créé
 au simple démarrage de CySynck. Le canal direct écoute uniquement sur l'adresse VPN configurée.
-Cette version limite chaque fichier direct à 100 Mio et la boîte de réception à 1 Gio.
+La limite par fichier direct est de 1 Gio par défaut, réglable jusqu'à 4 Gio. Les quotas
+de réception et d'envoi sont de 4 Gio chacun par défaut, réglables jusqu'à 64 Gio par profil :
+`transfers limits`, puis `transfers configure --file-limit-mib 4096 --inbox-quota-mib 8192 --outbox-quota-mib 8192`.
+Les deux pairs doivent accepter la taille choisie. Le mode ancien pair reste limité à 100 Mio.
 
 La vue **Réseau → Ouvrir les fichiers reçus** permet de consulter la boîte de réception,
 vérifier un fichier et exporter sa copie sans supprimer l'original reçu. Le Web et le CLI
