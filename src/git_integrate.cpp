@@ -1,6 +1,7 @@
 #include "git_integrate.hpp"
 #include "backup.hpp"
 #include "git_lfs.hpp"
+#include "git_blobs.hpp"
 #include "git_paths.hpp"
 #include "git_review.hpp"
 #include <algorithm>
@@ -168,11 +169,12 @@ Json tree(const Git &git, const std::string &commit,
         if (parsed.ec != std::errc{} || parsed.ptr != bytes.data() + bytes.size() ||
             length > 1024ull * 1024 * 1024)
             throw std::runtime_error("Git integration supports ordinary blobs up to 1 GiB");
-        if (length < 1024 && !git_lfs_pointer(git.get({"cat-file", "blob", oid})).is_null())
-            throw std::runtime_error("LFS revisions require separate extraction; Git integration "
-                                     "does not hydrate assets yet");
         entries.push_back({{"path", name}, {"mode", mode}, {"oid", oid}, {"bytes", length}});
     }
+    for (const auto &[id, bytes] : git_small_blobs(git.project, entries))
+        if (!git_lfs_pointer(bytes).is_null())
+            throw std::runtime_error("LFS revisions require separate extraction; Git integration "
+                                     "does not hydrate assets yet");
     uintmax_t total = 0;
     std::string names;
     for (const auto &entry : entries) {
