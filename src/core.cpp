@@ -1024,7 +1024,13 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
         result = git_materializations(state_, p, data);
     else if (action == "git-materialization-check")
         result = check_git_materialization(state_, p, data);
-    else if (action == "git-materialization-acknowledge") {
+    else if (action == "git-materialization-resume") {
+        result = resume_git_materialization(state_, p, data);
+        if (result.value("resumed", false))
+            event(p.at("id"), "git",
+                  "Interrupted LFS publication completed from verified staging; original pointers "
+                  "preserved");
+    } else if (action == "git-materialization-acknowledge") {
         result = acknowledge_git_materialization(state_, p, data);
         event(p.at("id"), "git",
               "Interrupted LFS materialization marked as reviewed; recovery files preserved");

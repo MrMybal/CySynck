@@ -673,6 +673,19 @@ Json read_materialization(const fs::path &state, const Json &p, const std::strin
         (!record.at("acknowledged_at").is_string() || record.at("status") != "incomplete" ||
          !record.contains("acknowledgement") || !record.at("acknowledgement").is_object()))
         throw std::runtime_error("Invalid LFS receipt acknowledgement");
+    if (record.contains("resume")) {
+        const auto &resume = record.at("resume");
+        if (!resume.is_object() || !resume.at("attempt").is_number_unsigned() ||
+            resume.at("attempt").get<uintmax_t>() == 0 ||
+            resume.at("attempt").get<uintmax_t>() > 1000 || !resume.at("started").is_string() ||
+            (resume.at("status") != "incomplete" && resume.at("status") != "complete") ||
+            (resume.at("status") == "complete" &&
+             (record.at("status") != "complete" || !resume.at("completed").is_string())) ||
+            (resume.contains("error") &&
+             (!resume.at("error").is_string() ||
+              resume.at("error").get_ref<const std::string &>().size() > 2048)))
+            throw std::runtime_error("Invalid LFS publication resume metadata");
+    }
     return record;
 }
 Json materialization_summary(const Json &record) {
@@ -685,6 +698,7 @@ Json materialization_summary(const Json &record) {
             {"files", record.at("pending")},
             {"bytes", record.at("bytes")},
             {"files_written", record.at("files_written")},
+            {"resume", record.value("resume", Json(nullptr))},
             {"recovery_directory", record.at("recovery_directory")},
             {"acknowledged", acknowledged},
             {"needs_attention", record.at("status") == "incomplete" && !acknowledged}};
@@ -768,7 +782,8 @@ Json git_materializations(const fs::path &state, const Json &project, const Json
             {"errors", errors},
             {"unindexed", unknown}};
 }
-Json check_git_materialization(const fs::path &state, const Json &project, const Json &data) {
+static Json materialization_check(const fs::path &state, const Json &project, const Json &data,
+                                  bool own_lock) {
     auto id = data.at("receipt").get<std::string>();
     auto record = read_materialization(state, project, id);
     Json result{{"record", materialization_summary(record)},
@@ -779,12 +794,13 @@ Json check_git_materialization(const fs::path &state, const Json &project, const
                 {"files", Json::array()},
                 {"errors", Json::array()},
                 {"can_acknowledge", false},
+                {"can_resume", false},
                 {"plan", nullptr}};
     try {
         layout(project);
         auto root = fs::u8path(project.at("root").get<std::string>());
         auto head = git_local_head(project);
-        if (fs::exists(project_child(root, ".git/cysynck-integration.lock")))
+        if (!own_lock && fs::exists(project_child(root, ".git/cysynck-integration.lock")))
             throw std::runtime_error(
                 "An integration lock is present; inspect it before checking LFS recovery");
         auto current_index = sha256(read_git(project, {"ls-files", "--stage", "-z"}));
@@ -882,14 +898,165 @@ Json check_git_materialization(const fs::path &state, const Json &project, const
         bool exact = result.at("position") == "before" || result.at("position") == "after";
         result["can_acknowledge"] = result.at("record").at("needs_attention").get<bool>() &&
                                     exact && result.at("errors").empty();
+        result["can_resume"] = result.at("record").at("needs_attention").get<bool>() &&
+                               result.at("context_matches").get<bool>() &&
+                               result.at("errors").empty() &&
+                               after_count + interrupted_count == total;
         if (result.at("can_acknowledge").get<bool>())
             result["plan"] = sha256(result.dump());
     } catch (const std::exception &e) {
         result["can_acknowledge"] = false;
+        result["can_resume"] = false;
         result["plan"] = nullptr;
         result["errors"].push_back(e.what());
     }
     return result;
+}
+Json check_git_materialization(const fs::path &state, const Json &project, const Json &data) {
+    return materialization_check(state, project, data, false);
+}
+namespace {
+Json resume_fingerprint(const fs::path &path, const Json &expected) {
+    bool digest = fs::is_regular_file(path) && Json(fs::file_size(path)) == expected.at("bytes");
+    return fingerprint(path, digest);
+}
+Json resume_inspection(const fs::path &state, const Json &project, const Json &data,
+                       bool own_lock) {
+    auto checked = materialization_check(state, project, data, own_lock);
+    size_t published = 0, pending = 0;
+    for (const auto &file : checked.at("files")) {
+        if (file.at("position") == "after")
+            ++published;
+        if (file.at("position") == "interrupted")
+            ++pending;
+    }
+    const auto &previous = checked.at("record").at("resume");
+    bool exhausted = !previous.is_null() && previous.at("attempt").get<uintmax_t>() >= 1000;
+    Json result{{"project", project.at("id")},
+                {"state", path_string(fs::absolute(state))},
+                {"project_hash", sha256(project.dump())},
+                {"receipt", data.at("receipt")},
+                {"check", checked},
+                {"already_published", published},
+                {"pending_publications", pending},
+                {"can_resume", checked.at("can_resume").get<bool>() && !exhausted},
+                {"resumed", false},
+                {"plan", nullptr},
+                {"config_hash", nullptr}};
+    if (exhausted)
+        result["check"]["errors"].push_back(
+            "LFS publication resume reached 1000 attempts; inspect recovery manually");
+    if (result.at("can_resume").get<bool>()) {
+        result["config_hash"] = sha256(read_git(project, {"config", "--null", "--list"}));
+        if (result.dump().size() > 8 * 1024 * 1024)
+            throw std::runtime_error("LFS resume inspection exceeds 8 MiB");
+        result["plan"] = sha256(result.dump());
+    }
+    return result;
+}
+} // namespace
+Json resume_git_materialization(const fs::path &state, const Json &project, const Json &data) {
+    auto result = resume_inspection(state, project, data, false);
+    if (!data.value("apply", false))
+        return result;
+    if (!result.at("can_resume").get<bool>() || !data.contains("plan") ||
+        data.at("plan") != result.at("plan"))
+        throw std::runtime_error(
+            "LFS publication resume is blocked or its plan changed; preview again");
+    auto root = fs::u8path(project.at("root").get<std::string>());
+    auto lock = project_child(root, ".git/cysynck-integration.lock");
+    if (!fs::create_directory(lock))
+        throw std::runtime_error(
+            "Another Git integration or LFS recovery is active; inspect the existing lock");
+    struct Unlock {
+        fs::path path;
+        ~Unlock() {
+            std::error_code error;
+            fs::remove(path, error);
+        }
+    } unlock{lock};
+    if (resume_inspection(state, project, data, true).at("plan") != result.at("plan"))
+        throw std::runtime_error("LFS publication changed while acquiring its recovery lock");
+    auto id = data.at("receipt").get<std::string>();
+    auto record = read_materialization(state, project, id);
+    if (Json(sha256(record.dump())) != result.at("check").at("receipt_hash"))
+        throw std::runtime_error("LFS receipt changed before publication resume");
+    auto attempt =
+        record.contains("resume") ? record.at("resume").at("attempt").get<size_t>() + 1 : size_t{1};
+    record["resume"] = {{"attempt", attempt},
+                        {"started", timestamp()},
+                        {"status", "incomplete"},
+                        {"previous_files_written", record.at("files_written")}};
+    record["phase"] = "publishing";
+    record["files_written"] = result.at("already_published");
+    auto receipt = materialization_receipt(state, project, id);
+    atomic_write(receipt, record.dump(2), true);
+    try {
+        std::map<std::string, Json> selected;
+        for (const auto &file : record.at("files"))
+            if (file.at("state") == "pointer")
+                selected.emplace(file.at("path"), file);
+        size_t written = result.at("already_published").get<size_t>();
+        for (const auto &file : result.at("check").at("files")) {
+            if (file.at("position") == "after")
+                continue;
+            auto name = file.at("path").get<std::string>();
+            auto target = project_child(root, name);
+            auto relative = record.at("recovery_directory").get<std::string>();
+            auto original = project_child(root, relative + "/before/" + name);
+            auto staged = project_child(root, relative + "/after/" + name);
+            if (resume_fingerprint(target, file.at("current")) != file.at("current") ||
+                resume_fingerprint(original, file.at("original")) != file.at("original") ||
+                resume_fingerprint(staged, file.at("staged")) != file.at("staged"))
+                throw std::runtime_error("LFS recovery files changed before resumed publication");
+            permissions(original, staged);
+            publish(staged, project_child(root, name));
+            if (!matches(resume_fingerprint(project_child(root, name), file.at("staged")),
+                         selected.at(name).at("asset")) ||
+                resume_fingerprint(original, file.at("original")) != file.at("original"))
+                throw std::runtime_error(
+                    "Resumed LFS bytes or preserved pointer changed during publication");
+            record["files_written"] = ++written;
+            if (written % 16 == 0)
+                atomic_write(receipt, record.dump(2), true);
+        }
+        auto verified = materialization_check(state, project, data, true);
+        if (verified.at("position") != "after" || !verified.at("context_matches").get<bool>() ||
+            !verified.at("errors").empty() ||
+            verified.at("current_index_file_hash") !=
+                result.at("check").at("current_index_file_hash") ||
+            Json(sha256(read_git(project, {"config", "--null", "--list"}))) !=
+                result.at("config_hash"))
+            throw std::runtime_error("Git context or LFS files changed during resumed publication");
+        record["resume"]["status"] = "complete";
+        record["resume"]["completed"] = timestamp();
+        record.update({{"status", "complete"},
+                       {"phase", "complete"},
+                       {"applied", true},
+                       {"files_written", record.at("pending")},
+                       {"can_materialize", false},
+                       {"plan", nullptr}});
+        atomic_write(receipt, record.dump(2), true);
+    } catch (const std::exception &error) {
+        record.update({{"status", "incomplete"},
+                       {"applied", false},
+                       {"phase", "publishing"},
+                       {"can_materialize", false},
+                       {"plan", nullptr}});
+        record["resume"]["status"] = "incomplete";
+        record["resume"].erase("completed");
+        record["resume"]["error"] = std::string(error.what()).substr(0, 2048);
+        try {
+            atomic_write(receipt, record.dump(2), true);
+        } catch (const std::exception &) {
+        }
+        throw std::runtime_error("LFS publication resume incomplete; inspect the preserved receipt "
+                                 "and recovery files: " +
+                                 path_string(receipt) + ": " + error.what());
+    }
+    auto response = record;
+    response["resumed"] = true;
+    return response;
 }
 Json acknowledge_git_materialization(const fs::path &state, const Json &project, const Json &data) {
     auto checked = check_git_materialization(state, project, data);
