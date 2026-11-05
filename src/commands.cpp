@@ -64,7 +64,8 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   git merge-review ID PEER_ID BRANCH  (committed three-way file overview; no application)
   git merge-file ID PEER_ID BRANCH PATH [--base COMMIT --head COMMIT --local-ref REF --merge-base COMMIT]
   git merge ID PEER_ID BRANCH [--apply true --plan PREVIEW_TOKEN]
-      [--base COMMIT --head COMMIT --local-ref REF]  (reviewed conflict-free divergent merge)
+      [--base COMMIT --head COMMIT --local-ref REF --resolutions FILE.json]
+      (reviewed divergent merge; choose whole local/peer files for text conflicts)
   git integrations ID [--offset 0 --limit 20]
   git integration-check ID RECEIPT_ID
   git integration-acknowledge ID RECEIPT_ID --plan CHECK_TOKEN  (preserve receipt and Git files)
@@ -397,7 +398,8 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
         if (command == "integrate" || command == "merge")
             for (const auto &[flag, value] : flags)
                 if (flag != "--base" && flag != "--head" && flag != "--local-ref" &&
-                    flag != "--apply" && flag != "--plan")
+                    flag != "--apply" && flag != "--plan" &&
+                    !(command == "merge" && flag == "--resolutions"))
                     throw std::runtime_error("Unknown Git integration flag: " + flag);
         if (command == "review" || command == "review-file" || command == "history" ||
             command == "commit" || command == "commit-file" || command == "extract" ||
@@ -409,6 +411,9 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
                         ? 6
                         : 5);
             data = {{"peer", args[3]}, {"branch", args[4]}};
+            if (command == "merge" && flags.contains("--resolutions"))
+                data["resolutions"] =
+                    Json::parse(read_file(fs::u8path(flags.at("--resolutions")), 1024 * 1024));
             if (command == "review-file" || command == "merge-file")
                 data["path"] = args[5];
             if (flags.contains("--merge-base"))

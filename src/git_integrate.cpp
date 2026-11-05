@@ -209,6 +209,27 @@ bool object_id(const std::string &value) {
     return (value.size() == 40 || value.size() == 64) &&
            value.find_first_not_of("0123456789abcdef") == value.npos;
 }
+Json merge_resolutions(const Json &value) {
+    if (!value.is_array() || value.size() > 10000 || value.dump().size() > 1024 * 1024)
+        throw std::runtime_error(
+            "Git resolutions require an array bounded to 10000 paths and 1 MiB");
+    std::map<std::string, Json> ordered;
+    std::map<std::string, std::string, GitPathLess> paths;
+    for (const auto &entry : value) {
+        if (!entry.is_object() || entry.size() != 2 || !entry.contains("path") ||
+            !entry.at("path").is_string() || !entry.contains("side") ||
+            (entry.at("side") != "local" && entry.at("side") != "peer"))
+            throw std::runtime_error("Each Git resolution requires only path and side local|peer");
+        auto name = entry.at("path").get<std::string>();
+        validate_git_path(name, paths);
+        if (!ordered.emplace(name, entry).second)
+            throw std::runtime_error("Duplicate Git conflict resolution path");
+    }
+    Json result = Json::array();
+    for (const auto &[name, entry] : ordered)
+        result.push_back(entry);
+    return result;
+}
 void merge_environment() {
     for (auto key : {"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_AUTHOR_DATE", "GIT_COMMITTER_NAME",
                      "GIT_COMMITTER_EMAIL", "GIT_COMMITTER_DATE"})
@@ -396,7 +417,8 @@ struct MergeWorkspace {
         }
     }
     Json calculate(const Json &base, const Json &head, const std::string &ancestor,
-                   std::map<std::string, std::string, GitPathLess> &paths) {
+                   std::map<std::string, std::string, GitPathLess> &paths,
+                   const Json &resolutions = Json::array()) {
         auto merged = reader->run({"merge-tree", "--write-tree", "--name-only", "--no-messages",
                                    "-z", "--merge-base=" + ancestor, base, head});
         if (merged.code != 0 && merged.code != 1)
@@ -406,21 +428,101 @@ struct MergeWorkspace {
         if (fields.empty() || !object_id(fields.front()))
             throw std::runtime_error("Invalid Git merge tree identity");
         Json conflicts = Json::array();
+        std::set<std::string> conflict_paths;
         for (size_t i = 1; i < fields.size(); ++i) {
             if (fields[i].empty())
                 continue;
             if (conflicts.size() >= 10000 || fields[i].size() > 4096)
                 throw std::runtime_error("Git merge conflict listing exceeds its bound");
             (void)Json(fields[i]).dump();
+            if (!conflict_paths.insert(fields[i]).second)
+                throw std::runtime_error("Duplicate Git conflict path");
             conflicts.push_back(fields[i]);
         }
-        if (merged.code == 0 && !conflicts.empty())
-            throw std::runtime_error("Inconsistent clean Git merge output");
-        return {{"result_tree", fields.front()},
+        if ((merged.code == 0) != conflicts.empty())
+            throw std::runtime_error("Inconsistent Git merge conflict output");
+        std::map<std::string, std::string> choices;
+        for (const auto &entry : merge_resolutions(resolutions)) {
+            if (!conflict_paths.contains(entry.at("path").get<std::string>()))
+                throw std::runtime_error(
+                    "A Git resolution must name an exact current conflict path");
+            choices.emplace(entry.at("path"), entry.at("side"));
+        }
+        Json files = Json::array(), unresolved = Json::array();
+        std::string updates;
+        if (!conflicts.empty()) {
+            std::map<std::string, Json> inventories[3];
+            size_t side = 0;
+            for (const auto &revision : {Json(ancestor), base, head}) {
+                for (const auto &file : tree(*reader, revision, paths, true))
+                    inventories[side].emplace(file.at("path"), file);
+                ++side;
+            }
+            uintmax_t total = 0;
+            for (const auto &conflict : conflicts) {
+                auto name = conflict.get<std::string>();
+                validate_git_path(name, paths);
+                Json versions = Json::array();
+                for (const auto &inventory : inventories) {
+                    auto directory = inventory.lower_bound(name + "/");
+                    if (directory != inventory.end() && directory->first.starts_with(name + "/"))
+                        throw std::runtime_error(
+                            "Structural Git conflicts require manual handling: " + name);
+                    auto found = inventory.find(name);
+                    if (found == inventory.end()) {
+                        versions.push_back(nullptr);
+                        continue;
+                    }
+                    const auto &file = found->second;
+                    auto size = file.at("bytes").get<uintmax_t>();
+                    if (size > 512 * 1024 || total + size > 16 * 1024 * 1024)
+                        throw std::runtime_error(
+                            "Conflict text exceeds 512 KiB per side or 16 MiB total: " + name);
+                    auto content = reader->get({"cat-file", "blob", file.at("oid")});
+                    if (content.size() != size || content.find('\0') != content.npos)
+                        throw std::runtime_error("Binary Git conflicts require manual handling: " +
+                                                 name);
+                    (void)Json(content).dump(); // Reject non-UTF-8 before offering either side.
+                    total += size;
+                    versions.push_back(file);
+                }
+                if (versions.at(1).is_null() && versions.at(2).is_null())
+                    throw std::runtime_error(
+                        "Synthetic Git conflict paths require manual handling: " + name);
+                files.push_back(
+                    {{"path", name}, {"local", versions.at(1)}, {"peer", versions.at(2)}});
+                auto choice = choices.find(name);
+                if (choice == choices.end()) {
+                    unresolved.push_back(name);
+                    continue;
+                }
+                const auto &selected = versions.at(choice->second == "local" ? 1 : 2);
+                updates += selected.is_null() ? "0 " + std::string(fields.front().size(), '0')
+                                              : selected.at("mode").get<std::string>() + " " +
+                                                    selected.at("oid").get<std::string>();
+                updates += '\t';
+                updates += name;
+                updates += '\0';
+            }
+        }
+        bool ready = unresolved.empty();
+        auto result_tree = fields.front();
+        if (ready && !choices.empty()) {
+            // This index belongs to the private bare workspace, never the source repository.
+            reader->get({"read-tree", result_tree});
+            reader->get({"update-index", "-z", "--index-info"}, updates);
+            result_tree = trim(reader->get({"write-tree"}));
+            if (!object_id(result_tree))
+                throw std::runtime_error("Invalid resolved Git tree identity");
+        }
+        return {{"result_tree", result_tree},
                 {"merge_clean", merged.code == 0},
+                {"result_ready", ready},
                 {"conflicts", conflicts},
-                {"files_after",
-                 merged.code == 0 ? tree(*reader, fields.front(), paths, true) : Json::array()}};
+                {"conflict_files", files},
+                {"unresolved_conflicts", unresolved},
+                {"resolutions", merge_resolutions(resolutions)},
+                {"files_after", ready ? tree(*reader, result_tree, paths, true) : Json::array()}};
     }
     std::string import_commit(const Git &target, const Json &review) {
         auto identity = review.at("merge_identity");
@@ -545,6 +647,9 @@ Json local_data(const fs::path &root, const Json &current, const Json &before, c
             {"fingerprint", sha256(entries.dump())}};
 }
 Json inspect(const fs::path &state, const Json &project, const Json &data, bool merging = false) {
+    if (!merging && data.contains("resolutions"))
+        throw std::runtime_error("Conflict resolutions apply only to reviewed divergent merges");
+    auto resolutions = merge_resolutions(data.value("resolutions", Json::array()));
     if (data.contains("commit"))
         throw std::runtime_error(
             "Git integration applies an imported branch head; selected commits use extraction");
@@ -577,7 +682,11 @@ Json inspect(const fs::path &state, const Json &project, const Json &data, bool 
                        {"result_tree", nullptr},
                        {"merge_base", nullptr},
                        {"merge_clean", false},
+                       {"result_ready", false},
                        {"conflicts", Json::array()},
+                       {"conflict_files", Json::array()},
+                       {"unresolved_conflicts", Json::array()},
+                       {"resolutions", resolutions},
                        {"merge_identity", nullptr}});
         result["relation"] = "not_diverged";
         if (base.empty())
@@ -633,11 +742,10 @@ Json inspect(const fs::path &state, const Json &project, const Json &data, bool 
                 overlapping_text(git, ancestor, before, incoming);
                 MergeWorkspace workspace(state, git);
                 result.update(workspace.calculate(result.at("base"), result.at("head"),
-                                                  result.at("merge_base"), paths));
+                                                  result.at("merge_base"), paths, resolutions));
                 after = result.at("files_after");
-                if (!result.at("merge_clean").get<bool>())
-                    block("The repository merge has conflicts; resolve them with manual Git "
-                          "handling");
+                if (!result.at("result_ready").get<bool>())
+                    block("Choose a committed version for every conflict, then preview again");
             }
         } else
             after = incoming;
@@ -724,6 +832,9 @@ Json read_receipt(const fs::path &state, const Json &project, const std::string 
     if (kind != "fast_forward" && kind != "merge")
         throw std::runtime_error("Unknown Git integration receipt kind");
     if (kind == "merge") {
+        if (record.contains("resolutions") &&
+            merge_resolutions(record.at("resolutions")) != record.at("resolutions"))
+            throw std::runtime_error("Invalid canonical Git receipt resolutions");
         for (auto key : {"merge_base", "result_tree"})
             if (!record.at(key).is_string() || !object_id(record.at(key)))
                 throw std::runtime_error("Invalid reviewed merge receipt tree or ancestor");
@@ -776,6 +887,8 @@ Json receipt_summary(const Json &record) {
             summary[key] = record.at(key);
     summary["needs_attention"] =
         record.at("status") == "incomplete" && !record.contains("acknowledged_at");
+    if (record.value("integration_kind", std::string("fast_forward")) == "merge")
+        summary["resolved_conflicts"] = record.value("resolutions", Json::array()).size();
     return summary;
 }
 } // namespace
@@ -904,8 +1017,9 @@ Json check_git_integration(const fs::path &state, const Json &project, const Jso
             overlapping_text(git, original, before, incoming);
             MergeWorkspace workspace(state, git);
             auto calculated =
-                workspace.calculate(record.at("base"), record.at("head"), ancestor, paths);
-            if (!calculated.at("merge_clean").get<bool>() ||
+                workspace.calculate(record.at("base"), record.at("head"), ancestor, paths,
+                                    record.value("resolutions", Json::array()));
+            if (!calculated.at("result_ready").get<bool>() ||
                 calculated.at("result_tree") != record.at("result_tree"))
                 throw std::runtime_error(
                     "Receipt result differs from the recomputed repository merge");
@@ -1036,9 +1150,10 @@ Json integrate_git_branch(const fs::path &state, const Json &project, const Json
             (void)tree(git, result.at("head"), paths, true);
             (void)tree(git, result.at("merge_base"), paths, true);
             MergeWorkspace workspace(state, git);
-            auto merged = workspace.calculate(result.at("base"), result.at("head"),
-                                              result.at("merge_base"), paths);
-            if (!merged.at("merge_clean").get<bool>() ||
+            auto merged =
+                workspace.calculate(result.at("base"), result.at("head"), result.at("merge_base"),
+                                    paths, result.at("resolutions"));
+            if (!merged.at("result_ready").get<bool>() ||
                 merged.at("result_tree") != result.at("result_tree") ||
                 merged.at("files_after") != result.at("files_after"))
                 throw std::runtime_error("Git repository merge result changed; preview again");

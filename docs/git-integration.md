@@ -8,6 +8,8 @@ It creates no merge commit and never rewinds or merges divergent history.
 
 From 0.24, the separate [`git merge` operation](git-divergent-merge.md) can integrate conflict-free
 divergent branches through a whole-repository preview and an explicit two-parent commit.
+From 0.25, that operation also supports explicit whole-file local/peer choices for bounded
+text conflicts, followed by a fresh preview. See its guide for deletion choices and limits.
 
 ## Preview and apply
 

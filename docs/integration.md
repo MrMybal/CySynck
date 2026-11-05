@@ -82,6 +82,11 @@ From 0.24, `git-merge` adds reviewed divergent branch integration through the sa
 Preview returns the complete result tree and identity; explicit application uses its plan token
 and returns a two-parent `result_commit` with a recovery receipt. See [reviewed merge](git-divergent-merge.md).
 
+From 0.25, a `resolutions` array chooses whole `local`/`peer` committed files for supported text
+conflicts, including a missing side's deletion. Each item contains only `path` and `side`.
+Preview and application send the same array; `result_ready` distinguishes a complete candidate
+from unresolved conflicts. Receipt checks recompute these choices through the same C ABI.
+
 Backup storage policies also use the existing ABI: create or update a project with
 `{"backup_storage":"cdc"}`, then use `backup`, `verify`, `restore-plan` and `restore`.
 CDC recipes require core 0.22 or later. See [backup storage](block-backups.md) for bounds,

@@ -90,6 +90,8 @@ ancestor. Pin the overview's values when requesting a file. A changed context is
 refs are checked again after reading. Interfaces pin context and discard stale responses.
 Detached HEAD uses `local_ref:null` (`--local-ref detached` in the CLI). Requests containing
 `apply` or `commit` are rejected. There is no apply action on these routes.
+The separate [`git merge` operation](git-divergent-merge.md) can integrate a reviewed repository
+result; from 0.25 it accepts whole-file local/peer choices for supported text conflicts.
 
 ```sh
 cysynck git merge-file PROJECT_ID PEER_ID BRANCH path.cpp \

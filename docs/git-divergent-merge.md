@@ -1,7 +1,7 @@
-# Reviewed divergent Git merge (0.24)
+# Reviewed divergent Git merge (0.25)
 
 Use **Preview repository merge** in the Git branch comparison view, then **Apply reviewed merge**
-when the whole-repository preview is clean. CyUI and Web default to English and include French.
+when the whole-repository preview is ready. CyUI and Web default to English and include French.
 The CLI and C/C++ SDK use the same core operation:
 
 ```sh
@@ -29,8 +29,53 @@ and object storage are preserved during preview. No merge commit is created by p
 Preview returns the existing integration fields, plus `integration_kind:"merge"`, `merge_base`,
 `merge_clean`, `conflicts`, `result_tree`, `result_commit:null`, `merge_identity` and `merge_message`.
 `files_after` is the complete merged inventory when the tree is clean. Conflict paths come from
-Git's NUL-delimited conflict records. Conflicted or unsupported results have no applicable token.
+Git's NUL-delimited conflict records. Unresolved or unsupported results have no applicable token.
 The separate [three-way file review](git-merge-review.md) remains available to inspect conflicts.
+
+## Choosing committed files for conflicts (0.25)
+
+For supported UTF-8 text conflicts, CyUI and Web offer **Use local file** or **Use peer file**
+for each reported path. A missing side is labelled **Use local deletion** or **Use peer deletion**.
+Use the three-way file review to inspect committed versions before choosing. Each choice replaces
+the **entire file**, including otherwise nonconflicting edits in that file. Other files keep
+their automatic merge result. Editing individual conflict regions remains a separate milestone.
+
+Nothing is selected by default. Changing or clearing a choice disables application until another
+preview succeeds. Every conflict needs a choice; partial selection remains blocked. Choices cannot
+override clean files or select arbitrary objects, text or filesystem paths.
+
+The CLI accepts a UTF-8 JSON file through `--resolutions FILE.json`. For example:
+
+```json
+[
+  {"path":"Source/Game.cpp","side":"local"},
+  {"path":"Notes.txt","side":"peer"}
+]
+```
+
+```sh
+cysynck git merge PROJECT_ID PEER_ID BRANCH --resolutions choices.json
+cysynck git merge PROJECT_ID PEER_ID BRANCH --resolutions choices.json --apply true --plan PREVIEW_TOKEN
+```
+
+The API/C SDK accepts the same array in `resolutions`. Send the same choices with application;
+the token binds their canonical path order and the complete resulting tree. Duplicate paths,
+case aliases, unknown conflict paths, extra fields and sides other than `local`/`peer` are refused.
+The array is bounded to 10,000 paths and 1 MiB. Fast-forward integration refuses this field.
+
+Preview adds `conflict_files` (each path's nullable `local`/`peer` file metadata), canonical
+`resolutions`, `unresolved_conflicts` and `result_ready`. `merge_clean` describes the original
+automatic merge: it stays false when explicit choices resolve conflicts. `result_ready:true`
+means the candidate tree is complete; `can_integrate` additionally requires all repository checks
+to pass. `conflicts` retains the original paths even after resolution. An unresolved preview
+exposes no applicable inventory or token; its diagnostic tree may contain conflict markers.
+
+The private repository loads the automatic result into its own index, applies selected committed
+blob identities/modes or deletions with [`git update-index --index-info`](https://git-scm.com/docs/git-update-index#_using_index_info),
+then writes and validates the complete resulting tree. The source index, worktree and object
+storage remain untouched during preview. Apply and receipt checks recompute the same choices.
+Add/add and modify/delete text conflicts are supported. Structural/synthetic paths, binary or
+non-UTF-8 conflicts, oversized text and the other restrictions below require manual Git handling.
 
 Rename detection and renormalization are disabled. Paths are validated across the local, peer,
 ancestor and resulting trees, including unchanged files. Case-only renames and case aliases,
@@ -50,11 +95,11 @@ binary files can be carried unchanged by object identity. Each Git subprocess ha
 timeout. Git must support `merge-tree --write-tree --merge-base` and `check-attr --source`;
 this version was tested with Git 2.45.1.
 
-## Applying a clean result
+## Applying a reviewed result
 
 A valid Git `user.name` and `user.email` are required and shown by preview. Author/committer
 environment overrides must be unset. The token binds the identity, message, complete result
-tree, branch context, configuration, index and unrelated local-data metadata. Dates and random
+tree, explicit conflict choices, branch context, configuration, index and unrelated local-data metadata. Dates and random
 workspace names are excluded, so an unchanged preview remains stable across requests.
 
 Application uses the same clean-index/raw-working-file checks, local-data collision checks and
@@ -70,7 +115,7 @@ the exact resulting tree's raw file identities, index cleanliness, executable pe
 POSIX and preserved local-data metadata. Success returns `result_commit`, `applied:true` and
 `status:"complete"`. Peer tracking refs remain available as before.
 
-Existing conflicts, staged or modified tracked files and local path collisions are refused.
+Existing in-progress Git operations, unresolved choices, staged or modified tracked files and local path collisions are refused.
 Unrelated untracked and ignored regular files are preserved. Close other Git clients and avoid
 concurrent edits: this lock is specific to CySynck and cannot make external programs participate
 in one filesystem transaction. See [local-data freshness](git-integration.md#local-data-freshness).
@@ -81,6 +126,8 @@ Merge receipts use the existing `git-integrations`, `git-integration-check` and
 `git-integration-acknowledge` routes and private `git-integrations/PROJECT/ID.json` location.
 They add the merge kind, result tree, common ancestor, reviewed identity and result commit.
 Use core 0.24 or later to inspect these receipts; older fast-forward receipts remain supported.
+Receipts with explicit conflict choices require core 0.25 or later. They retain canonical
+`resolutions`; paginated summaries add `resolved_conflicts` with the number of choices.
 
 Checks recompute the merged tree in a fresh private workspace and verify it against the receipt.
 They also verify the merge commit's ordered parents, tree, author/committer identity and message when available, the

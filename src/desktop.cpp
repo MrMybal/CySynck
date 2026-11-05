@@ -72,10 +72,24 @@ static void localize() {
         {{"Merge diverged branch", "Fusionner les branches divergentes"},
          {"Preview repository merge", "Prévisualiser la fusion du dépôt"},
          {"Apply reviewed merge", "Appliquer la fusion vérifiée"},
-         {"Creates a reviewed two-parent commit for a conflict-free repository merge. Unrelated "
-          "local data is preserved.",
-          "Crée un commit vérifié à deux parents pour une fusion du dépôt sans conflit. Les "
-          "données locales sans collision sont conservées."},
+         {"Creates a reviewed two-parent merge commit. Choose whole committed files for text "
+          "conflicts, then preview again. Unrelated local data is preserved.",
+          "Crée un commit de fusion vérifié à deux parents. Choisissez les fichiers commités "
+          "entiers pour les conflits de texte, puis prévisualisez à nouveau. Les données locales "
+          "sans collision sont conservées."},
+         {"Each choice replaces the entire file, including nonconflicting changes. A missing "
+          "version deletes it.",
+          "Chaque choix remplace le fichier entier, y compris les changements sans conflit. Une "
+          "version absente le supprime."},
+         {"Use local file", "Utiliser le fichier local"},
+         {"Use peer file", "Utiliser le fichier du pair"},
+         {"Use local deletion", "Utiliser la suppression locale"},
+         {"Use peer deletion", "Utiliser la suppression du pair"},
+         {"Leave unresolved", "Laisser non résolu"},
+         {"Resolved conflicts", "Conflits résolus"},
+         {"Choices changed; preview again", "Choix modifiés : prévisualisez à nouveau"},
+         {"Choose a committed version for every conflict, then preview again",
+          "Choisissez une version commitée pour chaque conflit, puis prévisualisez à nouveau"},
          {"Reviewed result tree", "Arbre résultant vérifié"},
          {"Merge author", "Auteur de la fusion"},
          {"Repository merge conflicts", "Conflits de fusion du dépôt"},
@@ -700,6 +714,7 @@ class App {
     std::string git_initial_branch = "main";
     int git_object_format = 0;
     std::set<std::string> git_storage_selected;
+    std::map<std::string, std::string> git_merge_choices;
     bool git_storage_current = false;
     std::string view = "Overview", selected, theme = "mid-grey", language = "en", error, output,
                 query, baseline, comparison_snapshot, destination, restore_id, compare_left,
@@ -929,6 +944,7 @@ class App {
         git_setup_state = nullptr;
         git_extract_state = git_extract_input = nullptr;
         git_integrate_state = git_integrate_input = nullptr;
+        git_merge_choices.clear();
         git_merge_state = git_merge_file_state = nullptr;
         git_integration_records = git_integration_check = nullptr;
         git_integration_offset = 0;
@@ -2243,6 +2259,9 @@ class App {
                 if (record.contains("result_commit") && record.at("result_commit").is_string())
                     text(c::tr("Merge commit") + ": " +
                          record.at("result_commit").get<std::string>());
+                if (record.contains("resolved_conflicts"))
+                    text(c::tr("Resolved conflicts") + ": " +
+                         record.at("resolved_conflicts").dump());
                 text(c::tr(record.at("status") == "complete" ? "Integration complete"
                                                              : "Integration incomplete"));
                 if (record.contains("acknowledged_at"))
@@ -2307,6 +2326,7 @@ class App {
             git_integration_records = git_integration_check = nullptr;
             git_integration_offset = 0;
             git_integrate_state = git_integrate_input = nullptr;
+            git_merge_choices.clear();
             git_branches = git_review_state = git_review_diff = git_history_state =
                 git_commit_state = git_setup_state = nullptr;
             git_setup_requested = false;
@@ -2446,6 +2466,7 @@ class App {
                                git_review_state = r;
                                git_merge_state = git_merge_file_state = nullptr;
                                git_integrate_state = git_integrate_input = nullptr;
+                               git_merge_choices.clear();
                                git_review_diff = git_history_state = git_commit_state = nullptr;
                            });
                 ImGui::PopID();
@@ -2532,13 +2553,19 @@ class App {
                     "%s",
                     c::tr(
                         merging
-                            ? "Creates a reviewed two-parent commit for a conflict-free repository "
-                              "merge. Unrelated local data is preserved."
+                            ? "Creates a reviewed two-parent merge commit. Choose whole committed "
+                              "files for text conflicts, then preview again. Unrelated local data "
+                              "is preserved."
                             : "Updates the local branch, index and tracked files. Unrelated local "
                               "files are preserved; LFS and checkout filters use separate "
                               "extraction.")
                         .c_str());
                 auto integrateQuery = git_context();
+                if (merging && !git_merge_choices.empty()) {
+                    integrateQuery["resolutions"] = Json::array();
+                    for (const auto &[path, side] : git_merge_choices)
+                        integrateQuery["resolutions"].push_back({{"path", path}, {"side", side}});
+                }
                 text(git_review_state.at("head"));
                 ImGui::BeginDisabled(busy());
                 if (button(merging ? "Preview repository merge" : "Preview integration")) {
@@ -2570,6 +2597,9 @@ class App {
                 }
                 ImGui::EndDisabled();
                 if (merging && !git_integrate_state.is_null() &&
+                    git_integrate_input != integrateQuery)
+                    text(c::tr("Choices changed; preview again"));
+                if (merging && !git_integrate_state.is_null() &&
                     git_integrate_state.value("integration_kind", std::string("fast_forward")) ==
                         "merge") {
                     const auto &merge = git_integrate_state;
@@ -2584,8 +2614,37 @@ class App {
                         text(c::tr("Repository merge conflicts"));
                         ImGui::BeginChild("repository-merge-conflicts", c::dp(0, 160),
                                           ImGuiChildFlags_Borders);
-                        for (const auto &path : merge.at("conflicts"))
-                            text(path.get<std::string>());
+                        text(c::tr("Each choice replaces the entire file, including nonconflicting "
+                                   "changes. A missing version deletes it."));
+                        for (const auto &file : merge.at("conflict_files")) {
+                            auto path = file.at("path").get<std::string>();
+                            ImGui::PushID(path.c_str());
+                            text(path);
+                            auto found = git_merge_choices.find(path);
+                            auto selected_side =
+                                found == git_merge_choices.end() ? "" : found->second;
+                            ImGui::BeginDisabled(busy());
+                            for (auto side : {"local", "peer"}) {
+                                auto label =
+                                    file.at(side).is_null()
+                                        ? (std::string(side) == "local" ? "Use local deletion"
+                                                                        : "Use peer deletion")
+                                        : (std::string(side) == "local" ? "Use local file"
+                                                                        : "Use peer file");
+                                if (ImGui::RadioButton(c::tr(label).c_str(),
+                                                       selected_side == side)) {
+                                    git_merge_choices[path] = side;
+                                    git_integrate_input = nullptr;
+                                }
+                                ImGui::SameLine();
+                            }
+                            if (button("Leave unresolved")) {
+                                git_merge_choices.erase(path);
+                                git_integrate_input = nullptr;
+                            }
+                            ImGui::EndDisabled();
+                            ImGui::PopID();
+                        }
                         ImGui::EndChild();
                     }
                 }

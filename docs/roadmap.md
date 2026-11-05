@@ -1,5 +1,15 @@
 # Development milestones
 
+## Delivered in 0.25
+
+Reviewed divergent Git integration accepts explicit whole-file local/peer choices for bounded
+UTF-8 text conflicts, including add/add and modify/delete cases. Every conflict needs a choice
+and a fresh whole-repository preview. Other files retain their automatic merge result. Private
+index/tree generation preserves the source during preview; apply and recovery receipts recompute
+the exact choices. CLI JSON files, the C/C++ SDK and bilingual CyUI/Web share the operation.
+Per-region editing, LFS and structural/binary conflicts remain future work.
+See [conflict choices](git-divergent-merge.md#choosing-committed-files-for-conflicts-025).
+
 ## Delivered in 0.24
 
 Reviewed integration now supports conflict-free divergent Git branches. A whole-repository
@@ -198,7 +208,7 @@ macOS notarization, signed Windows installers and automatic updates remain separ
 
 - Exercise multi-gigabyte resumable transfers and native Linux/macOS transport and services.
 - Benchmark content-defined backup storage on much larger project trees and real asset workloads.
-- Extend reviewed integration to LFS assets and conflict resolution; extend LFS storage/locking support and verify CyRevision interoperability.
+- Extend reviewed integration to LFS assets and per-region text editing; extend LFS storage/locking support and verify CyRevision interoperability.
 - Design and test WireGuard rendezvous/NAT traversal against real network configurations;
   Syncthing discovery and relays do not themselves provide that transport.
 

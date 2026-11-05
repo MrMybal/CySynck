@@ -10,6 +10,11 @@ Le cœur, le CLI et les identifiants d'API sont en anglais. Les interfaces deskt
 démarrent en anglais et proposent le français comme deuxième langue. Le choix est mémorisé
 par profil pour le desktop et dans le navigateur pour le Web.
 
+La version 0.25 ajoute le choix explicite du fichier local ou de celui du pair pour chaque conflit
+Git de texte, y compris lorsqu'un côté a supprimé le fichier. Chaque choix remplace le fichier
+entier. Il faut résoudre tous les conflits et prévisualiser à nouveau avant application. Le CLI,
+le SDK C/C++ et les interfaces CyUI/Web en anglais et français partagent ces choix et leurs reçus.
+
 La version 0.24 permet de fusionner des branches Git divergentes sans conflit, après un aperçu
 du résultat complet dans un dépôt temporaire privé. L'application explicite crée un commit à
 deux parents, vérifie les fichiers et l'index, et conserve les données locales sans collision.

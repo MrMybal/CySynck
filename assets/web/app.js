@@ -489,6 +489,7 @@ async function loadGitReceipts(offset=0) {
     const card=text("div","","snapshot"),check=label("button","Check integration receipt"),output=text("div","");
     card.append(text("p",record.created+" / "+record.peer+" / "+record.branch),text("p",record.id),label("p",record.status==="complete"?"Integration complete":"Integration incomplete"),text("p",record.receipt_path));
     if(record.result_commit)card.append(label("p","Merge commit"),text("p",record.result_commit));
+    if(record.resolved_conflicts!==undefined)card.append(label("p","Resolved conflicts"),text("p",String(record.resolved_conflicts)));
     if(record.acknowledged_at)card.append(label("p","Recovery reviewed"),text("p",record.acknowledged_at));
     let request=0;
     const current=()=>selected===project && generation===gitReceiptsLoad && card.isConnected;
@@ -623,19 +624,36 @@ function showGitIntegration(project,review,container) {
   const merging=review.relation==="diverged",route=merging?"git-merge":"git-integrate";
   const card=text("div","","snapshot"), preview=label("button",merging?"Preview repository merge":"Preview integration"), apply=label("button",merging?"Apply reviewed merge":"Apply fast-forward"), output=text("div","");
   apply.disabled=true;
-  card.append(label("h4",merging?"Merge diverged branch":"Integrate imported branch"),label("p",merging?"Creates a reviewed two-parent commit for a conflict-free repository merge. Unrelated local data is preserved.":"Updates the local branch, index and tracked files. Unrelated local files are preserved; LFS and checkout filters use separate extraction."),text("p",review.head),preview,apply,output);
+  const hint=text("p","");
+  card.append(label("h4",merging?"Merge diverged branch":"Integrate imported branch"),label("p",merging?"Creates a reviewed two-parent merge commit. Choose whole committed files for text conflicts, then preview again. Unrelated local data is preserved.":"Updates the local branch, index and tracked files. Unrelated local files are preserved; LFS and checkout filters use separate extraction."),text("p",review.head),preview,apply,hint,output);
   container.append(card);
-  let plan=null,request=0;
+  let plan=null,request=0;const choices=new Map();
   const current=()=>selected===project && card.isConnected;
   preview.addEventListener("click",()=>safe(async()=>{
     plan=null;apply.disabled=true;const generation=++request;
-    const query=gitContext(review),result=await api("projects/"+project+"/"+route,"POST",query);
+    const query=gitContext(review);
+    if(merging && choices.size)query.resolutions=Array.from(choices,([path,side])=>({path,side}));
+    const result=await api("projects/"+project+"/"+route,"POST",query);
     if(!current() || generation!==request)return;
-    output.replaceChildren();
+    output.replaceChildren();hint.textContent="";
     if(merging){
       if(result.result_tree)output.append(label("p","Reviewed result tree"),text("p",result.result_tree));
       if(result.merge_identity)output.append(label("p","Merge author"),text("p",result.merge_identity.name+" <"+result.merge_identity.email+">"));
-      if(result.conflicts.length)output.append(label("p","Repository merge conflicts"),text("pre",result.conflicts.join("\n")));
+      if(result.conflicts.length){
+        output.append(label("p","Repository merge conflicts"),label("p","Each choice replaces the entire file, including nonconflicting changes. A missing version deletes it."));
+        for(const file of result.conflict_files){
+          const row=text("label",""),select=document.createElement("select");
+          for(const [value,title] of [["","Leave unresolved"],["local",file.local?"Use local file":"Use local deletion"],["peer",file.peer?"Use peer file":"Use peer deletion"]]){
+            const option=label("option",title);option.value=value;select.append(option);
+          }
+          select.value=choices.get(file.path)||"";
+          select.addEventListener("change",()=>{
+            if(select.value)choices.set(file.path,select.value);else choices.delete(file.path);
+            plan=null;apply.disabled=true;++request;hint.textContent=t("Choices changed; preview again");
+          });
+          row.append(text("span",file.path),select);output.append(row);
+        }
+      }
     }
     if(result.local_data)output.append(label("p","Local files preserved: {files} · {bytes} bytes",result.local_data));
     if(result.errors.length){output.append(label("p","Integration blocked"));for(const reason of result.errors)output.append(label("p",reason));}
@@ -644,13 +662,14 @@ function showGitIntegration(project,review,container) {
   apply.addEventListener("click",()=>safe(async()=>{
     const saved=plan;if(!saved || !current())return;
     plan=null;apply.disabled=true;preview.disabled=true;++request;
+    for(const select of output.querySelectorAll("select"))select.disabled=true;
     try {
       const result=await api("projects/"+project+"/"+route,"POST",{...saved.input,apply:true,plan:saved.token});
       if(!current())return;
       $("git-result").textContent=t("Integration complete")+"\n"+(result.result_commit?result.result_commit+"\n":"")+result.receipt_path;
       await loadGitReceipts();
       await loadGitExchange();
-    } finally {preview.disabled=false;}
+    } finally {preview.disabled=false;for(const select of output.querySelectorAll("select"))select.disabled=false;}
   }));
 }
 function showGitExtraction(project,review,comparison,container) {
