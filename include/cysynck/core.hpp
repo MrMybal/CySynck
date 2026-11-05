@@ -11,7 +11,7 @@
 namespace cysynck {
 using Json = nlohmann::json;
 namespace fs = std::filesystem;
-inline constexpr const char *version = "0.29.0";
+inline constexpr const char *version = "0.30.0";
 fs::path default_state();
 std::string path_string(const fs::path &path);
 bool path_is_link(const fs::path &path);
@@ -78,6 +78,9 @@ class Core {
     void save();
     Json &project(const std::string &id);
     Json modes() const;
+    Json plugin_catalog() const;
+    Json normalized_mode_options(const Json &project) const;
+    Json mode_configuration(const Json &project) const;
     Json backup(const Json &project, const std::string &reason);
     Json snapshots(const std::string &id) const;
     Json capture(const fs::path &path);

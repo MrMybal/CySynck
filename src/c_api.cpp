@@ -38,9 +38,30 @@ int cysynck_request(cysynck_handle handle, const char *method, const char *path,
         output(result, cysynck::Json{{"error", e.what()}}.dump(
                            -1, ' ', false, cysynck::Json::error_handler_t::replace));
         return 1;
+    } catch (...) {
+        output(result, "{\"error\":\"Native plugin request failed\"}");
+        return 1;
     }
 }
 void cysynck_free(char *value) { std::free(value); }
+int cysynck_load_plugin(cysynck_handle handle, const char *path, char **result) {
+    if (result)
+        *result = nullptr;
+    try {
+        if (!handle || !path || !*path || !result)
+            throw std::runtime_error("Invalid plugin API argument");
+        auto core = static_cast<cysynck::Core *>(handle);
+        core->load_plugin(std::filesystem::u8path(path));
+        output(result, core->request("GET", "/api/plugins").dump());
+        return *result ? 0 : 2;
+    } catch (const std::exception &e) {
+        output(result, cysynck::Json{{"error", e.what()}}.dump(
+                           -1, ' ', false, cysynck::Json::error_handler_t::replace));
+    } catch (...) {
+        output(result, "{\"error\":\"Native plugin initialization failed\"}");
+    }
+    return 1;
+}
 void cysynck_close(cysynck_handle handle) { delete static_cast<cysynck::Core *>(handle); }
 unsigned int cysynck_abi_version() { return 1; }
 }

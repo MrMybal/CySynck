@@ -25,6 +25,8 @@ Json Core::sync_action(Json &p, const std::string &action, const Json &data) {
     auto expected = p.at(mode == "git-bundles" ? "exchange_path" : "root").get<std::string>();
     auto usesEngine = mode == "sendreceive" || mode == "sendonly" || mode == "receiveonly" ||
                       mode == "git-bundles";
+    if (action == "sync" && !usesEngine && mode != "backup")
+        (void)normalized_mode_options(p);
     auto check = [&] {
         auto folder = engine_request("GET", "config/folders/" + folderId);
         if (fs::weakly_canonical(fs::u8path(folder.at("path").get<std::string>())) !=

@@ -17,6 +17,10 @@ typedef void *cysynck_handle;
 CYSYNCK_API cysynck_handle cysynck_open(const char *state_path_utf8, char **error_json);
 CYSYNCK_API int cysynck_request(cysynck_handle, const char *method, const char *path,
                                 const char *body_json, char **result_json);
+/* Additive in core 0.30. Loads an explicitly selected trusted native library.
+ * No HTTP equivalent. ABI version remains 1; use a core built with this export. */
+CYSYNCK_API int cysynck_load_plugin(cysynck_handle, const char *library_path_utf8,
+                                   char **result_json);
 CYSYNCK_API void cysynck_free(char *value);
 CYSYNCK_API void cysynck_close(cysynck_handle);
 CYSYNCK_API unsigned int cysynck_abi_version(void);

@@ -3,6 +3,7 @@
 #include <ctime>
 #include <cysynck/core.hpp>
 #include <cysynck/plugin.h>
+#include "plugin_metadata.hpp"
 #include <fstream>
 #include <iomanip>
 #include <picosha2.h>
@@ -314,6 +315,8 @@ std::vector<std::pair<std::string, fs::path>> project_files(const Json &project)
 struct Core::Extension {
     void *library = nullptr;
     const cysynck_plugin_v1 *api = nullptr;
+    fs::path path;
+    Json catalog;
     ~Extension() {
 #ifdef _WIN32
         if (library)
@@ -385,15 +388,68 @@ Json Core::modes() const {
                                                           {"backup", "Backup only"},
                                                           {"git-bundles", "Git exchange"}})
         result.push_back({{"id", key}, {"label", label}});
-    for (auto &ext : plugins_)
-        for (size_t i = 0; i < ext->api->mode_count; ++i)
-            result.push_back({{"id", ext->api->modes[i].id}, {"label", ext->api->modes[i].label}});
+    for (const auto &ext : plugins_)
+        for (const auto &mode : ext->catalog.at("modes"))
+            result.push_back(mode);
+    return result;
+}
+Json Core::plugin_catalog() const {
+    Json plugins = Json::array();
+    for (const auto &ext : plugins_)
+        plugins.push_back(ext->catalog);
+    return {{"abi_version", 1}, {"plugins", plugins}};
+}
+Json Core::normalized_mode_options(const Json &p) const {
+    for (const auto &mode : modes())
+        if (mode.at("id") == p.at("mode"))
+            return validate_mode_options(mode, p.value("mode_options", Json::object()));
+    throw std::runtime_error("Load the plugin providing this mode");
+}
+Json Core::mode_configuration(const Json &p) const {
+    Json result{{"mode", p.at("mode")},       {"available", false},      {"valid", false},
+                {"plugin", nullptr},          {"fields", Json::array()}, {"values", Json::object()},
+                {"defaults", Json::object()}, {"errors", Json::array()}, {"plan", nullptr}};
+    for (const auto &mode : modes()) {
+        if (mode.at("id") != p.at("mode"))
+            continue;
+        result["available"] = true;
+        result["plugin"] = mode.value("plugin", Json());
+        result["fields"] = mode.value("fields", Json::array());
+        result["defaults"] = validate_mode_options(mode, Json::object());
+        result["values"] = result.at("defaults");
+        try {
+            result["values"] = normalized_mode_options(p);
+            result["valid"] = true;
+        } catch (const std::exception &e) {
+            result["errors"].push_back(e.what());
+        }
+        result["schema_hash"] = sha256(mode.dump());
+        result["plan"] = sha256(Json{{"state", path_string(state_)},
+                                     {"project", p.at("id")},
+                                     {"root", p.at("root")},
+                                     {"mode", p.at("mode")},
+                                     {"schema", result.at("schema_hash")},
+                                     {"stored", p.value("mode_options", Json::object())}}
+                                    .dump());
+        return result;
+    }
+    result["errors"].push_back("Load the plugin providing this mode");
     return result;
 }
 void Core::load_plugin(const fs::path &path) {
     std::lock_guard lock(mutex_);
+    if (plugins_.size() >= 32)
+        throw std::runtime_error("At most 32 native plugins can be loaded");
     auto extension = std::make_unique<Extension>();
     auto absolute = fs::canonical(path);
+    if (!fs::is_regular_file(absolute))
+        throw std::runtime_error("Choose a native plugin library file");
+    for (const auto &loaded : plugins_) {
+        std::error_code error;
+        if (loaded->path == absolute || fs::equivalent(loaded->path, absolute, error))
+            throw std::runtime_error("Plugin library is already loaded");
+    }
+    auto digest = sha256_file(absolute);
 #ifdef _WIN32
     extension->library =
         LoadLibraryExW(absolute.c_str(), nullptr,
@@ -412,9 +468,29 @@ void Core::load_plugin(const fs::path &path) {
         throw std::runtime_error("Plugin entry point unavailable");
     extension->api = entry();
     auto api = extension->api;
-    if (!api || api->abi_version != 1 || !api->id || api->mode_count > 100 ||
-        (!api->modes && api->mode_count))
-        throw std::runtime_error("Plugin ABI mismatch");
+#ifdef _WIN32
+    auto descriptor = reinterpret_cast<cysynck_plugin_descriptor_v1>(GetProcAddress(
+        static_cast<HMODULE>(extension->library), "cysynck_get_plugin_descriptor_v1"));
+#else
+    auto descriptor = reinterpret_cast<cysynck_plugin_descriptor_v1>(
+        dlsym(extension->library, "cysynck_get_plugin_descriptor_v1"));
+#endif
+    extension->catalog = describe_plugin(api, descriptor ? descriptor() : nullptr);
+    if (descriptor && !extension->catalog.at("descriptor").get<bool>())
+        throw std::runtime_error("Plugin descriptor export returned no metadata");
+    if (sha256_file(absolute) != digest)
+        throw std::runtime_error("Plugin library changed while loading");
+    extension->path = absolute;
+    extension->catalog["path"] = path_string(absolute);
+    extension->catalog["sha256"] = digest;
+    for (auto &mode : extension->catalog["modes"])
+        mode["schema_hash"] = sha256(Json{
+            {"plugin", extension->catalog.at("id")},
+            {"library", digest},
+            {"mode", mode}}.dump());
+    for (const auto &loaded : plugins_)
+        if (loaded->catalog.at("id") == extension->catalog.at("id"))
+            throw std::runtime_error("Plugin identifier is already loaded");
     std::set<std::string> names;
     for (auto &mode : modes())
         names.insert(mode["id"].get<std::string>());
@@ -444,11 +520,24 @@ Json Core::request_plugin_mode(const Json &p) {
         for (size_t i = 0; i < ext->api->mode_count; ++i) {
             auto &mode = ext->api->modes[i];
             if (p.at("mode") == mode.id) {
-                auto projectJson = p.dump(), context = Json{{"state", path_string(state_)}}.dump();
+                auto resolved = p;
+                resolved["mode_options"] = normalized_mode_options(p);
+                auto projectJson = resolved.dump(),
+                     context = Json{{"state", path_string(state_)},
+                                    {"plugin", ext->catalog.at("id")},
+                                    {"mode_options", resolved.at("mode_options")}}
+                                   .dump();
                 auto result = mode.run(projectJson.c_str(), context.c_str());
                 if (!result)
                     throw std::runtime_error("Plugin returned no result");
-                std::string copy = result;
+                std::string copy;
+                try {
+                    copy = plugin_text(result, 1024 * 1024, true);
+                } catch (...) {
+                    if (ext->api->release_string)
+                        ext->api->release_string(result);
+                    throw;
+                }
                 if (ext->api->release_string)
                     ext->api->release_string(result);
                 return Json::parse(copy);
@@ -691,6 +780,8 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
         std::reverse(list.begin(), list.end());
         return list;
     }
+    if (path == "/api/plugins" && method == "GET")
+        return plugin_catalog();
     if ((path == "/api/storage" && method == "GET") ||
         (path == "/api/storage/prune" && method == "POST")) {
         auto result = storage(path == "/api/storage" ? Json::object() : data);
@@ -771,6 +862,7 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
                 known = true;
         if (!known)
             throw std::runtime_error("Unknown mode; load the appropriate plugin");
+        p["mode_options"] = normalized_mode_options(p);
         if (!p.at("backup_interval_minutes").is_number_integer() ||
             p.at("backup_interval_minutes").get<int>() < 0 ||
             p.at("backup_interval_minutes").get<int>() > 525600 ||
@@ -860,6 +952,22 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
     auto action = suffix.substr(slash + 1);
     auto &p = project(projectId);
     Json result;
+    if (action == "mode-options") {
+        auto config = mode_configuration(p);
+        if (method == "GET")
+            return config;
+        if (method != "PUT")
+            throw std::runtime_error("Method not allowed");
+        if (!config.at("available").get<bool>() || !data.contains("plan") ||
+            data.at("plan") != config.at("plan"))
+            throw std::runtime_error("Mode options or schema changed; load them again");
+        auto candidate = p;
+        candidate["mode_options"] = data.at("values");
+        p["mode_options"] = normalized_mode_options(candidate);
+        event(projectId, "project", "Plugin mode options saved");
+        save();
+        return mode_configuration(p);
+    }
     if (action == "snapshots" && method == "GET") {
         result = snapshots(projectId);
         for (auto &item : result)

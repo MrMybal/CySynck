@@ -27,9 +27,11 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.29 (C++20)
+        return {{"help", R"(CySynck 0.30 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
-  overview | modes | events | api-token
+  overview | modes | plugins | events | api-token
+  project mode-options ID
+  project mode-options-set ID OPTIONS.json --plan TOKEN
   doctor [--probe true]  (test tool versions and engine connection only with --probe)
   service plan --platform linux|macos --executable /absolute/bin/cysynck [--target-state /profile] [--port 8484]
   service export NEW_DIRECTORY --platform ... --executable ... --plan PREVIEW_TOKEN [--target-state ...] [--port ...]
@@ -148,6 +150,12 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
         require(1);
         return core.request("GET", "/api/events");
     }
+    if (args[0] == "plugins") {
+        require(1);
+        if (!flags.empty())
+            throw std::runtime_error("Unexpected plugins flag");
+        return core.request("GET", "/api/plugins");
+    }
     if (args[0] == "api-token") {
         require(1);
         return {{"token", core.api_token()}};
@@ -193,6 +201,20 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
         return core.request(read ? "GET" : "POST", "/api/engine/" + command, data);
     }
     if (args[0] == "project") {
+        if (args.size() > 1 && (args[1] == "mode-options" || args[1] == "mode-options-set")) {
+            bool setting = args[1] == "mode-options-set";
+            require(setting ? 4 : 3);
+            for (const auto &[flag, _] : flags)
+                if (!setting || flag != "--plan")
+                    throw std::runtime_error("Unknown mode option flag: " + flag);
+            if (!setting)
+                return core.request("GET", "/api/projects/" + args[2] + "/mode-options");
+            if (!flags.contains("--plan"))
+                throw std::runtime_error("Load mode options first and supply --plan");
+            return core.request("PUT", "/api/projects/" + args[2] + "/mode-options",
+                                {{"values", Json::parse(read_file(fs::u8path(args[3]), 32768))},
+                                 {"plan", flags.at("--plan")}});
+        }
         if (args.size() > 1 && args[1] == "list") {
             require(2);
             return core.request("GET", "/api/overview").at("projects");

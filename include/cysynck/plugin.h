@@ -29,6 +29,10 @@ typedef struct cysynck_plugin_v1 {
 } cysynck_plugin_v1;
 typedef const cysynck_plugin_v1 *(*cysynck_plugin_entry_v1)(void);
 CYSYNCK_PLUGIN_EXPORT const cysynck_plugin_v1 *cysynck_get_plugin_v1(void);
+/* Optional cysynck_get_plugin_descriptor_v1 export, independent of the ABI v1 structure.
+ * Return immutable UTF-8 JSON (schema 1), valid until the library is unloaded.
+ * The host copies it during loading; no release_string call is made for metadata. */
+typedef const char *(*cysynck_plugin_descriptor_v1)(void);
 #ifdef __cplusplus
 }
 #endif
