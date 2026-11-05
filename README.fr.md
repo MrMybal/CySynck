@@ -10,6 +10,12 @@ Le cœur, le CLI et les identifiants d'API sont en anglais. Les interfaces deskt
 démarrent en anglais et proposent le français comme deuxième langue. Le choix est mémorisé
 par profil pour le desktop et dans le navigateur pour le Web.
 
+La version 0.36 permet de matérialiser une sélection de fichiers ou dossiers LFS après aperçu
+vérifié. Un objet absent du cache hors sélection ne bloque plus les assets choisis ; les autres
+fichiers de travail restent inchangés. Le CLI, le SDK et les interfaces CyUI/Web bilingues
+partagent cette sélection et la vérification des reçus.
+Voir [la matérialisation LFS sélective](docs/git-materialization.md#selecting-files-and-folders-036) (anglais).
+
 La version 0.35 regroupe les vérifications des fichiers de travail Git pour réduire les
 lancements de processus pendant l’aperçu, l’intégration et le contrôle des reçus. Les octets
 restent intégralement vérifiés, y compris pour une modification qui conserve taille et date.

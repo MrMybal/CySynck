@@ -19,7 +19,44 @@ cysynck git materialize PROJECT_ID --apply true --plan PREVIEW_TOKEN
 POST `/api/projects/ID/git-materialize` accepts `{}` for preview, or adds `apply:true` and
 the preview's `plan`. Optional `base` and `local_ref` pin the current committed HEAD and branch,
 including detached HEAD. The plan binds the complete inspection, index inventory, Git
-configuration, approved cache location and pointer fingerprints. Reusing a stale plan fails.
+configuration, project settings, approved cache location, selection and pointer fingerprints.
+Reusing a stale plan fails.
+
+## Selecting files and folders (0.36)
+
+Leave **LFS selection** empty for all committed LFS pointers, or enter one relative path per
+line. A folder needs a trailing `/`; paths are literal and do not use glob patterns. The
+preview reports only matching pointer files and an `excluded` count of other committed
+pointer paths. Missing or damaged cache objects outside the selection are not inspected and
+do not block selected assets. Unselected working files are not read or written by this step.
+
+CLI callers provide a UTF-8 JSON array through `--paths-file` (at most 32 KiB):
+
+```json
+["Content/Maps/", "Content/Textures/logo.uasset"]
+```
+
+```sh
+cysynck git materialize PROJECT_ID --paths-file selection.json
+cysynck git materialize PROJECT_ID --paths-file selection.json --apply true --plan PREVIEW_TOKEN
+```
+
+The API accepts the same array in `paths`; omit it for the existing all-pointer behavior.
+Explicit `null` and empty arrays are rejected. Supply the selection again when applying.
+Response `selection` is `null` for all pointers or a sorted, deduplicated array. Overlapping
+selectors include a file once, and each selector must match a committed LFS pointer. Ordinary
+files, unknown paths, unsafe components and case aliases are refused. Selection accepts
+1–256 input paths totaling at most 16 KiB of UTF-8 path text. These limits precede deduplication.
+
+Changing the selection invalidates the UI preview. The token binds the exact canonical
+selection, including overlapping selectors, and project settings. Recovery files and receipts
+cover only the selected pending pointers. History exposes selection and excluded counts;
+receipt checks reconstruct the selected scope from the recorded commit, and interrupted
+operations can still be acknowledged after an exact check. Earlier receipts remain readable.
+
+Selection does not bypass complete committed-tree validation, repository/index checks or
+the existing global inventory limits. Malformed pointers or unsafe committed paths elsewhere
+can therefore still block inspection. Pause external writers during application.
 
 ## File states and preservation
 

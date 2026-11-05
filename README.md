@@ -9,7 +9,7 @@ A project-based synchronization and backup companion written in **C++20**, power
 One shared core powers the native desktop app, CLI, local Web console and integration SDK.
 Build a headless server without graphical dependencies. No Python or .NET runtime is required.
 
-**Status: 0.35.0, under active development.** Windows x64 is validated locally. The headless
+**Status: 0.36.0, under active development.** Windows x64 is validated locally. The headless
 Linux core, CLI and test binaries also cross-compile from Windows with Zig.
 Native Linux and macOS execution still needs validation on those platforms.
 The Unreal bridge is an integration example and has not yet been compiled inside Unreal.
@@ -19,7 +19,7 @@ those fixes and the new package smoke checks still need another native CI run.
 
 ## Features
 
-| Area | Available in 0.35 |
+| Area | Available in 0.36 |
 | --- | --- |
 | Projects | Separate folders, settings and modes; overlapping project roots are rejected |
 | Sync modes | Two-way, send only, receive only, local backup and Git bundle exchange |
@@ -41,7 +41,12 @@ those fixes and the new package smoke checks still need another native CI run.
 | Received files | Durable inbox catalog, integrity verification and export to a separate directory |
 | Integration | C++ library, C ABI with UTF-8 JSON and an Unreal/Blueprint bridge example |
 
-Git integration and receipt verification now hash working files in bounded batches, reducing
+LFS materialization can select exact files or folders after a checked preview. Missing cache
+objects outside that selection do not block the operation, and unselected working files stay
+untouched. CLI, C/C++ SDK and bilingual CyUI/Web share the workflow and receipt checks.
+See [selective LFS materialization](docs/git-materialization.md#selecting-files-and-folders-036).
+
+Git integration and receipt verification hash working files in bounded batches, reducing
 Git process launches while checking exact raw bytes. SHA-1/SHA-256 repositories, binary data
 and same-size edits with restored timestamps are covered. See [bounded Git inspection](docs/git-object-inspection.md).
 

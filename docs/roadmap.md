@@ -1,5 +1,16 @@
 # Development milestones
 
+## Delivered in 0.36
+
+- Reviewed LFS materialization of exact files or folder prefixes, with canonical bounded
+  selection, selected cache verification and preservation of unselected working files.
+- Selection and project-configuration binding in preview tokens; selected receipts validate
+  their scope against committed pointers and retain interruption acknowledgement and legacy compatibility.
+- CLI path-list files, existing C/C++ ABI and bilingual CyUI/Web controls, with targeted
+  SHA-1/SHA-256 fixtures and an extracted-package selection scenario.
+
+See [selective LFS materialization](git-materialization.md#selecting-files-and-folders-036).
+
 ## Delivered in 0.35
 
 - Bounded raw working-file hashing for integration previews, post-apply checks and receipt
