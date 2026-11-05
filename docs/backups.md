@@ -1,5 +1,9 @@
 # Sauvegardes et stockage
 
+La version 0.29 ajoute le parcours paginé des fichiers, les comparaisons entre sauvegardes et
+la restauration sélective avec aperçu lié au manifest et à la destination. Voir le
+[guide de ces opérations](snapshot-workflows.md) (anglais), commun au CLI, SDK et interfaces.
+
 Depuis la version 0.11, le mode par défaut `auto` conserve les gros fichiers par blocs de 4 Mio
 réutilisables entre versions et projets. Le mode `whole` garde les objets entiers.
 Les manifests et restaurations existants restent compatibles. Voir le

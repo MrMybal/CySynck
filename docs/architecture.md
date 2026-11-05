@@ -71,6 +71,7 @@ Routes principales :
 | `/api/projects` | POST |
 | `/api/projects/<id>` | PUT |
 | `/api/projects/<id>/snapshots` | GET |
+| `/api/projects/<id>/snapshot-files`, `snapshot-compare`, `snapshot-compare-file` | POST |
 | `/api/projects/<id>/backup`, `changes`, `diff`, `verify`, `restore-plan`, `restore`, `register`, `sync`, `status`, `pause` | POST |
 | `/api/projects/<id>/compare`, `conflicts`, `conflict-diff` | POST |
 | `/api/projects/<id>/resolution-plan`, `resolve-conflict`, `resolutions`, `resolution-export`, `resolution-acknowledge` | POST |

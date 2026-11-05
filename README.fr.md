@@ -10,6 +10,12 @@ Le cœur, le CLI et les identifiants d'API sont en anglais. Les interfaces deskt
 démarrent en anglais et proposent le français comme deuxième langue. Le choix est mémorisé
 par profil pour le desktop et dans le navigateur pour le Web.
 
+La version 0.29 ajoute le parcours paginé des fichiers sauvegardés, la restauration d'une
+sélection de fichiers ou de dossiers après aperçu vérifié, et la comparaison entre deux
+sauvegardes. Le CLI, le SDK C/C++ et CyUI/Web en anglais et français partagent ces fonctions.
+Les stockages entier, par blocs fixes et par blocs de taille variable restent compatibles.
+Voir [les parcours de sauvegarde](docs/snapshot-workflows.md) (anglais).
+
 La version 0.28 ajoute la matérialisation des pointeurs LFS commités depuis le cache local
 vérifié, après aperçu explicite. Les modifications locales, suppressions, fichiers indexés et
 fichiers en lecture seule sont conservés. Les pointeurs d'origine et les reçus restent

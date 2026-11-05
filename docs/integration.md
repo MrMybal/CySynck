@@ -24,6 +24,10 @@ consumer. The C ABI avoids exposing those C++ types across the library boundary.
 
 ## C ABI, version 1
 
+Version 0.29 adds snapshot file browsing, selective restoration and snapshot-to-snapshot
+comparison through the existing JSON request entry point. No ABI change is required.
+See [snapshot workflows](snapshot-workflows.md) for routes, freshness tokens and limits.
+
 Include only `cysynck/c_api.h`. The opaque handle and UTF-8 JSON API work from C and can
 also be called from Unreal or other C++ applications without sharing C++ standard-library
 types. Check `cysynck_abi_version()` before opening a profile.

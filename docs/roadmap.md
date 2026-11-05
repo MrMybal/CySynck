@@ -1,5 +1,17 @@
 # Development milestones
 
+## Delivered in 0.29
+
+- Paginated snapshot contents with folder prefixes and manifest freshness hashes, without
+  loading payloads or scanning the current working tree.
+- Selective file/folder restoration with deduplication, selected-content integrity checks,
+  destination/manifest/selection-bound previews and exclusive output creation.
+- Snapshot-to-snapshot change lists and verified bounded text patches, including added/deleted
+  files and permission-only changes, independent of current project files.
+
+The CLI, unchanged C ABI, CyUI and Web share these workflows in English/French. Whole, fixed-block
+and CDC backups remain compatible. See [snapshot workflows](snapshot-workflows.md).
+
 ## Delivered in 0.28
 
 Three related Git/LFS milestones share the C++20 core and local commits:
