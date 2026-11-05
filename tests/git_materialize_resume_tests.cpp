@@ -225,6 +225,118 @@ int main() {
             check(history.at("records")[0].at("resume").at("status") == "complete" &&
                       !history.at("records")[0].at("needs_attention").get<bool>(),
                   "History does not disclose resumed completion");
+            // The first file is still a pointer; the second was already published.
+            // Moving the original back preserves its exact receipt fingerprint.
+            fs::rename(target, staged);
+            fs::rename(original, target);
+            save(interrupted);
+            inspected = preview();
+            check(inspected.at("can_resume") && inspected.at("pending_publications") == 1 &&
+                      inspected.at("pending_staging") == 0 &&
+                      inspected.at("pointers_to_preserve") == 1 &&
+                      inspected.at("check").at("position") == "partial",
+                  "Mixed original pointer and published asset cannot resume verified staging");
+            check(read_file(target) == text && !fs::exists(original),
+                  "Mixed-state preview moved a working pointer");
+            auto pointer_time = fs::last_write_time(target);
+            fs::last_write_time(target, pointer_time + std::chrono::seconds(1));
+            check(!preview().at("can_resume").get<bool>(),
+                  "Changed working pointer fingerprint accepted for resume");
+            fs::last_write_time(target, pointer_time);
+            fs::copy_file(target, original);
+            fs::last_write_time(original, pointer_time);
+            check(!preview().at("can_resume").get<bool>() &&
+                      !preview().at("check").at("resume_errors").empty(),
+                  "Duplicate working and original pointers accepted");
+            fs::remove(original);
+            result = apply(preview());
+            check(result.at("resumed") && read_file(target, asset.size() + 1) == asset &&
+                      read_file(original) == text &&
+                      fs::last_write_time(original) == original_time &&
+                      fs::last_write_time(root / "Selected/empty.uasset") == empty_time,
+                  "Mixed-state resume changed originals or already published data");
+
+            // Interrupted staging: one absent prepared file needs the local cache.
+            fs::rename(target, staged);
+            fs::rename(original, target);
+            fs::remove(staged);
+            save(interrupted);
+            auto blocked = preview();
+            check(!blocked.at("can_resume").get<bool>() &&
+                      !blocked.at("check").at("resume_errors").empty() && read_file(target) == text,
+                  "Missing staging and missing cache did not preserve the pointer");
+            auto object = lfs_object_path(store, sha256(asset));
+            copy_lfs_object(work / "asset", store, git_lfs_pointer(text));
+            atomic_write(object, std::string(asset.size(), 'x'));
+            check(!preview().at("can_resume").get<bool>(), "Corrupted restaging cache accepted");
+            atomic_write(object, asset);
+            inspected = preview();
+            check(inspected.at("can_resume") && inspected.at("pending_staging") == 1 &&
+                      inspected.at("staging_bytes") == asset.size() &&
+                      inspected.at("pointers_to_preserve") == 1,
+                  "Missing staging did not preview a verified cache copy");
+            check(!fs::exists(staged) && read_file(target) == text && !fs::exists(original),
+                  "Restaging preview changed recovery files");
+            auto cache_time = fs::last_write_time(object);
+            fs::last_write_time(object, cache_time + std::chrono::seconds(1));
+            rejects([&] { apply(inspected); }, "Changed cache fingerprint did not stale the plan");
+            fs::last_write_time(object, cache_time);
+            atomic_write(staged, "unexpected partial copy");
+            check(!preview().at("can_resume").get<bool>(), "Partial staged copy was overwritten");
+            rejects([&] { apply(inspected); },
+                    "Appeared staging destination did not stale the plan");
+            check(read_file(staged) == "unexpected partial copy" && read_file(target) == text,
+                  "Blocked restaging damaged local or prepared bytes");
+            fs::remove(staged);
+            result = apply(preview());
+            check(result.at("resumed") && read_file(target, asset.size() + 1) == asset &&
+                      read_file(original) == text && !fs::exists(staged),
+                  "Restaging did not publish and preserve the original pointer");
+
+            // Both pointers remain at the original position and the recovery tree
+            // never existed, as when initial staging failed before creating it.
+            fs::rename(original, target.parent_path() / "temporary-pointer");
+            fs::rename(target, staged);
+            fs::rename(target.parent_path() / "temporary-pointer", target);
+            auto empty_target = root / "Selected/empty.uasset";
+            auto empty_original = recovery / "before/Selected/empty.uasset";
+            fs::remove(empty_target);
+            fs::rename(empty_original, empty_target);
+            fs::remove(staged);
+            // Only empty known fixture directories remain; remove them without recursion.
+            for (auto dir : {recovery / "before/Selected", recovery / "before",
+                             recovery / "after/Selected", recovery / "after", recovery})
+                fs::remove(dir);
+            save(interrupted);
+            check(!preview().at("can_resume").get<bool>() && read_file(target) == text &&
+                      read_file(empty_target) == empty && !fs::exists(recovery),
+                  "Incomplete cache availability moved pointers or created recovery files");
+            copy_lfs_object(work / "empty", store, git_lfs_pointer(empty));
+            inspected = preview();
+            check(inspected.at("can_resume") && inspected.at("pending_staging") == 2 &&
+                      inspected.at("pending_publications") == 2 &&
+                      inspected.at("check").at("position") == "before" && !fs::exists(recovery),
+                  "Absent recovery directory did not allow all-pointer staging recovery");
+            result = apply(inspected);
+            check(result.at("resumed") && result.at("files_written") == 2 &&
+                      read_file(target, asset.size() + 1) == asset &&
+                      fs::file_size(empty_target) == 0,
+                  "All-pointer recovery failed to stage binary and empty assets");
+            // An absent working destination also supports recreating missing staging.
+            fs::rename(target, staged);
+            fs::remove(staged);
+            save(interrupted);
+            inspected = preview();
+            check(inspected.at("can_resume") && inspected.at("pending_staging") == 1 &&
+                      inspected.at("pointers_to_preserve") == 0,
+                  "Absent destination and staging could not recover from verified cache");
+            result = apply(inspected);
+            check(result.at("resumed") && read_file(target, asset.size() + 1) == asset &&
+                      read_file(root / ".git/index") == index_bytes &&
+                      git(p, {"rev-parse", "HEAD"}) == head &&
+                      sha256_file(root / ".git/config") == config &&
+                      read_file(root / "outside.uasset") == "unselected local edit",
+                  "Staging recovery changed Git metadata or unselected work");
         }
         std::cout << "PASS " << checks << " LFS publication resume checks\n";
         return 0;

@@ -793,6 +793,7 @@ static Json materialization_check(const fs::path &state, const Json &project, co
                 {"index_metadata_matches", nullptr},
                 {"files", Json::array()},
                 {"errors", Json::array()},
+                {"resume_errors", Json::array()},
                 {"can_acknowledge", false},
                 {"can_resume", false},
                 {"plan", nullptr}};
@@ -837,6 +838,8 @@ static Json materialization_check(const fs::path &state, const Json &project, co
         }
         check_recovery_entries(root, record);
         size_t before_count = 0, after_count = 0, interrupted_count = 0, changed_count = 0;
+        fs::path store;
+        std::map<std::string, Json> cache;
         for (const auto &file : record.at("files")) {
             if (file.at("state") != "pointer")
                 continue;
@@ -875,17 +878,51 @@ static Json materialization_check(const fs::path &state, const Json &project, co
                        valid_backup) {
                 position = "after";
                 ++after_count;
-            } else if (!current.at("exists").get<bool>() && valid_backup &&
-                       prepared.at("exists").get<bool>()) {
+            } else if (!current.at("exists").get<bool>() && valid_backup) {
                 position = "interrupted";
                 ++interrupted_count;
             } else
                 ++changed_count;
-            result["files"].push_back({{"path", name},
-                                       {"position", position},
-                                       {"current", current},
-                                       {"original", original},
-                                       {"staged", prepared}});
+            Json row{{"path", name},         {"position", position}, {"current", current},
+                     {"original", original}, {"staged", prepared},   {"resume_action", "keep"},
+                     {"cache", nullptr}};
+            if (record.at("status") == "incomplete" && !record.contains("acknowledged_at") &&
+                position != "after") {
+                try {
+                    if (position == "before") {
+                        if (original.at("exists").get<bool>())
+                            throw std::runtime_error(
+                                "Both working and preserved pointers exist; inspect them manually");
+                        if (current != file.at("before"))
+                            throw std::runtime_error(
+                                "Working pointer fingerprint changed; preserve local work");
+                    } else if (position != "interrupted")
+                        throw std::runtime_error(
+                            "Working LFS contents differ; preserve local work");
+                    row["resume_action"] = "publish";
+                    if (!prepared.at("exists").get<bool>()) {
+                        if (store.empty())
+                            store = lfs_local_store(project);
+                        auto digest = file.at("asset").at("sha256").get<std::string>();
+                        if (!cache.contains(digest)) {
+                            auto source = lfs_object_path(store, digest);
+                            auto info = fingerprint(source, fs::is_regular_file(source) &&
+                                                                Json(fs::file_size(source)) ==
+                                                                    file.at("asset").at("size"));
+                            if (!matches(info, file.at("asset")))
+                                throw std::runtime_error(
+                                    "Missing staging requires a verified local LFS cache object");
+                            cache[digest] = {{"path", path_string(source)}, {"fingerprint", info}};
+                        }
+                        row["cache"] = cache.at(digest);
+                        row["resume_action"] = "stage_and_publish";
+                    }
+                } catch (const std::exception &error) {
+                    row["resume_action"] = "blocked";
+                    result["resume_errors"].push_back({{"path", name}, {"error", error.what()}});
+                }
+            }
+            result["files"].push_back(row);
         }
         auto total = record.at("pending").get<size_t>();
         result["position"] = before_count == total  ? "before"
@@ -900,8 +937,8 @@ static Json materialization_check(const fs::path &state, const Json &project, co
                                     exact && result.at("errors").empty();
         result["can_resume"] = result.at("record").at("needs_attention").get<bool>() &&
                                result.at("context_matches").get<bool>() &&
-                               result.at("errors").empty() &&
-                               after_count + interrupted_count == total;
+                               result.at("errors").empty() && result.at("resume_errors").empty() &&
+                               after_count + interrupted_count + before_count == total;
         if (result.at("can_acknowledge").get<bool>())
             result["plan"] = sha256(result.dump());
     } catch (const std::exception &e) {
@@ -923,12 +960,19 @@ Json resume_fingerprint(const fs::path &path, const Json &expected) {
 Json resume_inspection(const fs::path &state, const Json &project, const Json &data,
                        bool own_lock) {
     auto checked = materialization_check(state, project, data, own_lock);
-    size_t published = 0, pending = 0;
+    size_t published = 0, pending = 0, staging = 0, pointers = 0;
+    uintmax_t staging_bytes = 0;
     for (const auto &file : checked.at("files")) {
         if (file.at("position") == "after")
             ++published;
-        if (file.at("position") == "interrupted")
+        if (file.at("position") == "interrupted" || file.at("position") == "before")
             ++pending;
+        if (file.at("position") == "before")
+            ++pointers;
+        if (file.at("resume_action") == "stage_and_publish") {
+            ++staging;
+            staging_bytes += file.at("cache").at("fingerprint").at("bytes").get<uintmax_t>();
+        }
     }
     const auto &previous = checked.at("record").at("resume");
     bool exhausted = !previous.is_null() && previous.at("attempt").get<uintmax_t>() >= 1000;
@@ -939,6 +983,9 @@ Json resume_inspection(const fs::path &state, const Json &project, const Json &d
                 {"check", checked},
                 {"already_published", published},
                 {"pending_publications", pending},
+                {"pending_staging", staging},
+                {"staging_bytes", staging_bytes},
+                {"pointers_to_preserve", pointers},
                 {"can_resume", checked.at("can_resume").get<bool>() && !exhausted},
                 {"resumed", false},
                 {"plan", nullptr},
@@ -987,7 +1034,7 @@ Json resume_git_materialization(const fs::path &state, const Json &project, cons
                         {"started", timestamp()},
                         {"status", "incomplete"},
                         {"previous_files_written", record.at("files_written")}};
-    record["phase"] = "publishing";
+    record["phase"] = result.at("pending_staging") == 0 ? "publishing" : "staging";
     record["files_written"] = result.at("already_published");
     auto receipt = materialization_receipt(state, project, id);
     atomic_write(receipt, record.dump(2), true);
@@ -996,24 +1043,78 @@ Json resume_git_materialization(const fs::path &state, const Json &project, cons
         for (const auto &file : record.at("files"))
             if (file.at("state") == "pointer")
                 selected.emplace(file.at("path"), file);
-        size_t written = result.at("already_published").get<size_t>();
+        auto relative = record.at("recovery_directory").get<std::string>();
+        auto parent = project_child(root, recovery_name);
+        if (fs::create_directory(parent))
+            secure_state_path(parent, true);
+        auto recovery = project_child(root, relative);
+        if (fs::create_directory(recovery))
+            secure_state_path(recovery, true);
         for (const auto &file : result.at("check").at("files")) {
+            if (file.at("resume_action") != "stage_and_publish")
+                continue;
+            auto name = file.at("path").get<std::string>();
+            auto staged = project_child(root, relative + "/after/" + name);
+            auto original = project_child(root, relative + "/before/" + name);
+            const auto &source = file.at("cache");
+            auto store = lfs_local_store(project);
+            auto object = lfs_object_path(store, selected.at(name).at("asset").at("sha256"));
+            if (Json(path_string(object)) != source.at("path") ||
+                resume_fingerprint(object, source.at("fingerprint")) != source.at("fingerprint") ||
+                resume_fingerprint(project_child(root, name), file.at("current")) !=
+                    file.at("current") ||
+                resume_fingerprint(original, file.at("original")) != file.at("original") ||
+                resume_fingerprint(staged, file.at("staged")) != file.at("staged"))
+                throw std::runtime_error("LFS recovery source changed before resumed staging");
+            fs::create_directories(staged.parent_path());
+            stream_asset(object, staged, selected.at(name).at("asset"));
+        }
+        // Complete and verify every staging copy before moving any working pointer.
+        auto prepared = materialization_check(state, project, data, true);
+        if (!prepared.at("can_resume").get<bool>() ||
+            prepared.at("receipt_hash") != sha256(record.dump()) ||
+            prepared.at("files").size() != result.at("check").at("files").size() ||
+            prepared.at("current_index_file_hash") !=
+                result.at("check").at("current_index_file_hash") ||
+            Json(sha256(read_git(project, {"config", "--null", "--list"}))) !=
+                result.at("config_hash"))
+            throw std::runtime_error(
+                "Git context or recovery files changed during resumed staging");
+        for (size_t i = 0; i < prepared.at("files").size(); ++i) {
+            const auto &prior = result.at("check").at("files").at(i);
+            const auto &now = prepared.at("files").at(i);
+            if (now.at("path") != prior.at("path") || now.at("current") != prior.at("current") ||
+                now.at("original") != prior.at("original") ||
+                (prior.at("resume_action") != "stage_and_publish" &&
+                 now.at("staged") != prior.at("staged")))
+                throw std::runtime_error("LFS recovery files changed before resumed publication");
+        }
+        record["phase"] = "publishing";
+        atomic_write(receipt, record.dump(2), true);
+        size_t written = result.at("already_published").get<size_t>();
+        for (const auto &file : prepared.at("files")) {
             if (file.at("position") == "after")
                 continue;
             auto name = file.at("path").get<std::string>();
             auto target = project_child(root, name);
-            auto relative = record.at("recovery_directory").get<std::string>();
             auto original = project_child(root, relative + "/before/" + name);
             auto staged = project_child(root, relative + "/after/" + name);
             if (resume_fingerprint(target, file.at("current")) != file.at("current") ||
                 resume_fingerprint(original, file.at("original")) != file.at("original") ||
                 resume_fingerprint(staged, file.at("staged")) != file.at("staged"))
                 throw std::runtime_error("LFS recovery files changed before resumed publication");
+            if (file.at("position") == "before") {
+                fs::create_directories(original.parent_path());
+                publish(target, project_child(root, relative + "/before/" + name));
+            }
+            const auto &expected_original = selected.at(name).at("before");
+            if (resume_fingerprint(original, expected_original) != expected_original)
+                throw std::runtime_error("LFS pointer changed while preserving it for resume");
             permissions(original, staged);
             publish(staged, project_child(root, name));
             if (!matches(resume_fingerprint(project_child(root, name), file.at("staged")),
                          selected.at(name).at("asset")) ||
-                resume_fingerprint(original, file.at("original")) != file.at("original"))
+                resume_fingerprint(original, expected_original) != expected_original)
                 throw std::runtime_error(
                     "Resumed LFS bytes or preserved pointer changed during publication");
             record["files_written"] = ++written;
@@ -1040,7 +1141,6 @@ Json resume_git_materialization(const fs::path &state, const Json &project, cons
     } catch (const std::exception &error) {
         record.update({{"status", "incomplete"},
                        {"applied", false},
-                       {"phase", "publishing"},
                        {"can_materialize", false},
                        {"plan", nullptr}});
         record["resume"]["status"] = "incomplete";
