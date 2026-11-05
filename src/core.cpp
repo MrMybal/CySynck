@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include "backup.hpp"
 #include "backup_data.hpp"
+#include "snapshot.hpp"
 #include "diff.hpp"
 #include "git_lfs.hpp"
 #include "git_review.hpp"
@@ -871,6 +872,9 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
         result = backup(p, "manual");
     else if (action == "changes")
         result = changes(p, data);
+    else if (action == "snapshot-files" || action == "snapshot-compare" ||
+             action == "snapshot-compare-file")
+        return snapshot_query(state_, p, action, data);
     else if (action == "diff")
         result = diff(p, data);
     else if (action == "compare")

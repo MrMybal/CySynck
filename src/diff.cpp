@@ -280,6 +280,30 @@ Json compare_backup(const fs::path &state, const Json &entry, const fs::path &ri
     result["storage"] = block_entry(entry) ? entry.at("storage") : Json("whole");
     return result;
 }
+Json compare_backup_entries(const fs::path &state, const Json &left, const Json &right,
+                            const std::string &target) {
+    auto read = [&](const Json &entry) {
+        Side side;
+        if (entry.is_null())
+            return side;
+        check_backup_layout(state, entry);
+        side.info = {{"exists", true},
+                     {"bytes", entry.at("size")},
+                     {"sha256", nullptr},
+                     {"expected_sha256", entry.at("sha256")}};
+        if (entry.at("size").get<uintmax_t>() <= preview_limit) {
+            stream_backup_file(state, entry, [&](const char *bytes, size_t size) {
+                side.bytes.append(bytes, size);
+            });
+            side.info["sha256"] = entry.at("sha256");
+        }
+        return side;
+    };
+    auto result = compare_sides(read(left), read(right), target);
+    result["permissions_changed"] =
+        !left.is_null() && !right.is_null() && left.at("permissions") != right.at("permissions");
+    return result;
+}
 Json Core::compare(const Json &p, const Json &data) {
     auto root = fs::u8path(p.at("root").get<std::string>());
     auto left = data.at("left").get<std::string>(), right = data.at("right").get<std::string>();

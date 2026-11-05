@@ -10,4 +10,6 @@ Json compare_paths(const fs::path &left, const fs::path &right, const std::strin
                    const std::string &expected_left_hash = {});
 Json compare_backup(const fs::path &state, const Json &entry, const fs::path &right,
                     const std::string &target);
+Json compare_backup_entries(const fs::path &state, const Json &left, const Json &right,
+                            const std::string &target);
 } // namespace cysynck

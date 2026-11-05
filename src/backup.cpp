@@ -1,6 +1,7 @@
 #include "backup.hpp"
 #include "backup_data.hpp"
 #include "file_time.hpp"
+#include "snapshot.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <fstream>
@@ -168,7 +169,14 @@ static Json inspect_objects(const fs::path &state, const Json &manifest) {
             {"checked_at", timestamp()}};
 }
 Json Core::verify(const Json &p, const Json &data) {
-    return inspect_objects(state_, choose_snapshot(snapshots(p.at("id")), data));
+    auto manifest = select_snapshot_files(data.value("snapshot", "").empty()
+                                              ? choose_snapshot(snapshots(p.at("id")), data)
+                                              : snapshot_manifest(state_, p, data.at("snapshot")),
+                                          data);
+    auto result = inspect_objects(state_, manifest);
+    result["manifest_hash"] = manifest.at("manifest_hash");
+    result["selection"] = manifest.at("selection");
+    return result;
 }
 static bool overlaps(const fs::path &a, const fs::path &b) {
     auto x = a.begin(), y = b.begin();
@@ -205,9 +213,24 @@ fs::path restore_target(const fs::path &state, const Json &projects, const Json 
 }
 Json Core::restore_plan(const Json &p, const Json &data) {
     auto target = restore_target(state_, registry_.at("projects"), data);
-    auto manifest = choose_snapshot(snapshots(p.at("id")), data);
+    auto manifest = select_snapshot_files(data.value("snapshot", "").empty()
+                                              ? choose_snapshot(snapshots(p.at("id")), data)
+                                              : snapshot_manifest(state_, p, data.at("snapshot")),
+                                          data);
     auto result = inspect_objects(state_, manifest);
     result["destination"] = path_string(target);
+    result["manifest_hash"] = manifest.at("manifest_hash");
+    result["selection"] = manifest.at("selection");
+    result["plan"] = result.at("ok").get<bool>()
+                         ? Json(sha256(Json{{"schema", 1},
+                                            {"project", p.at("id")},
+                                            {"root", p.at("root")},
+                                            {"state", path_string(state_)},
+                                            {"destination", path_string(target)},
+                                            {"manifest_hash", manifest.at("manifest_hash")},
+                                            {"selection", manifest.at("selection")}}
+                                           .dump()))
+                         : Json();
     result["entries"] = Json::array();
     for (const auto &[name, entry] : manifest.at("files").items())
         result["entries"].push_back({{"path", name}, {"size", entry.at("size")}});
@@ -217,7 +240,12 @@ Json Core::restore(const Json &p, const Json &data) {
     auto plan = restore_plan(p, data);
     if (!plan.at("ok").get<bool>())
         throw std::runtime_error("Backup integrity check failed; destination was not created");
-    auto manifest = choose_snapshot(snapshots(p.at("id")), {{"snapshot", plan.at("snapshot")}});
+    if ((data.contains("paths") || data.contains("plan")) &&
+        (!data.contains("plan") || data.at("plan") != plan.at("plan")))
+        throw std::runtime_error("Restoration selection or preview changed; preview again");
+    auto manifest = select_snapshot_files(snapshot_manifest(state_, p, plan.at("snapshot")), data);
+    if (manifest.at("manifest_hash") != plan.at("manifest_hash"))
+        throw std::runtime_error("Snapshot changed during restoration preview");
     auto target = fs::u8path(plan.at("destination").get<std::string>());
     // Claim the exact destination without replacing an existing directory. The empty parent
     // directories may remain if a subsequent disk/permission error interrupts restoration.

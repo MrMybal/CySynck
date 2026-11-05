@@ -1,4 +1,5 @@
 #include <cysynck/core.hpp>
+#include <algorithm>
 #include <map>
 #include <charconv>
 #include <stdexcept>
@@ -26,7 +27,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.28 (C++20)
+        return {{"help", R"(CySynck 0.29 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | events | api-token
   doctor [--probe true]  (test tool versions and engine connection only with --probe)
@@ -52,8 +53,11 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   resolutions ID | resolution-export ID RESOLUTION_ID NEW_DIRECTORY
   resolution-acknowledge ID RESOLUTION_ID  (mark interrupted recovery as reviewed)
   verify ID [--snapshot SNAPSHOT_ID]
-  restore-plan ID SNAPSHOT_ID NEW_DIRECTORY
-  restore ID SNAPSHOT_ID NEW_DIRECTORY
+  snapshot-files ID SNAPSHOT_ID [--prefix FOLDER --offset N --limit N --manifest-hash HASH]
+  snapshot-compare ID LEFT_SNAPSHOT RIGHT_SNAPSHOT [--prefix FOLDER --offset N --limit N]
+  snapshot-compare-file ID LEFT_SNAPSHOT RIGHT_SNAPSHOT PATH [--left-hash HASH --right-hash HASH]
+  restore-plan ID SNAPSHOT_ID NEW_DIRECTORY [--paths-file JSON_ARRAY]
+  restore ID SNAPSHOT_ID NEW_DIRECTORY [--paths-file JSON_ARRAY --plan TOKEN]
   storage status | storage prune [--apply true --plan PREVIEW_TOKEN]
   register ID | sync ID | status ID | pause ID | resume ID
   git status|export|inbox ID  (export: --lfs true includes Git LFS branch history)
@@ -613,7 +617,46 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
     }
     if (args[0] == "restore" || args[0] == "restore-plan") {
         require(4);
-        return action(args[0], {{"snapshot", args[2]}, {"destination", args[3]}});
+        for (const auto &[flag, _] : flags)
+            if (flag != "--paths-file" && flag != "--plan" && flag != "--manifest-hash")
+                throw std::runtime_error("Unknown restoration flag: " + flag);
+        Json data{{"snapshot", args[2]}, {"destination", args[3]}};
+        if (flags.contains("--paths-file"))
+            data["paths"] = Json::parse(read_file(fs::u8path(flags.at("--paths-file")), 32768));
+        if (flags.contains("--plan"))
+            data["plan"] = flags.at("--plan");
+        if (flags.contains("--manifest-hash"))
+            data["manifest_hash"] = flags.at("--manifest-hash");
+        return action(args[0], data);
+    }
+    if (args[0] == "snapshot-files" || args[0] == "snapshot-compare" ||
+        args[0] == "snapshot-compare-file") {
+        bool file = args[0] == "snapshot-compare-file", browse = args[0] == "snapshot-files";
+        require(browse ? 3 : file ? 5 : 4);
+        for (const auto &[flag, _] : flags)
+            if (flag != "--prefix" && flag != "--offset" && flag != "--limit" &&
+                flag != "--manifest-hash" && flag != "--left-hash" && flag != "--right-hash")
+                throw std::runtime_error("Unknown snapshot query flag: " + flag);
+        Json data =
+            browse ? Json{{"snapshot", args[2]}} : Json{{"left", args[2]}, {"right", args[3]}};
+        if (file)
+            data["path"] = args[4];
+        for (auto key : {"prefix", "manifest-hash", "left-hash", "right-hash"})
+            if (flags.contains(std::string("--") + key)) {
+                auto name = std::string(key);
+                std::replace(name.begin(), name.end(), '-', '_');
+                data[name] = flags.at(std::string("--") + key);
+            }
+        for (auto key : {"offset", "limit"})
+            if (flags.contains(std::string("--") + key)) {
+                const auto &text = flags.at(std::string("--") + key);
+                uint64_t number = 0;
+                auto parsed = std::from_chars(text.data(), text.data() + text.size(), number);
+                if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size())
+                    throw std::runtime_error("Invalid snapshot page number");
+                data[key] = number;
+            }
+        return action(args[0], data);
     }
     if (args[0] == "snapshots") {
         require(2);
