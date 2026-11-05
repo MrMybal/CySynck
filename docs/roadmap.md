@@ -1,5 +1,17 @@
 # Development milestones
 
+## Delivered in 0.33
+
+- Read-only LFS recovery receipt checks anchored to the recorded committed history, with
+  full cache hashes, missing/damaged diagnostics and checks independent of later HEAD changes.
+- Explicit acknowledgement of reviewed interruptions, using fresh profile/project/receipt/
+  configuration/cache-bound tokens. Partial or missing cache state stays disclosed; original
+  incomplete status and installed identities remain preserved.
+- Bilingual CyUI/Web receipt details, verification and acknowledgement, with CLI/C/C++ parity
+  and extracted-package checks. Damaged entries require manual inspection before acknowledgement.
+
+See [recovery receipt verification](git-cache.md#checking-and-reviewing-recovery-receipts-033).
+
 ## Delivered in 0.32
 
 - Paginated local/imported-branch LFS history cache inventories, presence/size diagnostics,

@@ -123,3 +123,7 @@ through the existing JSON request entry point; no C ABI change is required.
 
 Core 0.32 adds [offline LFS cache inventory, refill and receipts](git-cache.md) through the
 existing C/C++ JSON request entry point, retaining C ABI version 1.
+
+Core 0.33 adds `git-lfs-recovery-check` and `git-lfs-recovery-acknowledge` for full receipt
+object verification and fresh-token acknowledgement of interruptions. Original incomplete
+status/installed counts are preserved; see [receipt checks](git-cache.md#checking-and-reviewing-recovery-receipts-033).

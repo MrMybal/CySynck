@@ -87,10 +87,47 @@ identity, creation time, source peer, planned objects, installed identities and 
 status. The catalog is limited to 10,000 entries. A durable incomplete receipt precedes copying;
 final completion/failure updates it. Process crashes can leave valid cache additions not yet
 listed as installed, so inspect the cache again after interruption. Receipt completion describes
-that operation's observed result, not a later integrity check. No receipt acknowledgement,
-automatic retry, expiry, remote deletion or rollback is performed.
+that operation's observed result, not a later integrity check. No automatic retry, expiry,
+remote deletion or rollback is performed.
 
 CyUI and Web expose English/French inventory, verification, explicit peer refill and paginated
 history. The extracted-package smoke exercises inspection, preview, refill and receipts from
 the pure C consumer, then checks cache bytes and unchanged working file/index/HEAD. Native
 Linux/macOS and Unreal runtime validation remain separate platform work.
+
+## Checking and reviewing recovery receipts (0.33)
+
+```sh
+cysynck git lfs-recovery-check PROJECT RECEIPT_ID
+cysynck git lfs-recovery-acknowledge PROJECT RECEIPT_ID --plan CHECK_TOKEN
+```
+
+POST `git-lfs-recovery-check` accepts `{"receipt":"ID"}`. It checks every planned object,
+including valid copies absent from an interrupted receipt's `installed` list. SHA-256/size
+identities must belong to the receipt's recorded committed history, which must still be
+available locally. Later HEAD or tracking-ref changes do not invalidate that history check.
+No exchange peer or network access is required. The currently approved cache location must
+match the original location; a relocated cache produces a diagnostic rather than reading an
+arbitrary path from the receipt.
+
+The result includes `record`, `receipt_hash`, `revision`, `store`, `objects`, `verified`,
+`missing`, `damaged`, `errors`, `position`, `content_verified`, `can_acknowledge` and `plan`.
+Positions are `complete` (all planned bytes verified), `partial`, `missing`, `damaged` or
+`unknown` (a configuration/history/receipt check failed). Completion of this integrity check
+does not rewrite the operation's original completion status. Checking creates no cache entries
+and never changes objects, Git refs/index, working files or receipt metadata.
+
+POST `git-lfs-recovery-acknowledge` requires `receipt` and the latest check's `plan`. It
+recomputes full hashes and binds the check to profile, project settings, receipt, configuration,
+approved cache and observed file metadata. Only unacknowledged incomplete receipts with no
+damaged objects or check errors are eligible. A partial or entirely missing cache can be
+explicitly reviewed: the missing count remains visible and those objects still need recovery.
+An acknowledgement records a timestamp and verified/missing counts. It preserves `status`,
+`applied`, `installed`, original error and all bytes; it is neither a retry nor a success claim.
+History summaries expose `acknowledged`, `acknowledged_at` and `needs_attention`.
+
+Checks describe observed state, rather than an atomic filesystem snapshot. External writers
+can change bytes after checking or acknowledgement; inspect again when needed. Replaced or
+unsafe entries remain preserved. Receipts are private local evidence, not signed attestations.
+CyUI/Web expose receipt details and explicit verification/review in English and French. CLI
+and C/C++ consumers use the same API, with unchanged C ABI version 1.

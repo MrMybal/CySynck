@@ -175,3 +175,6 @@ See [backup scope](backup-scope.md) for metadata freshness, pruning and rule lim
 
 POST project `git-lfs-cache`, `git-lfs-recover`, `git-lfs-recoveries` and `git-lfs-recovery`
 share the offline [LFS cache](git-cache.md) inventory, refill and receipt implementation.
+POST `git-lfs-recovery-check` verifies receipt objects against recorded Git history and current
+approved cache bytes. `git-lfs-recovery-acknowledge` records explicit review of an interruption
+after a fresh check, preserving its original status and installed identities.
