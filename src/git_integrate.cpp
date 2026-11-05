@@ -142,8 +142,37 @@ void metadata(const Git &git, const fs::path &root) {
             directory))
         throw std::runtime_error("Linked Git working trees require manual integration");
 }
+bool pointer_policy(const Json &data, bool merging) {
+    auto policy = data.value("lfs_policy", std::string("reject"));
+    if ((policy != "reject" && policy != "pointers") || (merging && policy != "reject"))
+        throw std::runtime_error("LFS policy requires reject or pointers; pointers apply only to "
+                                 "fast-forward integration");
+    return policy == "pointers";
+}
+Json lfs_summary(const Json &files) {
+    size_t count = 0;
+    std::map<std::string, uintmax_t> assets;
+    for (const auto &file : files) {
+        if (!file.contains("lfs"))
+            continue;
+        ++count;
+        auto digest = file.at("lfs").at("sha256").get<std::string>();
+        auto size = file.at("lfs").at("size").get<uintmax_t>();
+        auto [entry, inserted] = assets.emplace(digest, size);
+        if ((!inserted && entry->second != size) || assets.size() > 4096)
+            throw std::runtime_error("Inconsistent or excessive LFS integration object inventory");
+    }
+    uintmax_t bytes = 0;
+    for (const auto &[digest, size] : assets) {
+        bytes += size;
+        if (bytes > 16ull * 1024 * 1024 * 1024)
+            throw std::runtime_error("LFS integration assets exceed 16 GiB");
+    }
+    return {{"files", count}, {"objects", assets.size()}, {"bytes", bytes}};
+}
 Json tree(const Git &git, const std::string &commit,
-          std::map<std::string, std::string, GitPathLess> &paths, bool merging = false) {
+          std::map<std::string, std::string, GitPathLess> &paths, bool merging = false,
+          bool pointers = false) {
     Json entries = Json::array();
     if (commit.empty())
         return entries;
@@ -171,10 +200,25 @@ Json tree(const Git &git, const std::string &commit,
             throw std::runtime_error("Git integration supports ordinary blobs up to 1 GiB");
         entries.push_back({{"path", name}, {"mode", mode}, {"oid", oid}, {"bytes", length}});
     }
-    for (const auto &[id, bytes] : git_small_blobs(git.project, entries))
-        if (!git_lfs_pointer(bytes).is_null())
-            throw std::runtime_error("LFS revisions require separate extraction; Git integration "
-                                     "does not hydrate assets yet");
+    std::map<std::string, Json> pointer_blobs;
+    std::set<std::string> pointer_paths;
+    for (const auto &[id, bytes] : git_small_blobs(git.project, entries)) {
+        auto asset = git_lfs_pointer(bytes);
+        if (asset.is_null())
+            continue;
+        if (!pointers)
+            throw std::runtime_error("LFS revisions require the explicit pointers policy for "
+                                     "fast-forward integration or separate extraction");
+        pointer_blobs.emplace(id, asset);
+    }
+    for (auto &file : entries) {
+        auto found = pointer_blobs.find(file.at("oid").get<std::string>());
+        if (found != pointer_blobs.end()) {
+            file["lfs"] = found->second;
+            pointer_paths.insert(file.at("path").get<std::string>());
+        }
+    }
+    (void)lfs_summary(entries);
     uintmax_t total = 0;
     std::string names;
     for (const auto &entry : entries) {
@@ -198,12 +242,16 @@ Json tree(const Git &git, const std::string &commit,
         auto attrs = records(git.get(args, names));
         if (attrs.size() != entries.size() * (merging ? 21 : 18))
             throw std::runtime_error("Incomplete Git integration attributes");
-        for (size_t i = 0; i < attrs.size(); i += 3)
+        for (size_t i = 0; i < attrs.size(); i += 3) {
+            if (pointers && attrs[i + 1] == "filter" && attrs[i + 2] == "lfs" &&
+                pointer_paths.contains(attrs[i]))
+                continue;
             if (attrs[i + 2] != "unspecified" &&
                 !(attrs[i + 1] == "merge" ? attrs[i + 2] == "set" : attrs[i + 2] == "unset"))
                 throw std::runtime_error(
                     "Git integration excludes checkout filters, encodings and "
                     "text conversions or custom merge rules; use manual Git handling");
+        }
     }
     return entries;
 }
@@ -699,6 +747,7 @@ Json local_data(const fs::path &root, const Json &current, const Json &before, c
             {"fingerprint", sha256(entries.dump())}};
 }
 Json inspect(const fs::path &state, const Json &project, const Json &data, bool merging = false) {
+    bool pointers = pointer_policy(data, merging);
     if (!merging && data.contains("resolutions"))
         throw std::runtime_error("Conflict resolutions apply only to reviewed divergent merges");
     auto resolutions = merge_resolutions(data.value("resolutions", Json::array()));
@@ -712,10 +761,12 @@ Json inspect(const fs::path &state, const Json &project, const Json &data, bool 
     metadata(git, root);
     auto result = git_revision_context(project, data);
     result.update({{"project", project.at("id")},
+                   {"project_hash", sha256(project.dump())},
                    {"root", path_string(root)},
                    {"applied", false},
                    {"can_integrate", false},
                    {"integration_kind", merging ? "merge" : "fast_forward"},
+                   {"lfs_policy", pointers ? "pointers" : "reject"},
                    {"local_data", nullptr},
                    {"plan", nullptr},
                    {"errors", Json::array()}});
@@ -782,8 +833,8 @@ Json inspect(const fs::path &state, const Json &project, const Json &data, bool 
     try {
         if (merging)
             merge_rules(git);
-        before = tree(git, base, paths, merging);
-        auto incoming = tree(git, result.at("head"), paths, merging);
+        before = tree(git, base, paths, merging, pointers);
+        auto incoming = tree(git, result.at("head"), paths, merging, pointers);
         if (merging) {
             result["merge_identity"] = merge_identity(git);
             result["merge_message"] = "Merge imported branch " +
@@ -845,6 +896,8 @@ Json inspect(const fs::path &state, const Json &project, const Json &data, bool 
     }
     result["files_before"] = before;
     result["files_after"] = after;
+    result["lfs_before"] = lfs_summary(before);
+    result["lfs_after"] = lfs_summary(after);
     result["file_count"] = after.size();
     result["config_hash"] = git.config_hash;
     result["state"] = path_string(fs::absolute(state));
@@ -883,6 +936,7 @@ Json read_receipt(const fs::path &state, const Json &project, const std::string 
     auto kind = record.value("integration_kind", std::string("fast_forward"));
     if (kind != "fast_forward" && kind != "merge")
         throw std::runtime_error("Unknown Git integration receipt kind");
+    (void)pointer_policy(record, kind == "merge");
     if (kind == "merge") {
         if (record.contains("resolutions") &&
             merge_resolutions(record.at("resolutions")) != record.at("resolutions"))
@@ -931,10 +985,27 @@ Json read_receipt(const fs::path &state, const Json &project, const std::string 
 }
 Json receipt_summary(const Json &record) {
     Json summary = Json::object();
-    for (auto key :
-         {"id", "created", "status", "applied", "peer", "branch", "base", "head", "local_ref",
-          "receipt_path", "acknowledged_at", "local_data", "error", "integration_kind",
-          "merge_base", "result_commit", "result_tree", "merge_identity"})
+    for (auto key : {"id",
+                     "created",
+                     "status",
+                     "applied",
+                     "peer",
+                     "branch",
+                     "base",
+                     "head",
+                     "local_ref",
+                     "receipt_path",
+                     "acknowledged_at",
+                     "local_data",
+                     "error",
+                     "integration_kind",
+                     "merge_base",
+                     "result_commit",
+                     "result_tree",
+                     "merge_identity",
+                     "lfs_policy",
+                     "lfs_before",
+                     "lfs_after"})
         if (record.contains(key))
             summary[key] = record.at(key);
     summary["needs_attention"] =
@@ -1030,6 +1101,7 @@ Json check_git_integration(const fs::path &state, const Json &project, const Jso
         result["current_ref"] = current.at("local_ref");
         result["config_hash"] = git.config_hash;
         bool merging = record.value("integration_kind", std::string("fast_forward")) == "merge";
+        bool pointers = pointer_policy(record, merging);
         Json after_commit = record.at("head");
         if (merging) {
             after_commit = record.at("result_commit");
@@ -1062,7 +1134,7 @@ Json check_git_integration(const fs::path &state, const Json &project, const Jso
             merge_rules(git);
         auto before =
             tree(git, record.at("base").is_null() ? "" : record.at("base").get<std::string>(),
-                 paths, merging);
+                 paths, merging, pointers);
         Json after;
         if (merging) {
             auto incoming = tree(git, record.at("head"), paths, true);
@@ -1085,9 +1157,12 @@ Json check_git_integration(const fs::path &state, const Json &project, const Jso
                 verify_merge_commit(git, after_commit, record);
             }
         } else
-            after = tree(git, record.at("head"), paths);
+            after = tree(git, record.at("head"), paths, false, pointers);
         if (before != record.at("files_before") || after != record.at("files_after"))
             throw std::runtime_error("Receipt file listings do not match their Git commit objects");
+        if (record.contains("lfs_policy") && (lfs_summary(before) != record.at("lfs_before") ||
+                                              lfs_summary(after) != record.at("lfs_after")))
+            throw std::runtime_error("Receipt LFS counts differ from their committed pointers");
         const auto &expected = result.at("position") == "after" ? after : before;
         auto index = git.get({"ls-files", "--stage", "-z"});
         result["index_hash"] = sha256(index);

@@ -67,7 +67,7 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   git status|export|inbox ID  (export: --lfs true includes Git LFS branch history)
   git import ID PEER_ID BUNDLE_ID
   git setup ID [--branch main --object-format sha1|sha256] [--apply true --plan PREVIEW_TOKEN]
-  git integrate ID PEER_ID BRANCH [--apply true --plan PREVIEW_TOKEN]
+  git integrate ID PEER_ID BRANCH [--lfs-policy reject|pointers] [--apply true --plan PREVIEW_TOKEN]
       [--base COMMIT|unborn --head COMMIT --local-ref REF]  (clean tracked files; unrelated local files preserved)
   git merge-review ID PEER_ID BRANCH  (committed three-way file overview; no application)
   git merge-file ID PEER_ID BRANCH PATH [--base COMMIT --head COMMIT --local-ref REF --merge-base COMMIT]
@@ -516,6 +516,7 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
             for (const auto &[flag, value] : flags)
                 if (flag != "--base" && flag != "--head" && flag != "--local-ref" &&
                     flag != "--apply" && flag != "--plan" &&
+                    !(command == "integrate" && flag == "--lfs-policy") &&
                     !(command == "merge" && flag == "--resolutions"))
                     throw std::runtime_error("Unknown Git integration flag: " + flag);
         if (command == "review" || command == "review-file" || command == "history" ||
@@ -589,6 +590,12 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
             if (flags.at("--lfs") != "true" && flags.at("--lfs") != "false")
                 throw std::runtime_error("Choose --lfs true|false");
             data["lfs"] = flags.at("--lfs") == "true";
+        }
+        if (flags.contains("--lfs-policy")) {
+            if (command != "integrate" ||
+                (flags.at("--lfs-policy") != "reject" && flags.at("--lfs-policy") != "pointers"))
+                throw std::runtime_error("Use git integrate --lfs-policy reject|pointers");
+            data["lfs_policy"] = flags.at("--lfs-policy");
         }
         if (command == "setup") {
             for (const auto &[flag, key] : std::vector<std::pair<std::string, std::string>>{
