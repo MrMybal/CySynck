@@ -9,6 +9,69 @@ function clearGitReview() {
 }
 try { token = sessionStorage.getItem("cysynck-token") || ""; } catch (_) { /* Storage may be disabled. */ }
 let storagePlan = null, servicePreview = null;
+let lfsCache=null,lfsRecovery=null,lfsHistory=null,lfsGeneration=0,lfsBusy=false,lfsVerify=false;
+function resetLfsCache() {
+  ++lfsGeneration;lfsCache=lfsRecovery=lfsHistory=null;lfsBusy=false;lfsVerify=false;
+  $("lfs-cache-peer").value=$("lfs-cache-branch").value="";$("lfs-cache-source").replaceChildren();renderLfsCache();
+}
+function lfsInput() {
+  const peer=$("lfs-cache-peer").value,branch=$("lfs-cache-branch").value;
+  return peer || branch?{peer,branch}:{};
+}
+function lfsStateLabel(state) {return t(state==="missing"?"Missing":state==="present"?"Present, unverified":state==="verified"?"Verified":state==="corrupt"?"Corrupt":state==="size_mismatch"?"Wrong size":"Unsafe path");}
+function renderLfsCache() {
+  for(const id of ["lfs-cache-peer","lfs-cache-branch","lfs-cache-source","lfs-cache-inspect","lfs-cache-verify","lfs-cache-history"]) $(id).disabled=lfsBusy;
+  $("lfs-cache-prev").disabled=lfsBusy || !lfsCache || lfsCache.offset===0;$("lfs-cache-next").disabled=lfsBusy || !lfsCache?.has_more;
+  $("lfs-cache-preview").disabled=lfsBusy || !lfsCache || !$("lfs-cache-source").value;
+  $("lfs-cache-apply").disabled=lfsBusy || !lfsRecovery?.can_recover;
+  $("lfs-history-prev").disabled=lfsBusy || !lfsHistory || lfsHistory.offset===0;$("lfs-history-next").disabled=lfsBusy || !lfsHistory?.has_more;
+  for(const id of ["lfs-cache-summary","lfs-cache-recovery-summary"]) {$(id).removeAttribute("data-i18n");$(id).textContent="";}
+  $("lfs-cache-objects").replaceChildren();$("lfs-cache-records").replaceChildren();
+  if(lfsCache) {
+    translated($("lfs-cache-summary"),"{total} objects · {missing} missing · {damaged} damaged · {verified} verified",lfsCache);
+    $("lfs-cache-objects").replaceChildren(...lfsCache.objects.map(object=>text("p",object.sha256+" / "+lfsStateLabel(object.state)+" / "+object.size+" B")));
+  }
+  if(lfsRecovery) translated($("lfs-cache-recovery-summary"),"{available} available missing objects · {unavailable} unavailable · {bytes} bytes",{available:lfsRecovery.objects.length,unavailable:lfsRecovery.unavailable.length,bytes:lfsRecovery.bytes});
+  if(lfsHistory) {
+    for(const receipt of lfsHistory.records) $("lfs-cache-records").append(text("p",receipt.created+" / "+t(receipt.status==="complete"?"Complete":"Incomplete")+" / "+t("Installed objects")+": "+receipt.installed+" / "+receipt.source_peer));
+    for(const error of lfsHistory.errors) $("lfs-cache-records").append(text("p",error.error));
+  }
+}
+async function lfsOperation(route,input,done) {
+  if(!selected || lfsBusy) return;
+  const project=selected,generation=++lfsGeneration;lfsBusy=true;renderLfsCache();
+  try {
+    const result=await api("projects/"+project+"/git-"+route,"POST",input);
+    if(project===selected && generation===lfsGeneration) await done(result);
+  } catch(error) {if(project===selected && generation===lfsGeneration) lfsRecovery=null;throw error;}
+  finally {if(project===selected && generation===lfsGeneration) {lfsBusy=false;renderLfsCache();}}
+}
+function loadLfsCache(verify=false,offset=0,continuation=false) {
+  const input={...lfsInput(),verify,offset,limit:100};
+  if(continuation && lfsCache) input.inventory_hash=lfsCache.inventory_hash;
+  lfsRecovery=null;
+  return lfsOperation("lfs-cache",input,result=>{
+    lfsCache=result;lfsVerify=verify;const source=$("lfs-cache-source").value;
+    $("lfs-cache-source").replaceChildren(...result.source_peers.map(peer=>{const option=document.createElement("option");option.value=option.textContent=peer;return option;}));
+    if(result.source_peers.includes(source)) $("lfs-cache-source").value=source;
+  });
+}
+for(const id of ["lfs-cache-peer","lfs-cache-branch"]) $(id).addEventListener("input",()=>{++lfsGeneration;lfsCache=lfsRecovery=null;renderLfsCache();});
+$("lfs-cache-source").addEventListener("change",()=>{++lfsGeneration;lfsRecovery=null;renderLfsCache();});
+$("lfs-cache-inspect").addEventListener("click",()=>safe(()=>loadLfsCache(false)));
+$("lfs-cache-verify").addEventListener("click",()=>safe(()=>loadLfsCache(true)));
+$("lfs-cache-prev").addEventListener("click",()=>safe(()=>loadLfsCache(lfsVerify,Math.max(0,lfsCache.offset-100),true)));
+$("lfs-cache-next").addEventListener("click",()=>safe(()=>loadLfsCache(lfsVerify,lfsCache.offset+100,true)));
+$("lfs-cache-preview").addEventListener("click",()=>safe(()=>{lfsRecovery=null;return lfsOperation("lfs-recover",{...lfsInput(),source_peer:$("lfs-cache-source").value},result=>{lfsRecovery=result;});}));
+$("lfs-cache-apply").addEventListener("click",()=>safe(()=>{
+  if(!lfsRecovery?.can_recover) return;
+  return lfsOperation("lfs-recover",{...lfsInput(),source_peer:$("lfs-cache-source").value,apply:true,plan:lfsRecovery.plan},async()=>{lfsCache=lfsRecovery=lfsHistory=null;await refresh();});
+}));
+function loadLfsHistory(offset=0) {return lfsOperation("lfs-recoveries",{offset,limit:20},result=>{lfsHistory=result;});}
+$("lfs-cache-history").addEventListener("click",()=>safe(()=>loadLfsHistory()));
+$("lfs-history-prev").addEventListener("click",()=>safe(()=>loadLfsHistory(Math.max(0,lfsHistory.offset-20))));
+$("lfs-history-next").addEventListener("click",()=>safe(()=>loadLfsHistory(lfsHistory.offset+20)));
+$("language").addEventListener("change",renderLfsCache);
 let backupStorageDirty = false;
 let backupScope=null,backupScopeRevision=0,backupRulesLoaded=false,backupScopeBusy=false;
 function resetBackupScope() {
@@ -466,6 +529,7 @@ async function refresh() {
 }
 async function select(project) {
   if (selected !== project.id) {
+    resetLfsCache();
     resetBackupScope();
     resetModeOptions();
     resetBackupBrowser();

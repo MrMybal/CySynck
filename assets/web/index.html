@@ -166,6 +166,24 @@
         </form>
       </div>
       <div id="git-ready" hidden>
+      <details id="lfs-cache-panel"><summary data-i18n>LFS cache</summary>
+        <p data-i18n>Inspect committed branch history. Leave both imported-branch fields empty to use local HEAD.</p>
+        <label><span data-i18n>Imported peer (optional)</span><input id="lfs-cache-peer"></label>
+        <label><span data-i18n>Imported branch (optional)</span><input id="lfs-cache-branch"></label>
+        <div class="actions"><button id="lfs-cache-inspect" data-i18n>Inspect LFS cache</button><button id="lfs-cache-verify" data-i18n>Verify LFS cache</button></div>
+        <p data-i18n>Presence checks use metadata. Verification reads complete asset bytes and can take time.</p>
+        <p id="lfs-cache-summary" aria-live="polite"></p>
+        <div class="actions"><button id="lfs-cache-prev" disabled data-i18n>Previous page</button><button id="lfs-cache-next" disabled data-i18n>Next page</button></div>
+        <div id="lfs-cache-objects" class="backup-inventory"></div>
+        <h4 data-i18n>Recover missing LFS objects</h4>
+        <p data-i18n>Only available missing objects are copied. Existing objects, working files and Git index stay preserved.</p>
+        <label><span data-i18n>Exchange source peer</span><select id="lfs-cache-source"></select></label>
+        <div class="actions"><button id="lfs-cache-preview" disabled data-i18n>Preview LFS cache recovery</button><button id="lfs-cache-apply" disabled data-i18n>Recover available objects</button></div>
+        <p id="lfs-cache-recovery-summary" aria-live="polite"></p>
+        <h4 data-i18n>LFS recovery history</h4><button id="lfs-cache-history" data-i18n>Refresh recovery history</button>
+        <div class="actions"><button id="lfs-history-prev" disabled data-i18n>Previous page</button><button id="lfs-history-next" disabled data-i18n>Next page</button></div>
+        <div id="lfs-cache-records"></div>
+      </details>
       <details><summary data-i18n>Git project settings</summary>
         <form id="git-settings">
           <label><input type="checkbox" id="git-policy"><span data-i18n>Use Git LFS during synchronization</span></label>

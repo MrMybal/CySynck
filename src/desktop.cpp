@@ -71,7 +71,51 @@ static void field(const char *label, std::string &value) {
 static void localize() {
     c::registerTranslations(
         "fr",
-        {{"Backup scope", "Périmètre de sauvegarde"},
+        {{"LFS cache", "Cache LFS"},
+         {"Select a Git exchange project.", "Sélectionnez un projet d’échange Git."},
+         {"Inspect committed branch history. Leave both imported-branch fields empty to use local "
+          "HEAD.",
+          "Inspectez l’historique commité. Laissez les deux champs de branche importée vides pour "
+          "utiliser le HEAD local."},
+         {"Imported peer (optional)", "Pair importé (facultatif)"},
+         {"Imported branch (optional)", "Branche importée (facultatif)"},
+         {"Inspect LFS cache", "Inspecter le cache LFS"},
+         {"Verify LFS cache", "Vérifier le cache LFS"},
+         {"Presence checks use metadata. Verification reads complete asset bytes and can take "
+          "time.",
+          "Le contrôle de présence utilise les métadonnées. La vérification lit les assets "
+          "complets et peut prendre du temps."},
+         {"Committed LFS objects", "Objets LFS commités"},
+         {"Objects", "Objets"},
+         {"Present", "Présents"},
+         {"Missing", "Absents"},
+         {"Damaged", "Endommagés"},
+         {"Verified", "Vérifiés"},
+         {"Revision", "Révision"},
+         {"Present, unverified", "Présent, non vérifié"},
+         {"Corrupt", "Corrompu"},
+         {"Wrong size", "Taille incorrecte"},
+         {"Unsafe path", "Chemin non sûr"},
+         {"Recover missing LFS objects", "Récupérer les objets LFS absents"},
+         {"Only available missing objects are copied. Existing objects, working files and Git "
+          "index stay preserved.",
+          "Seuls les objets absents disponibles sont copiés. Les objets existants, les fichiers de "
+          "travail et l’index Git sont conservés."},
+         {"Exchange source peer", "Pair source de l’échange"},
+         {"Preview LFS cache recovery", "Prévisualiser la récupération LFS"},
+         {"Recover available objects", "Récupérer les objets disponibles"},
+         {"Available missing objects", "Objets absents disponibles"},
+         {"Unavailable objects", "Objets indisponibles"},
+         {"LFS recovery history", "Historique des récupérations LFS"},
+         {"Refresh recovery history", "Actualiser les récupérations"},
+         {"Installed objects", "Objets installés"},
+         {"Complete", "Terminée"},
+         {"Incomplete", "Incomplète"},
+         {"{total} objects · {missing} missing · {damaged} damaged · {verified} verified",
+          "{total} objets · {missing} absents · {damaged} endommagés · {verified} vérifiés"},
+         {"{available} available missing objects · {unavailable} unavailable · {bytes} bytes",
+          "{available} objets absents disponibles · {unavailable} indisponibles · {bytes} octets"},
+         {"Backup scope", "Périmètre de sauvegarde"},
          {"Backup exclusions", "Exclusions de sauvegarde"},
          {"Backup preview", "Aperçu de sauvegarde"},
          {"One glob per line. * and ? match paths or path components. Rules also affect local "
@@ -853,6 +897,10 @@ class App {
         git_integrate_state, git_integrate_input, git_integration_records, git_integration_check,
         git_merge_state, git_merge_file_state, git_merge_editor, git_materialize_state,
         git_materialization_records, git_materialization_check;
+    Json lfs_cache_state, lfs_cache_plan, lfs_cache_records;
+    std::string lfs_revision_peer, lfs_revision_branch, lfs_source_peer;
+    bool lfs_cache_requested = false, lfs_cache_verify = false;
+    size_t lfs_cache_revision = 0;
     Json backup_files, snapshot_comparison, snapshot_file_diff;
     Json backup_scope_state;
     std::string backup_rules_text;
@@ -1098,6 +1146,12 @@ class App {
         snapshots = Json::array();
         restore_id.clear();
         backup_check = restore_preview = nullptr;
+        lfs_cache_state = lfs_cache_plan = lfs_cache_records = nullptr;
+        lfs_revision_peer.clear();
+        lfs_revision_branch.clear();
+        lfs_source_peer.clear();
+        lfs_cache_requested = lfs_cache_verify = false;
+        ++lfs_cache_revision;
         backup_scope_state = nullptr;
         backup_rules_text.clear();
         backup_rules_loaded = false;
@@ -1256,8 +1310,8 @@ class App {
             create = true;
         c::space(14);
         for (auto page : {"Changes", "Conflicts", "Backups", "Backup scope", "Git exchange",
-                          "Engine", "Network", "Activity", "Storage", "Diagnostics", "Services",
-                          "Plugins", "Command line", "Settings", "Application"})
+                          "LFS cache", "Engine", "Network", "Activity", "Storage", "Diagnostics",
+                          "Services", "Plugins", "Command line", "Settings", "Application"})
             if (c::sidebarItem("", c::trLabel(page).c_str(),
                                view == page ||
                                    (std::string(page) == "Conflicts" && view == "Recovery") ||
@@ -1332,6 +1386,8 @@ class App {
             received_view();
         else if (view == "Direct transfers")
             transfers_view();
+        else if (view == "LFS cache")
+            lfs_cache_view(p);
         else if (view == "Backup scope")
             backup_scope_view(p);
         else if (view == "Backups")
@@ -1385,6 +1441,188 @@ class App {
             }
             c::endCard();
         }
+    }
+    Json lfs_cache_input() const {
+        Json data = Json::object();
+        if (!lfs_revision_peer.empty() || !lfs_revision_branch.empty())
+            data.update({{"peer", lfs_revision_peer}, {"branch", lfs_revision_branch}});
+        return data;
+    }
+    void load_lfs_cache(bool verify, size_t offset = 0, bool continuation = false) {
+        auto id = selected;
+        auto revision = ++lfs_cache_revision;
+        auto input = lfs_cache_input();
+        input.update({{"verify", verify}, {"offset", offset}, {"limit", 100}});
+        if (continuation && !lfs_cache_state.is_null())
+            input["inventory_hash"] = lfs_cache_state.at("inventory_hash");
+        lfs_cache_requested = true;
+        lfs_cache_verify = verify;
+        lfs_cache_plan = nullptr;
+        submit(
+            [this, id, input] {
+                return core.request("POST", "/api/projects/" + id + "/git-lfs-cache", input);
+            },
+            [this, id, revision](const Json &r) {
+                if (selected == id && lfs_cache_revision == revision) {
+                    lfs_cache_state = r;
+                    if (lfs_source_peer.empty() && !r.at("source_peers").empty())
+                        lfs_source_peer = r.at("source_peers").at(0);
+                }
+            });
+    }
+    void load_lfs_cache_history(size_t offset = 0) {
+        action("git-lfs-recoveries", {{"offset", offset}, {"limit", 20}},
+               [this](const Json &r) { lfs_cache_records = r; });
+    }
+    void lfs_cache_view(const Json &p) {
+        if (p.at("mode") != "git-bundles") {
+            text(c::tr("Select a Git exchange project."));
+            return;
+        }
+        c::beginCard("lfs-cache-context", c::tr("LFS cache").c_str());
+        ImGui::TextWrapped("%s", c::tr("Inspect committed branch history. Leave both "
+                                       "imported-branch fields empty to use local HEAD.")
+                                     .c_str());
+        ImGui::BeginDisabled(busy());
+        text(c::tr("Imported peer (optional)"));
+        bool edited = ImGui::InputText("##lfs-peer", &lfs_revision_peer);
+        text(c::tr("Imported branch (optional)"));
+        edited |= ImGui::InputText("##lfs-branch", &lfs_revision_branch);
+        if (edited) {
+            ++lfs_cache_revision;
+            lfs_cache_state = lfs_cache_plan = nullptr;
+        }
+        bool inspect = button("Inspect LFS cache");
+        ImGui::SameLine();
+        bool verify = button("Verify LFS cache", true);
+        ImGui::EndDisabled();
+        if ((inspect || verify || !lfs_cache_requested) && !busy())
+            load_lfs_cache(verify);
+        ImGui::TextWrapped("%s", c::tr("Presence checks use metadata. Verification reads complete "
+                                       "asset bytes and can take time.")
+                                     .c_str());
+        c::endCard();
+        if (lfs_cache_state.is_null())
+            return;
+        const auto &cache = lfs_cache_state;
+        c::space(12);
+        c::beginCard("lfs-cache-inventory", c::tr("Committed LFS objects").c_str());
+        for (auto key : {"total", "present", "missing", "damaged", "verified"}) {
+            auto label = key == std::string("total")     ? "Objects"
+                         : key == std::string("present") ? "Present"
+                         : key == std::string("missing") ? "Missing"
+                         : key == std::string("damaged") ? "Damaged"
+                                                         : "Verified";
+            c::textDim("%s: %zu", c::tr(label).c_str(), cache.at(key).get<size_t>());
+        }
+        ImGui::TextWrapped("%s: %s", c::tr("Revision").c_str(),
+                           cache.at("revision").get<std::string>().c_str());
+        auto offset = cache.at("offset").get<size_t>();
+        ImGui::BeginDisabled(busy() || !offset);
+        if (button("Previous page"))
+            load_lfs_cache(lfs_cache_verify, offset >= 100 ? offset - 100 : 0, true);
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::BeginDisabled(busy() || !cache.at("has_more").get<bool>());
+        if (button("Next page"))
+            load_lfs_cache(lfs_cache_verify, offset + 100, true);
+        ImGui::EndDisabled();
+        ImGui::BeginChild("cache-objects", ImVec2(0, 155));
+        for (const auto &object : cache.at("objects")) {
+            auto state = object.at("state").get<std::string>();
+            auto label = state == "missing"         ? "Missing"
+                         : state == "present"       ? "Present, unverified"
+                         : state == "verified"      ? "Verified"
+                         : state == "corrupt"       ? "Corrupt"
+                         : state == "size_mismatch" ? "Wrong size"
+                                                    : "Unsafe path";
+            ImGui::TextWrapped("%s / %s / %llu B", object.at("sha256").get<std::string>().c_str(),
+                               c::tr(label).c_str(),
+                               static_cast<unsigned long long>(object.at("size").get<uintmax_t>()));
+        }
+        ImGui::EndChild();
+        c::endCard();
+        c::space(12);
+        c::beginCard("lfs-cache-refill", c::tr("Recover missing LFS objects").c_str());
+        ImGui::TextWrapped("%s", c::tr("Only available missing objects are copied. Existing "
+                                       "objects, working files and Git index stay preserved.")
+                                     .c_str());
+        ImGui::BeginDisabled(busy());
+        text(c::tr("Exchange source peer"));
+        if (ImGui::BeginCombo("##source-peer", lfs_source_peer.c_str())) {
+            for (const auto &peer : cache.at("source_peers")) {
+                auto value = peer.get<std::string>();
+                if (ImGui::Selectable(value.c_str(), value == lfs_source_peer)) {
+                    lfs_source_peer = value;
+                    lfs_cache_plan = nullptr;
+                    ++lfs_cache_revision;
+                }
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::BeginDisabled(lfs_source_peer.empty());
+        if (button("Preview LFS cache recovery")) {
+            auto input = lfs_cache_input();
+            input["source_peer"] = lfs_source_peer;
+            auto revision = ++lfs_cache_revision;
+            lfs_cache_plan = nullptr;
+            action("git-lfs-recover", input, [this, revision](const Json &r) {
+                if (revision == lfs_cache_revision)
+                    lfs_cache_plan = r;
+            });
+        }
+        ImGui::EndDisabled();
+        ImGui::EndDisabled();
+        if (!lfs_cache_plan.is_null()) {
+            c::textDim(
+                "%s: %zu / %s: %zu / %llu B", c::tr("Available missing objects").c_str(),
+                lfs_cache_plan.at("objects").size(), c::tr("Unavailable objects").c_str(),
+                lfs_cache_plan.at("unavailable").size(),
+                static_cast<unsigned long long>(lfs_cache_plan.at("bytes").get<uintmax_t>()));
+            ImGui::BeginDisabled(busy() || !lfs_cache_plan.at("can_recover").get<bool>());
+            if (button("Recover available objects", true)) {
+                auto input = lfs_cache_input();
+                input.update({{"source_peer", lfs_source_peer},
+                              {"apply", true},
+                              {"plan", lfs_cache_plan.at("plan")}});
+                action("git-lfs-recover", input, [this](const Json &) {
+                    lfs_cache_plan = lfs_cache_state = nullptr;
+                    lfs_cache_requested = false;
+                    lfs_cache_records = nullptr;
+                });
+            }
+            ImGui::EndDisabled();
+        }
+        c::endCard();
+        c::space(12);
+        c::beginCard("lfs-cache-history", c::tr("LFS recovery history").c_str());
+        ImGui::PushID("lfs-history");
+        ImGui::BeginDisabled(busy());
+        if (button("Refresh recovery history"))
+            load_lfs_cache_history();
+        ImGui::EndDisabled();
+        if (!lfs_cache_records.is_null()) {
+            auto offset = lfs_cache_records.at("offset").get<size_t>();
+            ImGui::BeginDisabled(busy() || !offset);
+            if (button("Previous page"))
+                load_lfs_cache_history(offset >= 20 ? offset - 20 : 0);
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+            ImGui::BeginDisabled(busy() || !lfs_cache_records.at("has_more").get<bool>());
+            if (button("Next page"))
+                load_lfs_cache_history(offset + 20);
+            ImGui::EndDisabled();
+            for (const auto &record : lfs_cache_records.at("records"))
+                ImGui::TextWrapped(
+                    "%s / %s / %s: %zu / %s", record.at("created").get<std::string>().c_str(),
+                    c::tr(record.at("status") == "complete" ? "Complete" : "Incomplete").c_str(),
+                    c::tr("Installed objects").c_str(), record.at("installed").get<size_t>(),
+                    record.at("source_peer").get<std::string>().c_str());
+            for (const auto &error : lfs_cache_records.at("errors"))
+                ImGui::TextWrapped("%s", error.at("error").get<std::string>().c_str());
+        }
+        ImGui::PopID();
+        c::endCard();
     }
     static std::string rules_text(const Json &rules) {
         std::string result;
