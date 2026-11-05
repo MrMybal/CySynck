@@ -80,6 +80,19 @@
       <button data-i18n>Save backup storage policy</button>
       <span id="backup-storage-result" aria-live="polite"></span>
     </form>
+    <section id="backup-scope-panel">
+      <h3 data-i18n>Backup scope</h3>
+      <p data-i18n>One glob per line. * and ? match paths or path components. Rules also affect local change lists.</p>
+      <p data-i18n>Excluded folders are pruned. Links and recovery originals stay excluded.</p>
+      <label><span data-i18n>Backup exclusions</span><textarea id="backup-rules" rows="6" spellcheck="false"></textarea></label>
+      <div class="actions"><button id="backup-rules-reload" data-i18n>Reload saved rules</button><button id="backup-scope-preview" data-i18n>Preview backup scope</button></div>
+      <p id="backup-scope-summary" aria-live="polite"></p>
+      <p data-i18n>Metadata preview; file contents are read when backing up. Concurrent edits can change the result.</p>
+      <p data-i18n>Storage estimates exclude compression, deduplication and temporary space.</p>
+      <div class="actions"><button id="backup-rules-save" disabled data-i18n>Save reviewed rules</button><button id="backup-scope-run" disabled data-i18n>Back up reviewed scope</button></div>
+      <div class="actions"><button id="backup-scope-prev" disabled data-i18n>Previous page</button><button id="backup-scope-next" disabled data-i18n>Next page</button></div>
+      <div id="backup-scope-entries" class="backup-inventory"></div>
+    </section>
     <div id="changes"></div>
     <h3 data-i18n>Conflict copies</h3><div id="conflicts"></div><pre id="output"></pre>
     <h3 data-i18n>Differences</h3>

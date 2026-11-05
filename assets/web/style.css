@@ -4,3 +4,4 @@ aside select{width:100%;margin-top:8px}textarea{box-sizing:border-box;width:100%
 .git-commit-list{max-height:20rem;overflow:auto}
 .snapshot-file-list{max-height:18rem;overflow:auto;overflow-wrap:anywhere;margin:12px 0}.snapshot-file-list button{display:block;text-align:left;margin:3px 0}
 #mode-options-fields label{margin:10px 0}#mode-options-fields small{display:block;color:var(--dim)}#mode-options-fields input:not([type=checkbox]){display:block;width:100%}
+ .backup-inventory{max-height:22rem;overflow:auto;overflow-wrap:anywhere}.backup-inventory p{margin:.4rem 0}#backup-rules{width:100%;box-sizing:border-box}

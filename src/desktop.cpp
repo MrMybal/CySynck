@@ -71,7 +71,37 @@ static void field(const char *label, std::string &value) {
 static void localize() {
     c::registerTranslations(
         "fr",
-        {{"Plugins", "Plugins"},
+        {{"Backup scope", "Périmètre de sauvegarde"},
+         {"Backup exclusions", "Exclusions de sauvegarde"},
+         {"Backup preview", "Aperçu de sauvegarde"},
+         {"One glob per line. * and ? match paths or path components. Rules also affect local "
+          "change lists.",
+          "Un motif par ligne. * et ? correspondent aux chemins ou à leurs composants. Les règles "
+          "affectent aussi la liste des modifications locales."},
+         {"Excluded folders are pruned. Links and recovery originals stay excluded.",
+          "Les dossiers exclus ne sont pas parcourus. Les liens et les originaux de récupération "
+          "restent exclus."},
+         {"Reload saved rules", "Recharger les règles enregistrées"},
+         {"Preview backup scope", "Prévisualiser le périmètre"},
+         {"Save reviewed rules", "Enregistrer les règles prévisualisées"},
+         {"Back up reviewed scope", "Sauvegarder le périmètre prévisualisé"},
+         {"Included files", "Fichiers inclus"},
+         {"Skipped entries", "Éléments exclus"},
+         {"Included", "Inclus"},
+         {"Matched rule", "Règle correspondante"},
+         {"Recovery originals", "Originaux de récupération"},
+         {"Link", "Lien"},
+         {"Special file", "Fichier spécial"},
+         {"Metadata preview; file contents are read when backing up. Concurrent edits can change "
+          "the result.",
+          "Aperçu des métadonnées ; les contenus sont lus pendant la sauvegarde. Des modifications "
+          "simultanées peuvent changer le résultat."},
+         {"Storage estimates exclude compression, deduplication and temporary space.",
+          "Les estimations de stockage ne tiennent pas compte de la compression, de la "
+          "déduplication et de l’espace temporaire."},
+         {"{count} included files · {bytes} bytes · {skipped} skipped entries",
+          "{count} fichiers inclus · {bytes} octets · {skipped} éléments exclus"},
+         {"Plugins", "Plugins"},
          {"Refresh plugins", "Actualiser les plugins"},
          {"No plugins loaded", "Aucun plugin chargé"},
          {"Plugin details", "Détails du plugin"},
@@ -824,6 +854,10 @@ class App {
         git_merge_state, git_merge_file_state, git_merge_editor, git_materialize_state,
         git_materialization_records, git_materialization_check;
     Json backup_files, snapshot_comparison, snapshot_file_diff;
+    Json backup_scope_state;
+    std::string backup_rules_text;
+    bool backup_rules_loaded = false;
+    uint64_t backup_scope_revision = 0;
     Json plugins_state, mode_options_state;
     bool plugins_requested = false, mode_options_requested = false, mode_options_saved = false;
     size_t mode_options_revision = 0;
@@ -1064,6 +1098,10 @@ class App {
         snapshots = Json::array();
         restore_id.clear();
         backup_check = restore_preview = nullptr;
+        backup_scope_state = nullptr;
+        backup_rules_text.clear();
+        backup_rules_loaded = false;
+        ++backup_scope_revision;
         mode_options_state = nullptr;
         mode_options_requested = mode_options_saved = false;
         ++mode_options_revision;
@@ -1217,9 +1255,9 @@ class App {
         if (button("New project"))
             create = true;
         c::space(14);
-        for (auto page : {"Changes", "Conflicts", "Backups", "Git exchange", "Engine", "Network",
-                          "Activity", "Storage", "Diagnostics", "Services", "Plugins",
-                          "Command line", "Settings", "Application"})
+        for (auto page : {"Changes", "Conflicts", "Backups", "Backup scope", "Git exchange",
+                          "Engine", "Network", "Activity", "Storage", "Diagnostics", "Services",
+                          "Plugins", "Command line", "Settings", "Application"})
             if (c::sidebarItem("", c::trLabel(page).c_str(),
                                view == page ||
                                    (std::string(page) == "Conflicts" && view == "Recovery") ||
@@ -1294,6 +1332,8 @@ class App {
             received_view();
         else if (view == "Direct transfers")
             transfers_view();
+        else if (view == "Backup scope")
+            backup_scope_view(p);
         else if (view == "Backups")
             backup_view();
         else if (view == "Git exchange")
@@ -1345,6 +1385,140 @@ class App {
             }
             c::endCard();
         }
+    }
+    static std::string rules_text(const Json &rules) {
+        std::string result;
+        for (const auto &rule : rules) {
+            if (!result.empty())
+                result += '\n';
+            result += rule.get<std::string>();
+        }
+        return result;
+    }
+    Json backup_rules() const {
+        Json result = Json::array();
+        std::istringstream stream(backup_rules_text);
+        for (std::string line; std::getline(stream, line);) {
+            if (!line.empty() && line.back() == '\r')
+                line.pop_back();
+            if (!line.empty())
+                result.push_back(line);
+        }
+        return result;
+    }
+    void load_backup_scope(size_t offset = 0, bool continuation = false) {
+        auto id = selected;
+        auto revision = ++backup_scope_revision;
+        Json input{{"excludes", backup_rules()}, {"offset", offset}, {"limit", 100}};
+        if (continuation && !backup_scope_state.is_null())
+            input["inventory_hash"] = backup_scope_state.at("inventory_hash");
+        submit(
+            [this, id, input] {
+                return core.request("POST", "/api/projects/" + id + "/backup-preview", input);
+            },
+            [this, id, revision](const Json &r) {
+                if (selected == id && revision == backup_scope_revision)
+                    backup_scope_state = r;
+            });
+    }
+    void backup_scope_view(const Json &p) {
+        if (!backup_rules_loaded) {
+            backup_rules_loaded = true;
+            backup_rules_text = rules_text(p.at("excludes"));
+        }
+        c::beginCard("backup-rules", c::tr("Backup exclusions").c_str());
+        ImGui::TextWrapped("%s", c::tr("One glob per line. * and ? match paths or path components. "
+                                       "Rules also affect local change lists.")
+                                     .c_str());
+        ImGui::TextWrapped(
+            "%s", c::tr("Excluded folders are pruned. Links and recovery originals stay excluded.")
+                      .c_str());
+        ImGui::BeginDisabled(busy());
+        if (ImGui::InputTextMultiline("##backup-rules", &backup_rules_text, ImVec2(-1, 130))) {
+            backup_scope_state = nullptr;
+            ++backup_scope_revision;
+        }
+        if (button("Reload saved rules")) {
+            backup_rules_text = rules_text(p.at("excludes"));
+            backup_scope_state = nullptr;
+            ++backup_scope_revision;
+        }
+        ImGui::SameLine();
+        if (button("Preview backup scope", true))
+            load_backup_scope();
+        ImGui::EndDisabled();
+        c::endCard();
+        if (backup_scope_state.is_null())
+            return;
+        const auto &preview = backup_scope_state;
+        c::space(12);
+        c::beginCard("backup-inventory", c::tr("Backup preview").c_str());
+        c::textDim("%s: %zu / %llu B / %s: %zu", c::tr("Included files").c_str(),
+                   preview.at("files").get<size_t>(),
+                   static_cast<unsigned long long>(preview.at("bytes").get<uintmax_t>()),
+                   c::tr("Skipped entries").c_str(), preview.at("skipped").get<size_t>());
+        ImGui::TextWrapped("%s", c::tr("Metadata preview; file contents are read when backing up. "
+                                       "Concurrent edits can change the result.")
+                                     .c_str());
+        ImGui::TextWrapped(
+            "%s", c::tr("Storage estimates exclude compression, deduplication and temporary space.")
+                      .c_str());
+        ImGui::BeginDisabled(busy() || !preview.at("rules_changed").get<bool>());
+        if (button("Save reviewed rules", true)) {
+            auto id = selected;
+            auto revision = ++backup_scope_revision;
+            auto input = Json{{"excludes", preview.at("excludes")}, {"plan", preview.at("plan")}};
+            submit(
+                [this, id, input] {
+                    return core.request("PUT", "/api/projects/" + id + "/backup-excludes", input);
+                },
+                [this, id, revision](const Json &) {
+                    if (id == selected && revision == backup_scope_revision)
+                        backup_scope_state = nullptr;
+                    refresh();
+                });
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::BeginDisabled(busy() || preview.at("rules_changed").get<bool>());
+        if (button("Back up reviewed scope")) {
+            action("backup", {{"plan", preview.at("plan")}},
+                   [this](const Json &) { backup_scope_state = nullptr; });
+        }
+        ImGui::EndDisabled();
+        auto offset = preview.at("offset").get<size_t>();
+        ImGui::BeginDisabled(busy() || offset == 0);
+        if (button("Previous page"))
+            load_backup_scope(offset >= 100 ? offset - 100 : 0, true);
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::BeginDisabled(busy() || !preview.at("has_more").get<bool>());
+        if (button("Next page"))
+            load_backup_scope(offset + 100, true);
+        ImGui::EndDisabled();
+        ImGui::BeginChild("backup-inventory-rows", ImVec2(0, 250));
+        for (const auto &row : preview.at("entries")) {
+            bool included = row.at("included");
+            auto reason = included ? c::tr("Included")
+                                   : c::tr(row.at("reason") == "rule"        ? "Matched rule"
+                                           : row.at("reason") == "protected" ? "Recovery originals"
+                                           : row.at("reason") == "link"      ? "Link"
+                                                                             : "Special file");
+            if (row.contains("rule"))
+                reason += ": " + row.at("rule").get<std::string>();
+            std::string detail;
+            if (included) {
+                auto storage = row.at("storage").get<std::string>();
+                detail = " / " + row.at("bytes").dump() + " B / " +
+                         c::tr(storage == "blocks-v1"       ? "Fixed blocks (4 MiB)"
+                               : storage == "blocks-cdc-v1" ? "Content-defined blocks (1–8 MiB)"
+                                                            : "Whole files");
+            }
+            ImGui::TextWrapped("%s / %s%s", row.at("path").get<std::string>().c_str(),
+                               reason.c_str(), detail.c_str());
+        }
+        ImGui::EndChild();
+        c::endCard();
     }
     void load_mode_options() {
         auto id = selected;

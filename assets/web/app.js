@@ -10,6 +10,58 @@ function clearGitReview() {
 try { token = sessionStorage.getItem("cysynck-token") || ""; } catch (_) { /* Storage may be disabled. */ }
 let storagePlan = null, servicePreview = null;
 let backupStorageDirty = false;
+let backupScope=null,backupScopeRevision=0,backupRulesLoaded=false,backupScopeBusy=false;
+function resetBackupScope() {
+  ++backupScopeRevision;backupScope=null;backupRulesLoaded=false;backupScopeBusy=false;
+  $("backup-rules").value="";renderBackupScope();
+}
+function backupRules() {return $("backup-rules").value.split(/\r?\n/).filter(line=>line.length>0);}
+function renderBackupScope() {
+  $("backup-rules").disabled=$("backup-rules-reload").disabled=$("backup-scope-preview").disabled=backupScopeBusy;
+  $("backup-rules-save").disabled=backupScopeBusy || !backupScope?.rules_changed;
+  $("backup-scope-run").disabled=backupScopeBusy || !backupScope || backupScope.rules_changed;
+  $("backup-scope-prev").disabled=backupScopeBusy || !backupScope || backupScope.offset===0;
+  $("backup-scope-next").disabled=backupScopeBusy || !backupScope?.has_more;
+  $("backup-scope-summary").removeAttribute("data-i18n");$("backup-scope-summary").textContent="";
+  $("backup-scope-entries").replaceChildren();
+  if(!backupScope) return;
+  translated($("backup-scope-summary"),"{count} included files · {bytes} bytes · {skipped} skipped entries",{count:backupScope.files,bytes:backupScope.bytes,skipped:backupScope.skipped});
+  for(const row of backupScope.entries) {
+    const reason=row.included?t("Included"):t(row.reason==="rule"?"Matched rule":row.reason==="protected"?"Recovery originals":row.reason==="link"?"Link":"Special file");
+    const storage=row.storage==="blocks-v1"?t("Fixed blocks (4 MiB)"):row.storage==="blocks-cdc-v1"?t("Content-defined blocks (1–8 MiB)"):t("Whole files");
+    $("backup-scope-entries").append(text("p",row.path+" / "+reason+(row.rule?": "+row.rule:"")+(row.included?" / "+row.bytes+" B / "+storage:"")));
+  }
+}
+async function previewBackupScope(offset=0,continuation=false) {
+  if(!selected || backupScopeBusy) return;
+  const project=selected,revision=++backupScopeRevision,input={excludes:backupRules(),offset,limit:100};
+  if(continuation && backupScope) input.inventory_hash=backupScope.inventory_hash;
+  backupScopeBusy=true;renderBackupScope();
+  try {
+    const result=await api("projects/"+project+"/backup-preview","POST",input);
+    if(project===selected && revision===backupScopeRevision) backupScope=result;
+  } catch(error) {if(project===selected && revision===backupScopeRevision) backupScope=null;throw error;}
+  finally {if(project===selected && revision===backupScopeRevision) {backupScopeBusy=false;renderBackupScope();}}
+}
+$("backup-rules").addEventListener("input",()=>{++backupScopeRevision;backupScope=null;renderBackupScope();});
+$("backup-rules-reload").addEventListener("click",()=>{++backupScopeRevision;backupScope=null;$("backup-rules").value=(selectedProject?.excludes||[]).join("\n");renderBackupScope();});
+$("backup-scope-preview").addEventListener("click",()=>safe(()=>previewBackupScope()));
+$("backup-scope-prev").addEventListener("click",()=>safe(()=>previewBackupScope(Math.max(0,backupScope.offset-100),true)));
+$("backup-scope-next").addEventListener("click",()=>safe(()=>previewBackupScope(backupScope.offset+100,true)));
+async function applyBackupScope(saveRules) {
+  if(!backupScope || backupScopeBusy || backupScope.rules_changed!==saveRules) return;
+  const project=selected,revision=++backupScopeRevision,input={plan:backupScope.plan};
+  if(saveRules) input.excludes=backupScope.excludes;
+  backupScopeBusy=true;renderBackupScope();
+  try {
+    await api("projects/"+project+(saveRules?"/backup-excludes":"/backup"),saveRules?"PUT":"POST",input);
+    if(project===selected && revision===backupScopeRevision) {backupScope=null;await refresh();}
+  } catch(error) {if(project===selected && revision===backupScopeRevision) backupScope=null;throw error;}
+  finally {if(project===selected && revision===backupScopeRevision) {backupScopeBusy=false;renderBackupScope();}}
+}
+$("backup-rules-save").addEventListener("click",()=>safe(()=>applyBackupScope(true)));
+$("backup-scope-run").addEventListener("click",()=>safe(()=>applyBackupScope(false)));
+$("language").addEventListener("change",renderBackupScope);
 let loadedPlugins=null, availableModes=[], modeOptions=null, modeOptionsProject="", modeOptionsGeneration=0, modeOptionsDirty=false;
 function pluginLabel(value,key) {return document.documentElement.lang==="fr" && value[key+"_fr"]?value[key+"_fr"]:value[key]||"";}
 function renderPlugins() {
@@ -414,6 +466,7 @@ async function refresh() {
 }
 async function select(project) {
   if (selected !== project.id) {
+    resetBackupScope();
     resetModeOptions();
     resetBackupBrowser();
     backupStorageDirty = false;
@@ -447,6 +500,7 @@ async function select(project) {
   }
   selected = project.id;
   selectedProject = project;
+  if(!backupRulesLoaded) {$("backup-rules").value=(project.excludes||[]).join("\n");backupRulesLoaded=true;}
   $("git-panel").hidden = project.mode !== "git-bundles";
   if (!gitSettingsDirty) {
     $("git-policy").checked=project.git_lfs!==false;
