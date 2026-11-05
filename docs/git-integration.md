@@ -62,9 +62,10 @@ and no token. Invalid repository context can return an error instead. Success re
 - Regular files only: at most 10,000 per tree, 1 GiB per blob and 16 GiB per tree.
   Linked files, submodules, unsafe paths, metadata aliases and case collisions are refused.
   Case-only renames require manual Git handling.
-- LFS pointers, active checkout filters, encoding conversion, text/EOL conversion and
-  ident expansion are refused. Use [verified separate extraction](git-extraction.md)
-  for these revisions. This integration route does not hydrate LFS assets yet.
+- LFS pointers require the explicit [`--lfs-policy pointers` policy](git-lfs-integration.md)
+  from 0.34; default integration refuses them. Working files remain exact pointers and assets
+  are materialized separately. Other active checkout filters, encoding/text/EOL conversion and
+  ident expansion are refused. [Verified separate extraction](git-extraction.md) remains available.
 - Sparse working trees, split/shared indices, linked working trees, object alternates,
   grafts, shallow/promisor repositories and in-progress Git operations require manual
   handling. Repository/configuration `GIT_*` overrides must be unset.

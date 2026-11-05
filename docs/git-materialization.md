@@ -4,7 +4,8 @@ After checking out a committed revision containing LFS pointer files, CySynck ca
 those exact pointers with verified assets already available in the local LFS cache. This is
 an explicit operation, separate from bundle import, branch integration and revision extraction.
 It performs no fetch and requires no Git LFS executable. Git remains responsible for checkout
-and merging; reviewed branch integration still refuses LFS revisions.
+and merging. From 0.34, [explicit fast-forward integration](git-lfs-integration.md) can leave
+committed LFS pointers ready for this separate materialization workflow.
 
 Use **Preview LFS materialization** in the Git exchange view, inspect the file states, then
 **Materialize verified assets**. CyUI and Web default to English and include French.

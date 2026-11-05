@@ -137,3 +137,6 @@ credentials or uncommitted filenames. Version-1 manifests cannot carry an LFS in
 
 From 0.32, [explicit cache inspection and refill](git-cache.md) can recover available missing
 committed-history objects from an existing peer exchange without importing refs or checking out files.
+
+From 0.34, [pointer-only fast-forward integration](git-lfs-integration.md) can explicitly check
+out canonical committed pointers, including on first import. Asset materialization stays separate.

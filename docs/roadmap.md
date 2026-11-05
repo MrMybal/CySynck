@@ -1,5 +1,17 @@
 # Development milestones
 
+## Delivered in 0.34
+
+- Explicit pointer-only LFS fast-forward and first-import integration, with unchanged default
+  refusal, canonical pointer/attribute validation and bounded deduplicated asset inventories.
+- Fresh plan binding, disabled external filters and preserved local data/configuration;
+  integration receipt verification and interruption review understand the pointer policy.
+- CLI, existing C/C++ ABI and bilingual CyUI/Web policy controls, with an extracted-package
+  first-import scenario. Asset hydration remains a separate reviewed operation.
+
+See [LFS pointer integration](git-lfs-integration.md). Automatic integration of materialized
+working assets and divergent LFS merging remain separate milestones.
+
 ## Delivered in 0.33
 
 - Read-only LFS recovery receipt checks anchored to the recorded committed history, with
@@ -303,7 +315,8 @@ macOS notarization, signed Windows installers and automatic updates remain separ
 
 - Exercise multi-gigabyte resumable transfers and native Linux/macOS transport and services.
 - Benchmark content-defined backup storage on much larger project trees and real asset workloads.
-- Extend reviewed integration to LFS assets and more advanced conflict editing; extend LFS storage/locking support and verify CyRevision interoperability.
+- Extend pointer-only LFS integration to materialized working assets and divergent branches;
+  extend LFS storage/locking support and verify CyRevision interoperability.
 - Design and test WireGuard rendezvous/NAT traversal against real network configurations;
   Syncthing discovery and relays do not themselves provide that transport.
 

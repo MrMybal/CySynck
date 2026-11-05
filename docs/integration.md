@@ -127,3 +127,7 @@ existing C/C++ JSON request entry point, retaining C ABI version 1.
 Core 0.33 adds `git-lfs-recovery-check` and `git-lfs-recovery-acknowledge` for full receipt
 object verification and fresh-token acknowledgement of interruptions. Original incomplete
 status/installed counts are preserved; see [receipt checks](git-cache.md#checking-and-reviewing-recovery-receipts-033).
+
+Core 0.34 accepts `lfs_policy:"pointers"` on `git-integrate` for explicit pointer-only
+fast-forward/first-import checkouts, with `lfs_before`/`lfs_after` counts. The C ABI stays at
+version 1. See [LFS pointer integration](git-lfs-integration.md).

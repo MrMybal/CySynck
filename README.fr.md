@@ -10,6 +10,12 @@ Le cœur, le CLI et les identifiants d'API sont en anglais. Les interfaces deskt
 démarrent en anglais et proposent le français comme deuxième langue. Le choix est mémorisé
 par profil pour le desktop et dans le navigateur pour le Web.
 
+La version 0.34 ajoute une politique explicite d’intégration Git/LFS en avance rapide,
+y compris au premier import. Les fichiers restent des pointeurs ; les assets sont développés
+séparément depuis le cache vérifié. Les fichiers déjà développés ou modifiés bloquent
+l’intégration. Le CLI, le SDK et les interfaces CyUI/Web anglais-français partagent ce parcours.
+Voir [le guide des pointeurs LFS](docs/git-lfs-integration.md) (anglais).
+
 La version 0.33 vérifie les objets des reçus de récupération LFS par taille et SHA-256,
 en les recoupant avec leur historique Git. Une interruption peut être marquée comme examinée
 après un contrôle frais ; son état incomplet et le nombre d’objets installés sont conservés.

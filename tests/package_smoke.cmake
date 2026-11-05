@@ -457,6 +457,45 @@ if(NOT cache_hash_after STREQUAL sdk_oid OR NOT cache_work_before STREQUAL cache
     NOT cache_index_before STREQUAL cache_index_after OR NOT cache_head_before STREQUAL cache_head_after)
   message(FATAL_ERROR "Packaged cache recovery must restore verified bytes and preserve working/index/HEAD")
 endif()
+# First-import LFS pointers into a separate receiver through the packaged C ABI.
+file(TO_CMAKE_PATH "${WORK_DIR}/Pointer receiver été" pointer_receiver)
+file(MAKE_DIRECTORY "${pointer_receiver}")
+file(WRITE "${pointer_receiver}/keep.txt" "preserved local data\n")
+run_response("${c_consumer}" pointer_export "${WORK_DIR}/C profil été" POST /api/projects/git-lfs/export "{\"lfs\":false}")
+string(JSON pointer_bundle GET "${pointer_export}" id)
+run_response("${c_consumer}" pointer_project "${WORK_DIR}/Pointer profile été" POST /api/projects
+  "{\"id\":\"git-lfs\",\"name\":\"Pointers\",\"mode\":\"git-bundles\",\"git_lfs\":false,\"backup_interval_minutes\":0,\"root\":\"${pointer_receiver}\",\"exchange_path\":\"${sdk_git_exchange}\"}")
+run_response("${c_consumer}" pointer_setup "${WORK_DIR}/Pointer profile été" POST /api/projects/git-lfs/git-setup "{}")
+string(JSON pointer_setup_plan GET "${pointer_setup}" plan)
+run_response("${c_consumer}" pointer_initialized "${WORK_DIR}/Pointer profile été" POST /api/projects/git-lfs/git-setup
+  "{\"apply\":true,\"plan\":\"${pointer_setup_plan}\"}")
+run_response("${c_consumer}" pointer_import "${WORK_DIR}/Pointer profile été" POST /api/projects/git-lfs/import
+  "{\"peer\":\"${sdk_peer}\",\"bundle\":\"${pointer_bundle}\"}")
+run_response("${c_consumer}" pointer_default "${WORK_DIR}/Pointer profile été" POST /api/projects/git-lfs/git-integrate
+  "{\"peer\":\"${sdk_peer}\",\"branch\":\"main\"}")
+string(JSON pointer_default_allowed GET "${pointer_default}" can_integrate)
+if(pointer_default_allowed)
+  message(FATAL_ERROR "Packaged LFS integration must require explicit pointer policy")
+endif()
+run_response("${c_consumer}" pointer_preview "${WORK_DIR}/Pointer profile été" POST /api/projects/git-lfs/git-integrate
+  "{\"peer\":\"${sdk_peer}\",\"branch\":\"main\",\"lfs_policy\":\"pointers\"}")
+string(JSON pointer_plan GET "${pointer_preview}" plan)
+run_response("${c_consumer}" pointer_applied "${WORK_DIR}/Pointer profile été" POST /api/projects/git-lfs/git-integrate
+  "{\"peer\":\"${sdk_peer}\",\"branch\":\"main\",\"lfs_policy\":\"pointers\",\"apply\":true,\"plan\":\"${pointer_plan}\"}")
+string(JSON pointer_receipt GET "${pointer_applied}" receipt)
+run_response("${c_consumer}" pointer_checked "${WORK_DIR}/Pointer profile été" POST /api/projects/git-lfs/git-integration-check
+  "{\"receipt\":\"${pointer_receipt}\"}")
+string(JSON pointer_matches GET "${pointer_checked}" tracked_matches)
+execute_process(COMMAND git --no-pager --no-replace-objects -C "${sdk_git_root}" cat-file blob HEAD:Asset.uasset
+  RESULT_VARIABLE pointer_read OUTPUT_FILE "${WORK_DIR}/committed-pointer" TIMEOUT 30)
+if(NOT pointer_read EQUAL 0)
+  message(FATAL_ERROR "Cannot read the committed pointer for the packaged checkout comparison")
+endif()
+file(SHA256 "${WORK_DIR}/committed-pointer" pointer_expected)
+file(SHA256 "${pointer_receiver}/Asset.uasset" pointer_actual)
+if(NOT pointer_matches OR NOT pointer_expected STREQUAL pointer_actual OR EXISTS "${pointer_receiver}/.git/lfs" OR NOT EXISTS "${pointer_receiver}/keep.txt")
+  message(FATAL_ERROR "Packaged pointer checkout must preserve committed bytes/local data and create no LFS cache")
+endif()
 # Materialize one checked-out LFS pointer through the extracted C ABI, then verify recovery.
 sdk_git("${sdk_git_root}" config core.autocrlf false)
 file(WRITE "${sdk_git_root}/.gitattributes" "*.uasset filter=lfs diff=lfs merge=lfs -text\n")

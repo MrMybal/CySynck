@@ -1,4 +1,4 @@
-# Platform packages (0.33)
+# Platform packages (0.34)
 
 The same C++20 core powers the desktop, CLI and SDK. Syncthing, Git and WireGuard remain
 external tools. Native builds are preferred for distribution; the optional Zig toolchain
@@ -28,6 +28,9 @@ the recovery original, then check and acknowledge a simulated interrupted receip
 Cache refill checks also verify the receipt's planned objects, then acknowledge a simulated
 interruption whose valid immutable copy outlived its last journal update. The original
 incomplete state and empty installed list must remain preserved.
+An independent receiver also imports a bundle and applies an explicit LFS pointer first import
+through the C ABI, checking exact pointer bytes, preserved local data, receipt verification
+and absence of newly created asset cache objects.
 
 | Platform | Archive | Desktop entry point |
 | --- | --- | --- |
