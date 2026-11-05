@@ -1,5 +1,17 @@
 # Development milestones
 
+## Delivered in 0.32
+
+- Paginated local/imported-branch LFS history cache inventories, presence/size diagnostics,
+  explicit SHA-256 verification and revision/configuration/metadata freshness fingerprints.
+- Reviewed refill of available missing objects from an explicit exchange peer, with checked
+  selections, no-overwrite publication, a shared cache lock and private completion/failure receipts.
+- Bilingual CyUI/Web cache and receipt views, CLI/C/C++ routes and extracted-package checks
+  that preserve working files, index, HEAD and existing cache entries.
+
+See [LFS cache inspection and refill](git-cache.md). Damaged local objects stay preserved;
+LFS branch integration and distributed asset locking remain separate milestones.
+
 ## Delivered in 0.31
 
 - Shared backup exclusion diagnostics, preserving existing glob semantics and protected recovery

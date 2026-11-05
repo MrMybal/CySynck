@@ -10,6 +10,12 @@ Le cœur, le CLI et les identifiants d'API sont en anglais. Les interfaces deskt
 démarrent en anglais et proposent le français comme deuxième langue. Le choix est mémorisé
 par profil pour le desktop et dans le navigateur pour le Web.
 
+La version 0.32 ajoute un inventaire du cache Git/LFS, la vérification complète des objets
+et la récupération explicite des objets absents disponibles dans les échanges des pairs.
+Les fichiers de travail, l’index et les objets locaux existants sont conservés. Le CLI, le SDK
+et les vues CyUI/Web bilingues partagent les aperçus et l’historique des opérations.
+Voir [le guide du cache LFS](docs/git-cache.md) (anglais).
+
 La version 0.31 ajoute un aperçu du périmètre des sauvegardes, avec les fichiers inclus,
 les motifs d'exclusion et des contrôles de fraîcheur des métadonnées. Les règles peuvent être
 prévisualisées avant enregistrement ; une sauvegarde manuelle peut utiliser cet aperçu vérifié.

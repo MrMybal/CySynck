@@ -172,3 +172,6 @@ la version d'Unreal visée avant intégration à un produit.
 Backup scope uses POST `/api/projects/ID/backup-preview` and PUT
 `/api/projects/ID/backup-excludes`; POST `backup` optionally accepts the saved-rule preview plan.
 See [backup scope](backup-scope.md) for metadata freshness, pruning and rule limits.
+
+POST project `git-lfs-cache`, `git-lfs-recover`, `git-lfs-recoveries` and `git-lfs-recovery`
+share the offline [LFS cache](git-cache.md) inventory, refill and receipt implementation.

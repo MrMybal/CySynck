@@ -120,3 +120,6 @@ mixed-format history and storage statistics.
 
 Core 0.31 exposes [backup scope previews and checked exclusion updates](backup-scope.md)
 through the existing JSON request entry point; no C ABI change is required.
+
+Core 0.32 adds [offline LFS cache inventory, refill and receipts](git-cache.md) through the
+existing C/C++ JSON request entry point, retaining C ABI version 1.

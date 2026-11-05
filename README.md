@@ -9,7 +9,7 @@ A project-based synchronization and backup companion written in **C++20**, power
 One shared core powers the native desktop app, CLI, local Web console and integration SDK.
 Build a headless server without graphical dependencies. No Python or .NET runtime is required.
 
-**Status: 0.31.0, under active development.** Windows x64 is validated locally. The headless
+**Status: 0.32.0, under active development.** Windows x64 is validated locally. The headless
 Linux core, CLI and test binaries also cross-compile from Windows with Zig.
 Native Linux and macOS execution still needs validation on those platforms.
 The Unreal bridge is an integration example and has not yet been compiled inside Unreal.
@@ -19,7 +19,7 @@ those fixes and the new package smoke checks still need another native CI run.
 
 ## Features
 
-| Area | Available in 0.31 |
+| Area | Available in 0.32 |
 | --- | --- |
 | Projects | Separate folders, settings and modes; overlapping project roots are rejected |
 | Sync modes | Two-way, send only, receive only, local backup and Git bundle exchange |
@@ -40,6 +40,11 @@ those fixes and the new package smoke checks still need another native CI run.
 | Resumable transfers | Verified 1 MiB chunks, files up to 4 GiB, configurable profile quotas, frozen source and manual resume |
 | Received files | Durable inbox catalog, integrity verification and export to a separate directory |
 | Integration | C++ library, C ABI with UTF-8 JSON and an Unreal/Blueprint bridge example |
+
+Git LFS cache inspection now reports missing, present and damaged committed-history assets.
+Explicit verification and reviewed refill from existing peer exchange objects preserve working
+files, index and existing cache entries. Local receipts record completion or interruption through
+CLI, SDK and bilingual CyUI/Web. See [offline LFS cache refill](docs/git-cache.md).
 
 Backup scope previews explain included files and the first matching exclusion rule, with
 bounded pages and metadata freshness checks. Review proposed rules before saving, or launch

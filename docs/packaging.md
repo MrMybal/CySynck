@@ -1,4 +1,4 @@
-# Platform packages (0.31)
+# Platform packages (0.32)
 
 The same C++20 core powers the desktop, CLI and SDK. Syncthing, Git and WireGuard remain
 external tools. Native builds are preferred for distribution; the optional Zig toolchain
@@ -114,3 +114,6 @@ executes the extracted CLI directly.
 
 The extracted-package smoke also previews proposed backup exclusions through the C ABI, saves
 them with their checked plan, previews the saved scope and creates a checked snapshot through CLI.
+
+The extracted C consumer also inspects and refills a missing LFS object from a verified
+exchange source, reads its receipts and checks unchanged working files, index and HEAD.

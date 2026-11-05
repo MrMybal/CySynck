@@ -134,3 +134,6 @@ The existing authenticated project routes work through the C/C++ SDK and remote 
 The version-2 `lfs` field contains `version:1`, `scope:"branch-history"`, sorted unique
 `objects:[{"sha256":"...","size":N}]` and their total `bytes`. It contains no local paths,
 credentials or uncommitted filenames. Version-1 manifests cannot carry an LFS inventory.
+
+From 0.32, [explicit cache inspection and refill](git-cache.md) can recover available missing
+committed-history objects from an existing peer exchange without importing refs or checking out files.
