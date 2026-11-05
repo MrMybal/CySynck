@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include "backup.hpp"
 #include "backup_data.hpp"
+#include "backup_plan.hpp"
 #include "snapshot.hpp"
 #include "diff.hpp"
 #include "git_lfs.hpp"
@@ -244,53 +245,8 @@ fs::path project_child(const fs::path &root, const std::string &relative) {
         throw std::runtime_error("Path escapes project");
     return output;
 }
-static bool glob(const std::string &text, const std::string &pattern) {
-    size_t i = 0, j = 0, star = std::string::npos, mark = 0;
-    while (i < text.size()) {
-        if (j < pattern.size() && (pattern[j] == '?' || pattern[j] == text[i])) {
-            ++i;
-            ++j;
-        } else if (j < pattern.size() && pattern[j] == '*') {
-            star = j++;
-            mark = i;
-        } else if (star != std::string::npos) {
-            j = star + 1;
-            i = ++mark;
-        } else
-            return false;
-    }
-    while (j < pattern.size() && pattern[j] == '*')
-        ++j;
-    return j == pattern.size();
-}
 bool project_excludes(const Json &project, const std::string &relative) {
-    for (const auto &part : fs::u8path(relative)) {
-        auto name = path_string(part);
-#ifdef _WIN32
-        for (auto &ch : name)
-            if (ch >= 'A' && ch <= 'Z')
-                ch += 'a' - 'A';
-#endif
-        if (name == ".cysynck-recovery")
-            return true;
-    }
-    for (const auto &pattern : project.at("excludes")) {
-        auto p = pattern.get<std::string>();
-        if (glob(relative, p))
-            return true;
-        for (const auto &part : fs::u8path(relative)) {
-            auto component = path_string(part);
-#ifdef _WIN32
-            if (p == ".git" || p == ".stfolder" || p == ".stversions" || p == ".stignore")
-                for (auto &ch : component)
-                    if (ch >= 'A' && ch <= 'Z')
-                        ch += 'a' - 'A';
-#endif
-            if (glob(component, p))
-                return true;
-        }
-    }
-    return false;
+    return !backup_exclusion(project, relative).is_null();
 }
 std::vector<std::pair<std::string, fs::path>> project_files(const Json &project) {
     auto root = fs::u8path(project.at("root").get<std::string>());
@@ -883,9 +839,7 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
         auto approved = p.value("git_lfs_storage", "");
         p["git_lfs_storage"] =
             approved.empty() ? "" : path_string(approved_lfs_directory(approved));
-        for (auto &pattern : p["excludes"])
-            if (!pattern.is_string() || pattern.get<std::string>().empty())
-                throw std::runtime_error("Invalid exclusion glob");
+        validate_backup_excludes(p.at("excludes"));
         auto exchange = p.at("exchange_path").get<std::string>();
         if (!exchange.empty())
             p["exchange_path"] =
@@ -968,6 +922,18 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
         save();
         return mode_configuration(p);
     }
+    if (action == "backup-excludes") {
+        if (method != "PUT")
+            throw std::runtime_error("Method not allowed");
+        auto preview = preview_backup(state_, p, {{"excludes", data.at("excludes")}});
+        if (!data.contains("plan") || data.at("plan") != preview.at("plan"))
+            throw std::runtime_error(
+                "Backup rules or inventory changed; preview again before saving");
+        p["excludes"] = preview.at("excludes");
+        event(projectId, "project", "Backup exclusion rules saved");
+        save();
+        return {{"saved", true}, {"excludes", p.at("excludes")}};
+    }
     if (action == "snapshots" && method == "GET") {
         result = snapshots(projectId);
         for (auto &item : result)
@@ -976,9 +942,15 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
     }
     if (method != "POST")
         throw std::runtime_error("Method not allowed");
-    if (action == "backup")
+    if (action == "backup-preview")
+        return preview_backup(state_, p, data);
+    if (action == "backup") {
+        if (data.contains("plan") &&
+            data.at("plan") != preview_backup(state_, p, Json::object()).at("plan"))
+            throw std::runtime_error(
+                "Backup rules or inventory changed; preview again before backing up");
         result = backup(p, "manual");
-    else if (action == "changes")
+    } else if (action == "changes")
         result = changes(p, data);
     else if (action == "snapshot-files" || action == "snapshot-compare" ||
              action == "snapshot-compare-file")

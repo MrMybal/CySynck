@@ -27,7 +27,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.30 (C++20)
+        return {{"help", R"(CySynck 0.31 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | plugins | events | api-token
   project mode-options ID
@@ -46,7 +46,9 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
       [--id SHARED_ID] [--exchange-path DIR] [--interval MINUTES] [--keep COUNT] [--storage auto|whole|cdc]
   project set ID [--interval MINUTES] [--keep COUNT] [--storage auto|whole|cdc]
       [--git-lfs true|false] [--lfs-storage ABSOLUTE_DIRECTORY]
-  backup ID | snapshots ID | changes ID [--snapshot ID]
+  backup ID [--plan TOKEN] | snapshots ID | changes ID [--snapshot ID]
+  backup-preview ID [--excludes RULES.json] [--offset N] [--limit N] [--inventory-hash HASH]
+  backup-excludes ID RULES.json --plan TOKEN
   diff ID RELATIVE_PATH [--snapshot ID]
   compare ID LEFT_RELATIVE_PATH RIGHT_RELATIVE_PATH
   conflicts ID | conflict-diff ID CONFLICT_RELATIVE_PATH
@@ -679,6 +681,34 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
                 data[key] = number;
             }
         return action(args[0], data);
+    }
+    if (args[0] == "backup-preview" || args[0] == "backup-excludes" || args[0] == "backup") {
+        auto command = args[0];
+        require(command == "backup-excludes" ? 3 : 2);
+        Json data = Json::object();
+        for (const auto &[flag, value] : flags) {
+            if (flag == "--plan" && command != "backup-preview")
+                data["plan"] = value;
+            else if (flag == "--excludes" && command == "backup-preview")
+                data["excludes"] = Json::parse(read_file(fs::u8path(value), 16384));
+            else if (flag == "--inventory-hash" && command == "backup-preview")
+                data["inventory_hash"] = value;
+            else if ((flag == "--offset" || flag == "--limit") && command == "backup-preview") {
+                uint64_t number = 0;
+                auto parsed = std::from_chars(value.data(), value.data() + value.size(), number);
+                if (parsed.ec != std::errc{} || parsed.ptr != value.data() + value.size())
+                    throw std::runtime_error("Invalid backup preview page number");
+                data[flag.substr(2)] = number;
+            } else
+                throw std::runtime_error("Unknown backup preview flag: " + flag);
+        }
+        if (command == "backup-excludes") {
+            if (!data.contains("plan"))
+                throw std::runtime_error("Preview the proposed backup rules and supply --plan");
+            data["excludes"] = Json::parse(read_file(fs::u8path(args[2]), 16384));
+            return core.request("PUT", "/api/projects/" + args[1] + "/backup-excludes", data);
+        }
+        return action(command, data);
     }
     if (args[0] == "snapshots") {
         require(2);
