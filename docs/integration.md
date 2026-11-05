@@ -117,3 +117,6 @@ Backup storage policies also use the existing ABI: create or update a project wi
 `{"backup_storage":"cdc"}`, then use `backup`, `verify`, `restore-plan` and `restore`.
 CDC recipes require core 0.22 or later. See [backup storage](block-backups.md) for bounds,
 mixed-format history and storage statistics.
+
+Core 0.31 exposes [backup scope previews and checked exclusion updates](backup-scope.md)
+through the existing JSON request entry point; no C ABI change is required.

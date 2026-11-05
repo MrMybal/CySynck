@@ -1,5 +1,17 @@
 # Development milestones
 
+## Delivered in 0.31
+
+- Shared backup exclusion diagnostics, preserving existing glob semantics and protected recovery
+  originals, with bounded rule validation for project settings and the dedicated editor.
+- Paginated metadata-only backup previews, storage predictions and profile/project/settings/
+  inventory-bound tokens for checked rule saves and optional checked manual backups.
+- CLI, unchanged C ABI and bilingual CyUI/Web scope editors, with independent extracted-package
+  checks. Existing manual, scheduled and before-sync backups remain available.
+
+See [backup scope](backup-scope.md). Previews inspect file metadata, rather than content hashes;
+concurrent filesystem changes still require normal backup capture checks.
+
 ## Delivered in 0.30
 
 - Loaded native plugin inventory, descriptions, library fingerprints and optional bilingual

@@ -168,3 +168,7 @@ Les requêtes de sauvegarde, diff et réseau doivent être exécutées dans une 
 pas sur le tick de rendu. Le pont fourni est synchrone ; il ne fournit pas encore de nœud
 Blueprint asynchrone ni de scheduler automatique. Il doit être compilé et validé avec
 la version d'Unreal visée avant intégration à un produit.
+
+Backup scope uses POST `/api/projects/ID/backup-preview` and PUT
+`/api/projects/ID/backup-excludes`; POST `backup` optionally accepts the saved-rule preview plan.
+See [backup scope](backup-scope.md) for metadata freshness, pruning and rule limits.

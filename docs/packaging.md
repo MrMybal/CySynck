@@ -1,4 +1,4 @@
-# Platform packages (0.30)
+# Platform packages (0.31)
 
 The same C++20 core powers the desktop, CLI and SDK. Syncthing, Git and WireGuard remain
 external tools. Native builds are preferred for distribution; the optional Zig toolchain
@@ -111,3 +111,6 @@ archive. Extract that archive on Linux with a normal `022` umask, without tar's
 `--same-permissions` option, then run `chmod 755 PREFIX/bin/cysynck` before starting the
 server. Native Linux packaging preserves executable permissions and its CI smoke check
 executes the extracted CLI directly.
+
+The extracted-package smoke also previews proposed backup exclusions through the C ABI, saves
+them with their checked plan, previews the saved scope and creates a checked snapshot through CLI.

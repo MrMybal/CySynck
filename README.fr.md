@@ -10,6 +10,12 @@ Le cœur, le CLI et les identifiants d'API sont en anglais. Les interfaces deskt
 démarrent en anglais et proposent le français comme deuxième langue. Le choix est mémorisé
 par profil pour le desktop et dans le navigateur pour le Web.
 
+La version 0.31 ajoute un aperçu du périmètre des sauvegardes, avec les fichiers inclus,
+les motifs d'exclusion et des contrôles de fraîcheur des métadonnées. Les règles peuvent être
+prévisualisées avant enregistrement ; une sauvegarde manuelle peut utiliser cet aperçu vérifié.
+Le CLI, le SDK C/C++ et CyUI/Web bilingues partagent ce parcours.
+Voir [le guide du périmètre des sauvegardes](docs/backup-scope.md) (anglais).
+
 La version 0.30 ajoute le catalogue des plugins chargés, leurs descriptions bilingues et des
 paramètres typés propres à chaque projet. Les anciens plugins ABI v1 restent compatibles.
 Un nouvel export C permet leur chargement explicite depuis une application intégrée, et le
