@@ -429,6 +429,17 @@ static void localize() {
           "Les liens et sous-modules nécessitent une intégration Git manuelle"},
          {"Integrate imported branch", "Intégrer la branche importée"},
          {"Preview integration", "Prévisualiser l'intégration"},
+         {"Keep LFS pointers during fast-forward",
+          "Conserver les pointeurs LFS pendant l’avance rapide"},
+         {"LFS assets are not expanded. Materialize them separately after integration. Modified or "
+          "expanded working files block this operation.",
+          "Les assets LFS ne sont pas développés. Matérialisez-les séparément après l’intégration. "
+          "Les fichiers modifiés ou déjà développés bloquent cette opération."},
+         {"LFS pointer files", "Fichiers pointeurs LFS"},
+         {"Updates the local branch, index and tracked files. Unrelated local files are preserved. "
+          "LFS pointers require explicit selection.",
+          "Met à jour la branche locale, l’index et les fichiers suivis. Les fichiers locaux "
+          "indépendants sont conservés. Les pointeurs LFS exigent une sélection explicite."},
          {"Apply fast-forward", "Appliquer l'avance rapide"},
          {"Local files preserved", "Fichiers locaux conservés"},
          {"Integration complete", "Intégration terminée"},
@@ -924,6 +935,7 @@ class App {
     int git_object_format = 0;
     std::set<std::string> git_storage_selected;
     std::map<std::string, std::string> git_merge_choices;
+    bool git_integrate_lfs_pointers = false;
     std::map<std::string, std::string> git_merge_edits;
     std::string git_merge_buffer;
     std::vector<std::string> git_region_choices;
@@ -1177,6 +1189,7 @@ class App {
         git_setup_state = nullptr;
         git_extract_state = git_extract_input = nullptr;
         git_integrate_state = git_integrate_input = nullptr;
+        git_integrate_lfs_pointers = false;
         clear_git_merge_choices();
         git_merge_state = git_merge_file_state = nullptr;
         git_integration_records = git_integration_check = nullptr;
@@ -3787,10 +3800,24 @@ class App {
                               "or edit conflict text, then preview again. Unrelated local data is "
                               "preserved."
                             : "Updates the local branch, index and tracked files. Unrelated local "
-                              "files are preserved; LFS and checkout filters use separate "
-                              "extraction.")
+                              "files are preserved. LFS pointers require explicit selection.")
                         .c_str());
                 auto integrateQuery = git_context();
+                if (!merging) {
+                    ImGui::BeginDisabled(busy());
+                    if (ImGui::Checkbox(c::tr("Keep LFS pointers during fast-forward").c_str(),
+                                        &git_integrate_lfs_pointers))
+                        git_integrate_state = git_integrate_input = nullptr;
+                    ImGui::EndDisabled();
+                    if (git_integrate_lfs_pointers) {
+                        integrateQuery["lfs_policy"] = "pointers";
+                        ImGui::TextWrapped("%s",
+                                           c::tr("LFS assets are not expanded. Materialize them "
+                                                 "separately after integration. Modified or "
+                                                 "expanded working files block this operation.")
+                                               .c_str());
+                    }
+                }
                 if (merging && !git_merge_choices.empty()) {
                     integrateQuery["resolutions"] = Json::array();
                     for (const auto &[path, side] : git_merge_choices) {
@@ -3930,6 +3957,10 @@ class App {
                     }
                 }
                 git_merge_editor_view();
+                if (!git_integrate_state.is_null() &&
+                    git_integrate_state.value("lfs_policy", std::string("reject")) == "pointers")
+                    c::textDim("%s: %zu", c::tr("LFS pointer files").c_str(),
+                               git_integrate_state.at("lfs_after").at("files").get<size_t>());
                 if (!git_integrate_state.is_null() &&
                     !git_integrate_state.at("local_data").is_null()) {
                     const auto &local = git_integrate_state.at("local_data");

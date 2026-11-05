@@ -2,6 +2,10 @@
 // English is the source language. Keep API identifiers and user content unchanged.
 globalThis.CySynckI18n = (() => {
   const french = {
+    "Keep LFS pointers during fast-forward": "Conserver les pointeurs LFS pendant l’avance rapide",
+    "LFS assets are not expanded. Materialize them separately after integration. Modified or expanded working files block this operation.": "Les assets LFS ne sont pas développés. Matérialisez-les séparément après l’intégration. Les fichiers modifiés ou déjà développés bloquent cette opération.",
+    "LFS pointer files: {files}": "Fichiers pointeurs LFS : {files}",
+    "Updates the local branch, index and tracked files. Unrelated local files are preserved. LFS pointers require explicit selection.": "Met à jour la branche locale, l’index et les fichiers suivis. Les fichiers locaux indépendants sont conservés. Les pointeurs LFS exigent une sélection explicite.",
     "LFS cache": "Cache LFS",
     "View recovery receipt": "Voir le reçu de récupération",
     "Recovery receipt": "Reçu de récupération",

@@ -1008,14 +1008,19 @@ function showGitIntegration(project,review,container) {
   const card=text("div","","snapshot"), preview=label("button",merging?"Preview repository merge":"Preview integration"), apply=label("button",merging?"Apply reviewed merge":"Apply fast-forward"), output=text("div","");
   apply.disabled=true;
   const hint=text("p",""),editor=text("div","");
-  card.append(label("h4",merging?"Merge diverged branch":"Integrate imported branch"),label("p",merging?"Creates a reviewed two-parent merge commit. Choose committed files or edit conflict text, then preview again. Unrelated local data is preserved.":"Updates the local branch, index and tracked files. Unrelated local files are preserved; LFS and checkout filters use separate extraction."),text("p",review.head),preview,apply,hint,output,editor);
+  card.append(label("h4",merging?"Merge diverged branch":"Integrate imported branch"),label("p",merging?"Creates a reviewed two-parent merge commit. Choose committed files or edit conflict text, then preview again. Unrelated local data is preserved.":"Updates the local branch, index and tracked files. Unrelated local files are preserved. LFS pointers require explicit selection."),text("p",review.head));
+  const lfsPointers=document.createElement("input");lfsPointers.type="checkbox";
+  if(!merging) {const choice=text("label","");choice.append(lfsPointers,label("span","Keep LFS pointers during fast-forward"));card.append(choice,label("p","LFS assets are not expanded. Materialize them separately after integration. Modified or expanded working files block this operation."));}
+  card.append(preview,apply,hint,output,editor);
   container.append(card);
   let plan=null,request=0,editing=false,conflictFiles=[];const choices=new Map(),drafts=new Map();
+  lfsPointers.addEventListener("change",()=>{plan=null;++request;apply.disabled=true;output.replaceChildren();});
   const current=()=>selected===project && card.isConnected;
   const lockOutput=locked=>{for(const control of output.querySelectorAll("select,button"))control.disabled=locked || control.dataset.canEdit==="false";};
   preview.addEventListener("click",()=>safe(async()=>{
     plan=null;apply.disabled=true;const generation=++request;
     const query=gitContext(review);
+    if(!merging && lfsPointers.checked)query.lfs_policy="pointers";
     if(merging && choices.size)query.resolutions=Array.from(choices,([path,choice])=>({path,...choice}));
     const result=await api("projects/"+project+"/"+route,"POST",query);
     if(!current() || generation!==request)return;
@@ -1096,12 +1101,13 @@ function showGitIntegration(project,review,container) {
       }
     }
     if(result.local_data)output.append(label("p","Local files preserved: {files} · {bytes} bytes",result.local_data));
+    if(result.lfs_policy==="pointers")output.append(label("p","LFS pointer files: {files}",result.lfs_after));
     if(result.errors.length){output.append(label("p","Integration blocked"));for(const reason of result.errors)output.append(label("p",reason));}
     if(result.can_integrate){plan={input:query,token:result.plan};apply.disabled=false;}
   }));
   apply.addEventListener("click",()=>safe(async()=>{
     const saved=plan;if(!saved || !current())return;
-    plan=null;apply.disabled=true;preview.disabled=true;++request;
+    plan=null;apply.disabled=true;preview.disabled=true;lfsPointers.disabled=true;++request;
     lockOutput(true);
     try {
       const result=await api("projects/"+project+"/"+route,"POST",{...saved.input,apply:true,plan:saved.token});
@@ -1109,7 +1115,7 @@ function showGitIntegration(project,review,container) {
       $("git-result").textContent=t("Integration complete")+"\n"+(result.result_commit?result.result_commit+"\n":"")+result.receipt_path;
       await loadGitReceipts();
       await loadGitExchange();
-    } finally {preview.disabled=false;lockOutput(false);}
+    } finally {preview.disabled=false;lfsPointers.disabled=false;lockOutput(false);}
   }));
 }
 function showGitExtraction(project,review,comparison,container) {
