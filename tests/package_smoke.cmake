@@ -577,6 +577,7 @@ if(NOT materialize_count EQUAL 1)
 endif()
 # Stop after preserving the pointer but before publishing its prepared asset.
 # Keep integer timestamps verbatim, as in the acknowledgement fixture above.
+set(sdk_response_timeout 120)
 string(STRIP "${materialize_interrupted}" materialize_stopped)
 string(REPLACE "\"files_written\":1" "\"files_written\":0" materialize_stopped "${materialize_stopped}")
 string(REPLACE "\"phase\":\"complete\"" "\"phase\":\"publishing\"" materialize_stopped "${materialize_stopped}")
@@ -610,6 +611,36 @@ string(JSON materialize_resumed_position GET "${materialize_resumed_check}" posi
 string(JSON materialize_resumed_errors LENGTH "${materialize_resumed_check}" errors)
 if(NOT materialize_resumed_position STREQUAL "after" OR NOT materialize_resumed_errors EQUAL 0)
   message(FATAL_ERROR "Packaged resumed LFS receipt does not verify")
+endif()
+# Recreate a staging interruption while the exact original pointer is still in place.
+# Renames retain its timestamp and permissions from the receipt; cache bytes are reused.
+set(materialize_stage "${sdk_git_root}/${materialize_recovery}/after/Asset.uasset")
+file(RENAME "${sdk_git_root}/Asset.uasset" "${materialize_stage}" NO_REPLACE)
+file(RENAME "${sdk_git_root}/${materialize_recovery}/before/Asset.uasset" "${sdk_git_root}/Asset.uasset" NO_REPLACE)
+file(REMOVE "${materialize_stage}")
+file(WRITE "${materialize_receipt}" "${materialize_stopped}")
+run_response("${c_consumer}" materialize_restage "${WORK_DIR}/C profil été" POST /api/projects/git-lfs/git-materialization-resume
+  "{\"receipt\":\"${materialize_id}\"}")
+string(JSON materialize_restage_can GET "${materialize_restage}" can_resume)
+string(JSON materialize_restage_pending GET "${materialize_restage}" pending_staging)
+string(JSON materialize_restage_pointers GET "${materialize_restage}" pointers_to_preserve)
+string(JSON materialize_restage_plan GET "${materialize_restage}" plan)
+file(SHA256 "${sdk_git_root}/Asset.uasset" materialize_restage_pointer)
+if(NOT materialize_restage_can OR NOT materialize_restage_pending EQUAL 1 OR
+    NOT materialize_restage_pointers EQUAL 1 OR NOT materialize_restage_pointer STREQUAL materialize_pointer_before OR
+    EXISTS "${materialize_stage}" OR EXISTS "${sdk_git_root}/${materialize_recovery}/before/Asset.uasset")
+  message(FATAL_ERROR "Packaged restaging preview changed the pointer or failed to verify its cache")
+endif()
+run_response("${c_consumer}" materialize_restaged "${WORK_DIR}/C profil été" POST /api/projects/git-lfs/git-materialization-resume
+  "{\"receipt\":\"${materialize_id}\",\"apply\":true,\"plan\":\"${materialize_restage_plan}\"}")
+string(JSON materialize_restaged_done GET "${materialize_restaged}" resumed)
+file(SHA256 "${sdk_git_root}/Asset.uasset" materialize_restaged_asset)
+file(SHA256 "${sdk_git_root}/${materialize_recovery}/before/Asset.uasset" materialize_restaged_original)
+file(SHA256 "${sdk_git_root}/.git/index" materialize_restaged_index)
+if(NOT materialize_restaged_done OR NOT materialize_restaged_asset STREQUAL sdk_oid OR
+    NOT materialize_restaged_original STREQUAL materialize_pointer_before OR
+    NOT materialize_restaged_index STREQUAL materialize_index_before)
+  message(FATAL_ERROR "Packaged restaging recovery changed bytes, original pointers or the index")
 endif()
 # Pure C ABI first-import integration uses an independent ordinary-file repository.
 # Multi-file merge application performs other bounded Git work beyond working hashes.

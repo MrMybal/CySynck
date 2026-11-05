@@ -10,6 +10,12 @@ Le cœur, le CLI et les identifiants d'API sont en anglais. Les interfaces deskt
 démarrent en anglais et proposent le français comme deuxième langue. Le choix est mémorisé
 par profil pour le desktop et dans le navigateur pour le Web.
 
+La version 0.38 reprend aussi les opérations LFS où certains pointeurs sont encore en place,
+avec recréation des préparations manquantes depuis le cache local vérifié. L’aperçu indique
+les assets à préparer et les pointeurs à préserver ; les assets déjà publiés ne sont pas réécrits.
+Le CLI, le SDK et CyUI/Web bilingues partagent ce parcours et les motifs de blocage par fichier.
+Voir [la reprise LFS des états mixtes](docs/git-materialization.md#resuming-staging-and-mixed-states-038) (anglais).
+
 La version 0.37 permet de reprendre une publication LFS interrompue depuis les assets préparés
 et vérifiés, après un nouvel aperçu. Les fichiers déjà publiés ne sont pas réécrits et les
 pointeurs d'origine restent conservés. Le CLI, le SDK et CyUI/Web bilingues partagent ce parcours.

@@ -1,5 +1,18 @@
 # Development milestones
 
+## Delivered in 0.38
+
+- Reviewed LFS recovery from mixed working pointers, interrupted publication and already
+  published assets, preserving exact originals without replacing existing destinations.
+- Re-creation of missing staging from SHA-256 verified local cache objects, completing every
+  staging copy before moving any pointer, including an initially absent recovery directory.
+- CyUI/Web English/French staging counts and per-path blockers, SHA-1/SHA-256 recovery fixtures
+  and an extracted C SDK scenario for missing staging with a working pointer still in place.
+
+See [staging and mixed-state recovery](git-materialization.md#resuming-staging-and-mixed-states-038).
+Corrupt staging, changed originals and duplicate working/preserved pointers require manual
+inspection. Native Linux/macOS execution and power-loss testing remain pending.
+
 ## Delivered in 0.37
 
 - Reviewed completion of interrupted LFS publication using verified prepared assets and intact
@@ -10,7 +23,7 @@
   fixtures and a staged-publication scenario against the extracted SDK.
 
 See [resuming LFS publication](git-materialization.md#resuming-verified-publication-037).
-Interrupted staging and mixed before/publication states still require manual recovery.
+The 0.38 extension above adds staging and mixed before/publication recovery.
 
 ## Delivered in 0.36
 

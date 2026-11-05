@@ -1,4 +1,4 @@
-# Platform packages (0.37)
+# Platform packages (0.38)
 
 The same C++20 core powers the desktop, CLI and SDK. Syncthing, Git and WireGuard remain
 external tools. Native builds are preferred for distribution; the optional Zig toolchain
@@ -30,14 +30,18 @@ the recovery original, then check and acknowledge a simulated interrupted receip
 An additional interruption moves the working asset back to verified staging; the extracted
 C consumer previews and resumes publication, then verifies exact bytes, the index and original
 pointers through the receipt checker.
+A second interruption leaves the exact working pointer in place with no prepared asset.
+The extracted C consumer previews the required cache copy and preserved pointer, recreates
+staging and completes publication while checking the original bytes and unchanged index.
 Cache refill checks also verify the receipt's planned objects, then acknowledge a simulated
 interruption whose valid immutable copy outlived its last journal update. The original
 incomplete state and empty installed list must remain preserved.
 An independent receiver also imports a bundle and applies an explicit LFS pointer first import
 through the C ABI, checking exact pointer bytes, preserved local data, receipt verification
 and absence of newly created asset cache objects.
-The 33-file Git integration/merge block allows 120 seconds per consumer call; other response
-checks retain their 30-second limit. These are smoke-test deadlines, not throughput guarantees.
+The LFS recovery and 33-file Git integration/merge blocks allow 120 seconds per consumer call;
+other response checks retain their 30-second limit. The SHA-1/SHA-256 LFS resume test allows
+600 seconds for its expanded recovery scenarios. These are test deadlines, not throughput guarantees.
 
 | Platform | Archive | Desktop entry point |
 | --- | --- | --- |

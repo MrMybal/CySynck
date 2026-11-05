@@ -137,7 +137,8 @@ cysynck git materialization-acknowledge PROJECT_ID OPERATION_ID --plan CHECK_TOK
 
 Checks validate the receipt against its immutable committed pointers, current HEAD, staged
 entries and index flags, working asset SHA-256, original pointer fingerprints and
-known staged files. They do not need the LFS cache to remain present. Unknown recovery entries,
+known staged files. Verification of existing files does not need the LFS cache. Resume planning
+also checks the cache when a staged asset is missing. Unknown recovery entries,
 links, altered originals or incomplete staging block acknowledgement and remain preserved.
 An existing integration lock also blocks verification until it is inspected manually.
 `index_metadata_matches` reports the original raw-index comparison separately. Git stat-cache
@@ -164,8 +165,9 @@ Receipt reads and saved acknowledgement metadata are limited to 16 MiB.
 ## Resuming verified publication (0.37)
 
 **Check LFS receipt** reports `can_resume:true` when an incomplete, unacknowledged operation
-has only already-published assets or absent destinations with fully verified staged assets
-and intact original pointers. Use **Preview LFS resume**, inspect the counts, then
+can finish from verified assets and exact original pointers. Since 0.38 this also covers
+unchanged pointers still in the working tree and missing staging recoverable from the local
+cache, as detailed below. Use **Preview LFS resume**, inspect the counts, then
 **Resume verified publication**. These controls are available in English and French.
 
 ```sh
@@ -182,7 +184,8 @@ current raw index, staged entries/flags, HEAD and all checked file fingerprints.
 Application acquires the shared integration lock and repeats the inspection. It rehashes
 each remaining staged asset and original pointer, preserves pointer permissions/Windows DACL,
 and publishes only into an absent destination. Existing destinations and already-published
-assets are not rewritten. No cache, Git LFS helper, filter or fetch is required. The receipt's
+assets are not rewritten. Fully prepared assets do not require a cache. No Git LFS helper,
+filter or fetch is run. The receipt's
 original selection is retained; callers cannot broaden it with a new path list.
 
 If every asset was already published before the interruption, applying the preview completes
@@ -195,9 +198,42 @@ resumed, and changed files or configuration invalidate the preview.
 A failed attempt keeps the receipt incomplete and preserves originals, remaining staging and
 already-published files. The latest attempt error is retained (up to 2048 bytes). A new preview
 can continue from the verified remaining state; after 1000 attempts manual inspection is
-required. No rollback, automatic retries or lock removal is performed. Interrupted staging,
-missing/corrupt prepared assets, changed originals, unknown entries, changed Git context, and
-mixed `before`/publication states remain blocked for manual recovery.
+required. No rollback, automatic retries or lock removal is performed. Corrupt prepared assets,
+changed originals, unknown entries and changed Git context remain blocked for manual recovery.
+
+## Resuming staging and mixed states (0.38)
+
+The same preview/apply route handles a mixture of already-published assets, absent destinations
+with preserved pointers, and working pointers that have not yet been moved. A working pointer
+must match its original receipt fingerprint, including timestamp and permissions, and must
+have no existing preserved copy. Copied-back pointers with changed timestamps can still be
+acknowledged at an exact `before` state, but cannot be moved automatically by resume.
+Duplicate working/preserved pointers require manual inspection and remain untouched.
+
+When a required `after/` file is absent, preview verifies its SHA-256 and size in the currently
+approved local LFS cache. The token binds the cache path and complete observed fingerprint.
+Prepared assets already present are reused, and published assets need no cache. Missing or
+corrupt required cache objects block resume with path-specific `resume_errors`; these errors
+do not prevent acknowledgement of an otherwise exact before/after state.
+
+Preview adds `pending_staging`, `staging_bytes` and `pointers_to_preserve` to the existing
+publication counts. Each checked file exposes `resume_action` (`keep`, `publish`,
+`stage_and_publish` or `blocked`) and the reviewed `cache` source when needed. CyUI and Web
+show the counts and per-path blocking reasons in their English/French recovery views.
+
+Apply completes and flushes every missing staging copy before moving any remaining working
+pointer. It creates absent recovery directories with private access, reserves staging paths
+exclusively, streams and rehashes the cache bytes, then rechecks the Git context and all
+working/original/prepared files. Exact working pointers are moved into absent `before/`
+paths without replacing an existing original; verified assets are then published into absent
+working destinations. The original receipt selection, errors, HEAD, index and Git configuration
+remain preserved. Cache changes invalidate the preview; incomplete or corrupt existing staging
+is preserved for manual inspection, rather than overwritten. A failed staging attempt retains
+phase `staging` and all evidence, while a publication failure retains phase `publishing`.
+
+The full all-pointer state is supported even if the original operation stopped before creating
+its recovery directory. Restaging requires additional free space for the missing assets;
+no download or automatic cache refill is performed.
 
 Pause external writers during recovery. Checks and publication are not one filesystem
 transaction, and the CySynck lock does not lock other applications. Native Linux/macOS runtime
