@@ -226,10 +226,12 @@ static void localize() {
          {"Preview LFS materialization", "Prévisualiser la matérialisation LFS"},
          {"Preview LFS resume", "Prévisualiser la reprise LFS"},
          {"Resume verified publication", "Reprendre la publication vérifiée"},
-         {"Verified LFS staging is ready to resume",
-          "Les assets LFS préparés sont vérifiés et prêts à être publiés"},
+         {"LFS recovery can be resumed", "La récupération LFS peut être reprise"},
          {"Already published assets", "Assets déjà publiés"},
          {"Pending publications", "Publications en attente"},
+         {"Assets to stage from cache", "Assets à préparer depuis le cache"},
+         {"Staging bytes required", "Octets à préparer"},
+         {"Pointers to preserve", "Pointeurs à préserver"},
          {"LFS publication resumed", "Publication LFS reprise"},
          {"LFS publication resume incomplete", "Reprise de publication LFS interrompue"},
          {"Materialize verified assets", "Matérialiser les assets vérifiés"},
@@ -3387,7 +3389,7 @@ class App {
                                : valid && checked.at("position") == "before"
                                    ? "LFS files match the original pointers"
                                : checked.at("can_resume").get<bool>()
-                                   ? "Verified LFS staging is ready to resume"
+                                   ? "LFS recovery can be resumed"
                                    : "LFS recovery needs manual inspection"));
                     for (const auto &file : checked.at("files"))
                         text(file.at("path").get<std::string>() + " / " +
@@ -3398,6 +3400,9 @@ class App {
                                        : "Local contents differ"));
                     for (const auto &error : checked.at("errors"))
                         ImGui::TextWrapped("%s", error.get_ref<const std::string &>().c_str());
+                    for (const auto &error : checked.at("resume_errors"))
+                        text(error.at("path").get<std::string>() + ": " +
+                             error.at("error").get<std::string>());
                     if (checked.at("can_resume").get<bool>() && button("Preview LFS resume")) {
                         auto project = selected;
                         git_materialization_resume = nullptr;
@@ -3431,8 +3436,17 @@ class App {
                          resume.at("already_published").dump());
                     text(c::tr("Pending publications") + ": " +
                          resume.at("pending_publications").dump());
+                    text(c::tr("Assets to stage from cache") + ": " +
+                         resume.at("pending_staging").dump());
+                    text(c::tr("Staging bytes required") + ": " +
+                         resume.at("staging_bytes").dump());
+                    text(c::tr("Pointers to preserve") + ": " +
+                         resume.at("pointers_to_preserve").dump());
                     for (const auto &error : resume.at("check").at("errors"))
                         text(error.get<std::string>());
+                    for (const auto &error : resume.at("check").at("resume_errors"))
+                        text(error.at("path").get<std::string>() + ": " +
+                             error.at("error").get<std::string>());
                     ImGui::BeginDisabled(busy() || !resume.at("can_resume").get<bool>());
                     if (button("Resume verified publication", true)) {
                         auto project = selected;

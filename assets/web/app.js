@@ -818,9 +818,10 @@ async function loadMaterializationReceipts(offset=0){
       if(!current() || request!==revision)return;
       const valid=checked.context_matches && !checked.errors.length;
       if(checked.context_matches && checked.index_metadata_matches===false)output.append(label("p","Index metadata refreshed; staged entries and flags match"));
-      output.append(label("p",valid && checked.position==="after"?"LFS assets and recovery pointers verified":valid && checked.position==="before"?"LFS files match the original pointers":checked.can_resume?"Verified LFS staging is ready to resume":"LFS recovery needs manual inspection"));
+      output.append(label("p",valid && checked.position==="after"?"LFS assets and recovery pointers verified":valid && checked.position==="before"?"LFS files match the original pointers":checked.can_resume?"LFS recovery can be resumed":"LFS recovery needs manual inspection"));
       for(const file of checked.files)output.append(text("p",file.path+" / "+t(file.position==="before"?"Original pointer":file.position==="after"?"Verified asset":file.position==="interrupted"?"Publication interrupted":"Local contents differ")));
       for(const error of checked.errors)output.append(text("p",error));
+      for(const error of checked.resume_errors)output.append(text("p",error.path+": "+error.error));
       if(checked.can_resume){
         const preview=label("button","Preview LFS resume"),resumeOutput=text("div","");output.append(preview,resumeOutput);
         preview.addEventListener("click",()=>safe(async()=>{
@@ -828,8 +829,9 @@ async function loadMaterializationReceipts(offset=0){
           try{
             const planned=await api("projects/"+project+"/git-materialization-resume","POST",{receipt:record.id});
             if(!current() || request!==revision)return;
-            for(const [key,title] of [["already_published","Already published assets"],["pending_publications","Pending publications"]])resumeOutput.append(text("p",t(title)+": "+planned[key]));
+            for(const [key,title] of [["already_published","Already published assets"],["pending_publications","Pending publications"],["pending_staging","Assets to stage from cache"],["staging_bytes","Staging bytes required"],["pointers_to_preserve","Pointers to preserve"]])resumeOutput.append(text("p",t(title)+": "+planned[key]));
             for(const error of planned.check.errors)resumeOutput.append(text("p",error));
+            for(const error of planned.check.resume_errors)resumeOutput.append(text("p",error.path+": "+error.error));
             if(planned.can_resume){const apply=label("button","Resume verified publication");resumeOutput.append(apply);apply.addEventListener("click",()=>safe(async()=>{
               if(!current() || request!==revision)return;const operation=++revision;check.disabled=true;preview.disabled=true;apply.disabled=true;
               try{await api("projects/"+project+"/git-materialization-resume","POST",{receipt:record.id,apply:true,plan:planned.plan});if(current() && operation===revision)await loadMaterializationReceipts(offset);}
