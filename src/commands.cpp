@@ -27,7 +27,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.38 (C++20)
+        return {{"help", R"(CySynck 0.39 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | plugins | events | api-token
   project mode-options ID
@@ -83,6 +83,7 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   git materializations ID [--offset 0 --limit 20]
   git materialization-check ID RECEIPT_ID
   git materialization-resume ID RECEIPT_ID [--apply true --plan PREVIEW_TOKEN]
+  git dehydrate ID [--paths-file JSON_ARRAY] [--apply true --plan PREVIEW_TOKEN]
   git materialization-acknowledge ID RECEIPT_ID --plan CHECK_TOKEN  (preserves Git and recovery files)
   git lfs-recovery-check ID RECEIPT_ID  (verify every planned cache object)
   git lfs-recovery-acknowledge ID RECEIPT_ID --plan CHECK_TOKEN  (mark an interruption as reviewed)
@@ -436,8 +437,10 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
             }
             return core.request("POST", "/api/projects/" + args[2] + "/git-" + command, data);
         }
-        if (command == "materialize") {
+        if (command == "materialize" || command == "dehydrate") {
             require(3);
+            if (command == "dehydrate")
+                data["operation"] = "dehydrate";
             for (const auto &[flag, value] : flags) {
                 if (flag == "--apply") {
                     if (value != "true" && value != "false")

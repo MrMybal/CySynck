@@ -1019,7 +1019,11 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
     } else if (action == "git-materialize") {
         result = materialize_git_lfs(state_, p, data);
         if (result.value("applied", false))
-            event(p.at("id"), "git", "Committed LFS assets materialized from verified local cache");
+            event(p.at("id"), "git",
+                  result.value("operation", "materialize") == "dehydrate"
+                      ? "Committed LFS pointers restored; unchanged working assets preserved in "
+                        "recovery"
+                      : "Committed LFS assets materialized from verified local cache");
     } else if (action == "git-materializations")
         result = git_materializations(state_, p, data);
     else if (action == "git-materialization-check")

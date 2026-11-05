@@ -247,6 +247,10 @@ std::string index_digest(const Json &p) {
     return sha256_file(project_child(fs::u8path(p.at("root").get<std::string>()), ".git/index"));
 }
 Json inspect(const Json &p, const Json &data) {
+    auto operation = data.value("operation", std::string("materialize"));
+    if (operation != "materialize" && operation != "dehydrate")
+        throw std::runtime_error("Choose LFS operation materialize or dehydrate");
+    bool dehydrate = operation == "dehydrate";
     layout(p);
     auto head = git_local_head(p);
     for (auto key : {"base", "local_ref"})
@@ -278,7 +282,7 @@ Json inspect(const Json &p, const Json &data) {
     Json errors = Json::array();
     std::map<std::string, std::string> cache;
     fs::path store;
-    size_t pending = 0, materialized = 0, skipped = 0;
+    size_t pending = 0, materialized = 0, skipped = 0, pointers = 0;
     uintmax_t bytes = 0;
     for (auto &file : files) {
         auto name = file.at("path").get<std::string>();
@@ -331,6 +335,9 @@ Json inspect(const Json &p, const Json &data) {
                     continue;
                 }
                 file["state"] = "pointer";
+                ++pointers;
+                if (dehydrate)
+                    continue;
                 ++pending;
                 bytes += file.at("asset").at("size").get<uintmax_t>();
                 if (store.empty())
@@ -352,6 +359,16 @@ Json inspect(const Json &p, const Json &data) {
             } else if (matches(info, file.at("asset"))) {
                 file["state"] = "materialized";
                 ++materialized;
+                if (dehydrate) {
+                    if ((info.at("permissions").get<unsigned>() &
+                         static_cast<unsigned>(fs::perms::owner_write)) == 0) {
+                        file["state"] = "read_only";
+                        ++skipped;
+                        continue;
+                    }
+                    ++pending;
+                    bytes += file.at("asset").at("size").get<uintmax_t>();
+                }
             } else {
                 file["state"] = "modified";
                 ++skipped;
@@ -365,7 +382,7 @@ Json inspect(const Json &p, const Json &data) {
         sha256(read_git(p, {"config", "--null", "--list"})) != config)
         throw std::runtime_error("Git context changed during LFS inspection; preview again");
     Json result = head;
-    result.update({{"schema", 1},
+    result.update({{"schema", dehydrate ? 2 : 1},
                    {"project", p.at("id")},
                    {"root", p.at("root")},
                    {"project_hash", sha256(p.dump())},
@@ -385,9 +402,15 @@ Json inspect(const Json &p, const Json &data) {
                    {"can_materialize", pending > 0 && errors.empty()},
                    {"applied", false},
                    {"plan", nullptr}});
+    result["operation"] = operation;
+    if (dehydrate) {
+        result["pointers"] = pointers;
+        result["can_dehydrate"] = result.at("can_materialize");
+        result["can_materialize"] = false;
+    }
     if (result.dump().size() > 8 * 1024 * 1024)
         throw std::runtime_error("LFS materialization metadata exceeds 8 MiB");
-    if (result.at("can_materialize").get<bool>())
+    if (result.at(dehydrate ? "can_dehydrate" : "can_materialize").get<bool>())
         result["plan"] = sha256(result.dump());
     return result;
 }
@@ -449,6 +472,38 @@ void permissions(const fs::path &source, const fs::path &target) {
         throw std::runtime_error("Cannot preserve LFS source access permissions");
 #endif
 }
+bool dehydrating(const Json &record) {
+    return record.value("operation", std::string("materialize")) == "dehydrate";
+}
+bool pending_file(const Json &record, const Json &file) {
+    return file.at("state") == (dehydrating(record) ? "materialized" : "pointer");
+}
+Json destination_asset(const Json &record, const Json &file) {
+    if (!dehydrating(record))
+        return file.at("asset");
+    const auto &text = file.at("pointer_text").get_ref<const std::string &>();
+    return {{"size", text.size()}, {"sha256", sha256(text)}};
+}
+void stage_pointer(const fs::path &path, const std::string &text) {
+    FILE *raw = nullptr;
+#ifdef _WIN32
+    _wfopen_s(&raw, path.c_str(), L"wbx");
+#else
+    raw = std::fopen(path.c_str(), "wbx");
+#endif
+    if (!raw)
+        throw std::runtime_error("Cannot reserve LFS pointer staging exclusively");
+    std::unique_ptr<FILE, decltype(&std::fclose)> output(raw, std::fclose);
+    secure_state_path(path, false);
+    if (std::fwrite(text.data(), 1, text.size(), raw) != text.size() || std::fflush(raw) ||
+#ifdef _WIN32
+        _commit(_fileno(raw))
+#else
+        fsync(fileno(raw))
+#endif
+    )
+        throw std::runtime_error("Cannot write and flush staged LFS pointer");
+}
 void publish(const fs::path &source, const fs::path &target) {
 #ifdef _WIN32
     if (!MoveFileExW(source.c_str(), target.c_str(), MOVEFILE_WRITE_THROUGH))
@@ -462,10 +517,11 @@ void publish(const fs::path &source, const fs::path &target) {
 
 Json materialize_git_lfs(const fs::path &state, const Json &project, const Json &data) {
     auto result = inspect(project, data);
+    bool dehydrate = dehydrating(result);
     if (!data.value("apply", false))
         return result;
-    if (!result.at("can_materialize").get<bool>() || !data.contains("plan") ||
-        data.at("plan") != result.at("plan"))
+    if (!result.at(dehydrate ? "can_dehydrate" : "can_materialize").get<bool>() ||
+        !data.contains("plan") || data.at("plan") != result.at("plan"))
         throw std::runtime_error(
             "LFS materialization is blocked or its plan changed; preview again");
     auto root = fs::u8path(project.at("root").get<std::string>());
@@ -507,17 +563,20 @@ Json materialize_git_lfs(const fs::path &state, const Json &project, const Json 
         if (!fs::create_directory(recovery))
             throw std::runtime_error("LFS recovery directory already exists");
         secure_state_path(recovery, true);
-        auto store = lfs_local_store(project);
-        if (Json(path_string(store)) != result.at("lfs_storage"))
+        auto store = dehydrate ? fs::path{} : lfs_local_store(project);
+        if (!dehydrate && Json(path_string(store)) != result.at("lfs_storage"))
             throw std::runtime_error("LFS storage changed before staging");
         for (const auto &file : record.at("files")) {
-            if (file.at("state") != "pointer")
+            if (!pending_file(record, file))
                 continue;
             auto staged =
                 project_child(root, relative + "/after/" + file.at("path").get<std::string>());
             fs::create_directories(staged.parent_path());
-            stream_asset(lfs_object_path(store, file.at("asset").at("sha256")), staged,
-                         file.at("asset"));
+            if (dehydrate)
+                stage_pointer(staged, file.at("pointer_text"));
+            else
+                stream_asset(lfs_object_path(store, file.at("asset").at("sha256")), staged,
+                             file.at("asset"));
         }
         if (git_local_head(project).at("base") != record.at("base") ||
             git_local_head(project).at("local_ref") != record.at("local_ref") ||
@@ -531,24 +590,25 @@ Json materialize_git_lfs(const fs::path &state, const Json &project, const Json 
         atomic_write(receipt, record.dump(2), true);
         size_t written = 0;
         for (const auto &file : record.at("files")) {
-            if (file.at("state") != "pointer")
+            if (!pending_file(record, file))
                 continue;
             auto name = file.at("path").get<std::string>();
             auto target = project_child(root, name);
             auto before = project_child(root, relative + "/before/" + name);
             auto staged = project_child(root, relative + "/after/" + name);
             fs::create_directories(before.parent_path());
-            if (fingerprint(target) != file.at("before") || fs::exists(before))
+            if (fingerprint(target) != file.at("before") || fs::exists(before) ||
+                !matches(fingerprint(staged), destination_asset(record, file)))
                 throw std::runtime_error(
-                    "LFS pointer changed before publication; preserve local work");
-            fs::rename(target, before);
+                    "LFS source changed before publication; preserve local work");
+            publish(target, before);
             if (fingerprint(before) != file.at("before"))
                 throw std::runtime_error(
                     "LFS source changed while moving; recovery file preserved");
             permissions(before, staged);
             publish(staged, project_child(root, name));
-            if (!matches(fingerprint(project_child(root, name)), file.at("asset")))
-                throw std::runtime_error("Materialized LFS bytes differ from the verified asset");
+            if (!matches(fingerprint(project_child(root, name)), destination_asset(record, file)))
+                throw std::runtime_error("Published LFS bytes differ from the verified destination");
             if (fingerprint(before) != file.at("before"))
                 throw std::runtime_error(
                     "LFS recovery source changed during publication; preserve the recovery file");
@@ -568,12 +628,16 @@ Json materialize_git_lfs(const fs::path &state, const Json &project, const Json 
                        {"applied", true},
                        {"can_materialize", false},
                        {"plan", nullptr}});
+        if (dehydrate)
+            record["can_dehydrate"] = false;
         atomic_write(receipt, record.dump(2), true);
     } catch (const std::exception &error) {
         record.update({{"status", "incomplete"},
                        {"applied", false},
                        {"can_materialize", false},
                        {"plan", nullptr}});
+        if (dehydrate)
+            record["can_dehydrate"] = false;
         record["error"] = error.what();
         try {
             atomic_write(receipt, record.dump(2), true);
@@ -597,8 +661,11 @@ Json read_materialization(const fs::path &state, const Json &p, const std::strin
     if (!fs::is_regular_file(path))
         throw std::runtime_error("LFS materialization receipt is missing");
     auto record = Json::parse(read_file(path, 16 * 1024 * 1024));
-    if (record.at("schema") != 1 || record.at("id") != id || record.at("project") != p.at("id") ||
-        record.at("root") != p.at("root") ||
+    bool dehydrate = dehydrating(record);
+    if (record.value("operation", std::string("materialize")) !=
+            (dehydrate ? "dehydrate" : "materialize") ||
+        record.at("schema") != (dehydrate ? 2 : 1) || record.at("id") != id ||
+        record.at("project") != p.at("id") || record.at("root") != p.at("root") ||
         record.at("recovery_directory") != recovery_name + "/" + id ||
         !record.at("created").is_string() || !record.at("base").is_string() ||
         (!hex(record.at("base"), 40) && !hex(record.at("base"), 64)) ||
@@ -626,7 +693,7 @@ Json read_materialization(const fs::path &state, const Json &p, const std::strin
                                    "index_flags", "read_only", "attributes", "blocked"}
                  .contains(state_name))
             throw std::runtime_error("Invalid LFS receipt file state");
-        if (state_name != "pointer")
+        if (!pending_file(record, file))
             continue;
         if (file.at("mode") != "100644" && file.at("mode") != "100755")
             throw std::runtime_error("Invalid LFS receipt file mode");
@@ -638,8 +705,10 @@ Json read_materialization(const fs::path &state, const Json &p, const std::strin
             throw std::runtime_error("Invalid LFS receipt pointer identity");
         const auto &before = file.at("before");
         if (before.at("exists") != true ||
-            before.at("bytes") != file.at("pointer_text").get_ref<const std::string &>().size() ||
-            before.at("sha256") != sha256(file.at("pointer_text")) ||
+            (dehydrate ? !matches(before, file.at("asset"))
+                       : (before.at("bytes") !=
+                              file.at("pointer_text").get_ref<const std::string &>().size() ||
+                          before.at("sha256") != sha256(file.at("pointer_text")))) ||
             !before.at("permissions").is_number_integer() ||
             before.at("permissions").get<int64_t>() < 0 ||
             before.at("permissions").get<uintmax_t>() > 07777 ||
@@ -675,7 +744,7 @@ Json read_materialization(const fs::path &state, const Json &p, const std::strin
         throw std::runtime_error("Invalid LFS receipt acknowledgement");
     if (record.contains("resume")) {
         const auto &resume = record.at("resume");
-        if (!resume.is_object() || !resume.at("attempt").is_number_unsigned() ||
+        if (dehydrate || !resume.is_object() || !resume.at("attempt").is_number_unsigned() ||
             resume.at("attempt").get<uintmax_t>() == 0 ||
             resume.at("attempt").get<uintmax_t>() > 1000 || !resume.at("started").is_string() ||
             (resume.at("status") != "incomplete" && resume.at("status") != "complete") ||
@@ -691,6 +760,7 @@ Json read_materialization(const fs::path &state, const Json &p, const std::strin
 Json materialization_summary(const Json &record) {
     bool acknowledged = record.contains("acknowledged_at");
     return {{"id", record.at("id")},
+            {"operation", record.value("operation", std::string("materialize"))},
             {"selection", record.value("selection", Json(nullptr))},
             {"excluded", record.value("excluded", Json(0))},
             {"created", record.at("created")},
@@ -715,7 +785,7 @@ void check_recovery_entries(const fs::path &root, const Json &record) {
     plain_directory(op);
     std::set<std::string> files, dirs;
     for (const auto &file : record.at("files"))
-        if (file.at("state") == "pointer")
+        if (pending_file(record, file))
             for (auto prefix : {"before/", "after/"}) {
                 auto name = std::string(prefix) + file.at("path").get<std::string>();
                 files.insert(name);
@@ -841,9 +911,10 @@ static Json materialization_check(const fs::path &state, const Json &project, co
         fs::path store;
         std::map<std::string, Json> cache;
         for (const auto &file : record.at("files")) {
-            if (file.at("state") != "pointer")
+            if (!pending_file(record, file))
                 continue;
             auto name = file.at("path").get<std::string>();
+            auto destination = destination_asset(record, file);
             auto found = committed.find(name);
             if (found == committed.end())
                 throw std::runtime_error("LFS receipt path is absent from its committed tree");
@@ -859,21 +930,21 @@ static Json materialization_check(const fs::path &state, const Json &project, co
                 bool hash_file =
                     fs::is_regular_file(path) &&
                     (Json(fs::file_size(path)) == file.at("before").at("bytes") ||
-                     (asset_file && Json(fs::file_size(path)) == file.at("asset").at("size")));
+                     (asset_file && Json(fs::file_size(path)) == destination.at("size")));
                 return fingerprint(path, hash_file);
             };
             auto current = bounded(target, true), original = bounded(backup, false),
                  prepared = bounded(staged, true);
             bool valid_backup = original.at("exists").get<bool>() && original == file.at("before");
             if (original.at("exists").get<bool>() && !valid_backup)
-                throw std::runtime_error("Preserved LFS pointer changed in the recovery directory");
-            if (prepared.at("exists").get<bool>() && !matches(prepared, file.at("asset")))
+                throw std::runtime_error("Preserved LFS source changed in the recovery directory");
+            if (prepared.at("exists").get<bool>() && !matches(prepared, destination))
                 throw std::runtime_error("Staged LFS recovery asset is incomplete or changed");
             std::string position = "changed";
             if (same_pointer(current, file.at("before"))) {
                 position = "before";
                 ++before_count;
-            } else if (matches(current, file.at("asset")) &&
+            } else if (matches(current, destination) &&
                        current.at("permissions") == file.at("before").at("permissions") &&
                        valid_backup) {
                 position = "after";
@@ -886,8 +957,8 @@ static Json materialization_check(const fs::path &state, const Json &project, co
             Json row{{"path", name},         {"position", position}, {"current", current},
                      {"original", original}, {"staged", prepared},   {"resume_action", "keep"},
                      {"cache", nullptr}};
-            if (record.at("status") == "incomplete" && !record.contains("acknowledged_at") &&
-                position != "after") {
+            if (!dehydrating(record) && record.at("status") == "incomplete" &&
+                !record.contains("acknowledged_at") && position != "after") {
                 try {
                     if (position == "before") {
                         if (original.at("exists").get<bool>())
@@ -935,7 +1006,8 @@ static Json materialization_check(const fs::path &state, const Json &project, co
         bool exact = result.at("position") == "before" || result.at("position") == "after";
         result["can_acknowledge"] = result.at("record").at("needs_attention").get<bool>() &&
                                     exact && result.at("errors").empty();
-        result["can_resume"] = result.at("record").at("needs_attention").get<bool>() &&
+        result["can_resume"] = !dehydrating(record) &&
+                               result.at("record").at("needs_attention").get<bool>() &&
                                result.at("context_matches").get<bool>() &&
                                result.at("errors").empty() && result.at("resume_errors").empty() &&
                                after_count + interrupted_count + before_count == total;
