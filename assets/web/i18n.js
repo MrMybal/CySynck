@@ -3,6 +3,11 @@
 globalThis.CySynckI18n = (() => {
   const french = {
     "LFS cache": "Cache LFS",
+    "View recovery receipt": "Voir le reçu de récupération",
+    "Recovery receipt": "Reçu de récupération",
+    "Verify recovery objects": "Vérifier les objets récupérés",
+    "Review preserves the incomplete status. Missing objects still need recovery.": "Le marquage conserve l’état incomplet. Les objets absents restent à récupérer.",
+    "{verified} verified · {missing} missing · {damaged} damaged": "{verified} vérifiés · {missing} absents · {damaged} endommagés",
     "Select a Git exchange project.": "Sélectionnez un projet d’échange Git.",
     "Inspect committed branch history. Leave both imported-branch fields empty to use local HEAD.": "Inspectez l’historique commité. Laissez les deux champs de branche importée vides pour utiliser le HEAD local.",
     "Imported peer (optional)": "Pair importé (facultatif)",

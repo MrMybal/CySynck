@@ -72,6 +72,11 @@ static void localize() {
     c::registerTranslations(
         "fr",
         {{"LFS cache", "Cache LFS"},
+         {"View recovery receipt", "Voir le reçu de récupération"},
+         {"Recovery receipt", "Reçu de récupération"},
+         {"Verify recovery objects", "Vérifier les objets récupérés"},
+         {"Review preserves the incomplete status. Missing objects still need recovery.",
+          "Le marquage conserve l’état incomplet. Les objets absents restent à récupérer."},
          {"Select a Git exchange project.", "Sélectionnez un projet d’échange Git."},
          {"Inspect committed branch history. Leave both imported-branch fields empty to use local "
           "HEAD.",
@@ -898,6 +903,7 @@ class App {
         git_merge_state, git_merge_file_state, git_merge_editor, git_materialize_state,
         git_materialization_records, git_materialization_check;
     Json lfs_cache_state, lfs_cache_plan, lfs_cache_records;
+    Json lfs_recovery_receipt, lfs_recovery_check;
     std::string lfs_revision_peer, lfs_revision_branch, lfs_source_peer;
     bool lfs_cache_requested = false, lfs_cache_verify = false;
     size_t lfs_cache_revision = 0;
@@ -1147,6 +1153,7 @@ class App {
         restore_id.clear();
         backup_check = restore_preview = nullptr;
         lfs_cache_state = lfs_cache_plan = lfs_cache_records = nullptr;
+        lfs_recovery_receipt = lfs_recovery_check = nullptr;
         lfs_revision_peer.clear();
         lfs_revision_branch.clear();
         lfs_source_peer.clear();
@@ -1589,6 +1596,7 @@ class App {
                     lfs_cache_plan = lfs_cache_state = nullptr;
                     lfs_cache_requested = false;
                     lfs_cache_records = nullptr;
+                    lfs_recovery_receipt = lfs_recovery_check = nullptr;
                 });
             }
             ImGui::EndDisabled();
@@ -1612,17 +1620,100 @@ class App {
             if (button("Next page"))
                 load_lfs_cache_history(offset + 20);
             ImGui::EndDisabled();
-            for (const auto &record : lfs_cache_records.at("records"))
+            for (const auto &record : lfs_cache_records.at("records")) {
+                auto id = record.at("id").get<std::string>();
+                ImGui::PushID(id.c_str());
                 ImGui::TextWrapped(
                     "%s / %s / %s: %zu / %s", record.at("created").get<std::string>().c_str(),
                     c::tr(record.at("status") == "complete" ? "Complete" : "Incomplete").c_str(),
                     c::tr("Installed objects").c_str(), record.at("installed").get<size_t>(),
                     record.at("source_peer").get<std::string>().c_str());
+                if (record.value("acknowledged", false))
+                    text(c::tr("Recovery reviewed"));
+                ImGui::BeginDisabled(busy());
+                if (button("View recovery receipt")) {
+                    lfs_recovery_receipt = lfs_recovery_check = nullptr;
+                    action("git-lfs-recovery", {{"receipt", id}},
+                           [this](const Json &r) { lfs_recovery_receipt = r; });
+                }
+                ImGui::EndDisabled();
+                ImGui::PopID();
+            }
             for (const auto &error : lfs_cache_records.at("errors"))
                 ImGui::TextWrapped("%s", error.at("error").get<std::string>().c_str());
         }
         ImGui::PopID();
         c::endCard();
+        if (!lfs_recovery_receipt.is_null()) {
+            c::space(12);
+            c::beginCard("lfs-recovery-receipt", c::tr("Recovery receipt").c_str());
+            auto id = lfs_recovery_receipt.at("id").get<std::string>();
+            text(id);
+            text(
+                c::tr(lfs_recovery_receipt.at("status") == "complete" ? "Complete" : "Incomplete"));
+            if (lfs_recovery_receipt.contains("error"))
+                ImGui::TextWrapped("%s",
+                                   lfs_recovery_receipt.at("error").get<std::string>().c_str());
+            if (lfs_recovery_receipt.contains("acknowledged_at"))
+                text(c::tr("Recovery reviewed"));
+            ImGui::TextWrapped(
+                "%s",
+                c::tr(
+                    "Review preserves the incomplete status. Missing objects still need recovery.")
+                    .c_str());
+            ImGui::BeginDisabled(busy());
+            if (button("Verify recovery objects")) {
+                lfs_recovery_check = nullptr;
+                action("git-lfs-recovery-check", {{"receipt", id}},
+                       [this](const Json &r) { lfs_recovery_check = r; });
+            }
+            ImGui::EndDisabled();
+            if (!lfs_recovery_check.is_null()) {
+                const auto &checked = lfs_recovery_check;
+                c::textDim("%s: %zu / %s: %zu / %s: %zu", c::tr("Verified").c_str(),
+                           checked.at("verified").get<size_t>(), c::tr("Missing").c_str(),
+                           checked.at("missing").get<size_t>(), c::tr("Damaged").c_str(),
+                           checked.at("damaged").get<size_t>());
+                for (const auto &error : checked.at("errors"))
+                    ImGui::TextWrapped("%s", error.get_ref<const std::string &>().c_str());
+                ImGui::BeginDisabled(busy() || !checked.at("can_acknowledge").get<bool>());
+                if (button("Mark as reviewed")) {
+                    Json input{{"receipt", id}, {"plan", checked.at("plan")}};
+                    lfs_recovery_check = nullptr;
+                    action("git-lfs-recovery-acknowledge", input, [this](const Json &r) {
+                        lfs_recovery_receipt["acknowledged_at"] = r.at("acknowledged_at");
+                        if (!lfs_cache_records.is_null())
+                            for (auto &row : lfs_cache_records["records"])
+                                if (row.at("id") == r.at("id"))
+                                    row = r;
+                    });
+                }
+                ImGui::EndDisabled();
+            }
+            ImGui::BeginChild("lfs-recovery-objects", ImVec2(0, 155));
+            const auto &objects = lfs_recovery_check.is_null() ? lfs_recovery_receipt.at("objects")
+                                                               : lfs_recovery_check.at("objects");
+            for (const auto &object : objects) {
+                auto state = object.value("state", "");
+                auto label = state == "verified"        ? "Verified"
+                             : state == "missing"       ? "Missing"
+                             : state == "corrupt"       ? "Corrupt"
+                             : state == "size_mismatch" ? "Wrong size"
+                                                        : "Unsafe path";
+                if (state.empty()) {
+                    ImGui::TextWrapped(
+                        "%s / %llu B", object.at("sha256").get<std::string>().c_str(),
+                        static_cast<unsigned long long>(object.at("size").get<uintmax_t>()));
+                    continue;
+                }
+                ImGui::TextWrapped(
+                    "%s / %s / %llu B", object.at("sha256").get<std::string>().c_str(),
+                    c::tr(label).c_str(),
+                    static_cast<unsigned long long>(object.at("size").get<uintmax_t>()));
+            }
+            ImGui::EndChild();
+            c::endCard();
+        }
     }
     static std::string rules_text(const Json &rules) {
         std::string result;

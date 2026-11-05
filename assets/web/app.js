@@ -10,8 +10,10 @@ function clearGitReview() {
 try { token = sessionStorage.getItem("cysynck-token") || ""; } catch (_) { /* Storage may be disabled. */ }
 let storagePlan = null, servicePreview = null;
 let lfsCache=null,lfsRecovery=null,lfsHistory=null,lfsGeneration=0,lfsBusy=false,lfsVerify=false;
+let lfsReceipt=null,lfsCheck=null;
 function resetLfsCache() {
   ++lfsGeneration;lfsCache=lfsRecovery=lfsHistory=null;lfsBusy=false;lfsVerify=false;
+  lfsReceipt=lfsCheck=null;
   $("lfs-cache-peer").value=$("lfs-cache-branch").value="";$("lfs-cache-source").replaceChildren();renderLfsCache();
 }
 function lfsInput() {
@@ -33,8 +35,32 @@ function renderLfsCache() {
   }
   if(lfsRecovery) translated($("lfs-cache-recovery-summary"),"{available} available missing objects · {unavailable} unavailable · {bytes} bytes",{available:lfsRecovery.objects.length,unavailable:lfsRecovery.unavailable.length,bytes:lfsRecovery.bytes});
   if(lfsHistory) {
-    for(const receipt of lfsHistory.records) $("lfs-cache-records").append(text("p",receipt.created+" / "+t(receipt.status==="complete"?"Complete":"Incomplete")+" / "+t("Installed objects")+": "+receipt.installed+" / "+receipt.source_peer));
+    for(const receipt of lfsHistory.records) {
+      const row=text("div",receipt.created+" / "+t(receipt.status==="complete"?"Complete":"Incomplete")+" / "+t("Installed objects")+": "+receipt.installed+" / "+receipt.source_peer+(receipt.acknowledged?" / "+t("Recovery reviewed"):""));
+      const details=text("button",t("View recovery receipt"));details.disabled=lfsBusy;
+      details.addEventListener("click",()=>safe(()=>{lfsReceipt=lfsCheck=null;return lfsOperation("lfs-recovery",{receipt:receipt.id},result=>{lfsReceipt=result;});}));
+      row.append(details);$("lfs-cache-records").append(row);
+    }
     for(const error of lfsHistory.errors) $("lfs-cache-records").append(text("p",error.error));
+  }
+  const detail=$("lfs-recovery-detail");detail.replaceChildren();
+  if(lfsReceipt) {
+    detail.append(text("h4",t("Recovery receipt")),text("p",lfsReceipt.id+" / "+t(lfsReceipt.status==="complete"?"Complete":"Incomplete")));
+    if(lfsReceipt.error) detail.append(text("p",lfsReceipt.error));
+    if(lfsReceipt.acknowledged_at) detail.append(text("p",t("Recovery reviewed")+" / "+lfsReceipt.acknowledged_at));
+    detail.append(text("p",t("Review preserves the incomplete status. Missing objects still need recovery.")));
+    const check=text("button",t("Verify recovery objects"));check.disabled=lfsBusy;
+    check.addEventListener("click",()=>safe(()=>{lfsCheck=null;return lfsOperation("lfs-recovery-check",{receipt:lfsReceipt.id},result=>{lfsCheck=result;});}));detail.append(check);
+    if(lfsCheck) {
+      const counts=text("p","");translated(counts,"{verified} verified · {missing} missing · {damaged} damaged",lfsCheck);detail.append(counts);
+      for(const object of lfsCheck.objects) detail.append(text("p",object.sha256+" / "+lfsStateLabel(object.state)+" / "+object.size+" B"));
+      for(const error of lfsCheck.errors) detail.append(text("p",error));
+      const acknowledge=text("button",t("Mark as reviewed"));acknowledge.disabled=lfsBusy || !lfsCheck.can_acknowledge;
+      acknowledge.addEventListener("click",()=>safe(()=>lfsOperation("lfs-recovery-acknowledge",{receipt:lfsReceipt.id,plan:lfsCheck.plan},result=>{
+        if(lfsHistory) lfsHistory.records=lfsHistory.records.map(row=>row.id===result.id?result:row);
+        lfsReceipt={...lfsReceipt,acknowledged_at:result.acknowledged_at};lfsCheck=null;
+      })));detail.append(acknowledge);
+    } else for(const object of lfsReceipt.objects) detail.append(text("p",object.sha256+" / "+object.size+" B"));
   }
 }
 async function lfsOperation(route,input,done) {
@@ -43,7 +69,7 @@ async function lfsOperation(route,input,done) {
   try {
     const result=await api("projects/"+project+"/git-"+route,"POST",input);
     if(project===selected && generation===lfsGeneration) await done(result);
-  } catch(error) {if(project===selected && generation===lfsGeneration) lfsRecovery=null;throw error;}
+  } catch(error) {if(project===selected && generation===lfsGeneration) lfsRecovery=lfsCheck=null;throw error;}
   finally {if(project===selected && generation===lfsGeneration) {lfsBusy=false;renderLfsCache();}}
 }
 function loadLfsCache(verify=false,offset=0,continuation=false) {
@@ -65,7 +91,7 @@ $("lfs-cache-next").addEventListener("click",()=>safe(()=>loadLfsCache(lfsVerify
 $("lfs-cache-preview").addEventListener("click",()=>safe(()=>{lfsRecovery=null;return lfsOperation("lfs-recover",{...lfsInput(),source_peer:$("lfs-cache-source").value},result=>{lfsRecovery=result;});}));
 $("lfs-cache-apply").addEventListener("click",()=>safe(()=>{
   if(!lfsRecovery?.can_recover) return;
-  return lfsOperation("lfs-recover",{...lfsInput(),source_peer:$("lfs-cache-source").value,apply:true,plan:lfsRecovery.plan},async()=>{lfsCache=lfsRecovery=lfsHistory=null;await refresh();});
+  return lfsOperation("lfs-recover",{...lfsInput(),source_peer:$("lfs-cache-source").value,apply:true,plan:lfsRecovery.plan},async()=>{lfsCache=lfsRecovery=lfsHistory=lfsReceipt=lfsCheck=null;await refresh();});
 }));
 function loadLfsHistory(offset=0) {return lfsOperation("lfs-recoveries",{offset,limit:20},result=>{lfsHistory=result;});}
 $("lfs-cache-history").addEventListener("click",()=>safe(()=>loadLfsHistory()));
