@@ -4,6 +4,7 @@
 #include "git_blobs.hpp"
 #include "git_paths.hpp"
 #include "git_review.hpp"
+#include "git_working.hpp"
 #include <algorithm>
 #include <charconv>
 #include <cstdlib>
@@ -866,16 +867,14 @@ Json inspect(const fs::path &state, const Json &project, const Json &data, bool 
         for (const auto &entry : records(git.get({"ls-files", "-v", "-z"})))
             if (!entry.starts_with("H "))
                 block("Clear assume-unchanged and skip-worktree index flags before integration");
+        auto working = git_working_hashes(project, before);
         for (const auto &file : before) {
-            auto path = project_child(root, file.at("path"));
-            if (!fs::is_regular_file(path) ||
-                fs::file_size(path) != file.at("bytes").get<uintmax_t>() ||
-                file.at("oid") !=
-                    trim(git.get({"hash-object", "--no-filters", "--", path_string(path)}))) {
+            if (file.at("oid") != working.ids.at(file.at("path").get<std::string>())) {
                 block("Preserve modified or missing working files before integration");
                 break;
             }
 #ifndef _WIN32
+            auto path = project_child(root, file.at("path"));
             auto executable =
                 (fs::status(path).permissions() & (fs::perms::owner_exec | fs::perms::group_exec |
                                                    fs::perms::others_exec)) != fs::perms::none;
@@ -1178,14 +1177,12 @@ Json check_git_integration(const fs::path &state, const Json &project, const Jso
             if (!flag.starts_with("H "))
                 throw std::runtime_error(
                     "Clear assume-unchanged and skip-worktree flags before verification");
+        auto working = git_working_hashes(project, expected);
         for (const auto &file : expected) {
-            auto path = project_child(root, file.at("path"));
-            if (!fs::is_regular_file(path) ||
-                fs::file_size(path) != file.at("bytes").get<uintmax_t>() ||
-                file.at("oid") !=
-                    trim(git.get({"hash-object", "--no-filters", "--", path_string(path)})))
+            if (file.at("oid") != working.ids.at(file.at("path").get<std::string>()))
                 throw std::runtime_error("Tracked working files differ from the receipt commit");
 #ifndef _WIN32
+            auto path = project_child(root, file.at("path"));
             bool executable =
                 (fs::status(path).permissions() & (fs::perms::owner_exec | fs::perms::group_exec |
                                                    fs::perms::others_exec)) != fs::perms::none;
@@ -1303,14 +1300,12 @@ Json integrate_git_branch(const fs::path &state, const Json &project, const Json
         if (local.at("base") != destination || local.at("local_ref") != result.at("local_ref"))
             throw std::runtime_error("Git HEAD changed unexpectedly during integration");
         auto root = fs::u8path(project.at("root").get<std::string>());
+        auto working = git_working_hashes(project, result.at("files_after"));
         for (const auto &file : result.at("files_after")) {
-            auto path = project_child(root, file.at("path"));
-            if (!fs::is_regular_file(path) ||
-                fs::file_size(path) != file.at("bytes").get<uintmax_t>() ||
-                file.at("oid") !=
-                    trim(git.get({"hash-object", "--no-filters", "--", path_string(path)})))
+            if (file.at("oid") != working.ids.at(file.at("path").get<std::string>()))
                 throw std::runtime_error("Integrated file does not match the reviewed Git object");
 #ifndef _WIN32
+            auto path = project_child(root, file.at("path"));
             auto executable =
                 (fs::status(path).permissions() & (fs::perms::owner_exec | fs::perms::group_exec |
                                                    fs::perms::others_exec)) != fs::perms::none;
