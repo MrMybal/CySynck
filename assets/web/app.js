@@ -797,7 +797,7 @@ async function loadReceived() {
 }
 $("received-load").addEventListener("click", () => safe(loadReceived));
 let materializationPlan=null,materializationGeneration=0,materializationReceiptsGeneration=0;
-function resetMaterialization(){materializationPlan=null;++materializationGeneration;++materializationReceiptsGeneration;$("git-materialization-receipts").replaceChildren();$("git-materialize-result").replaceChildren();$("git-materialize-apply").disabled=true;$("git-materialize-preview").disabled=false;}
+function resetMaterialization(){materializationPlan=null;++materializationGeneration;++materializationReceiptsGeneration;$("git-materialize-paths").value="";$("git-materialize-paths").disabled=false;$("git-materialization-receipts").replaceChildren();$("git-materialize-result").replaceChildren();$("git-materialize-apply").disabled=true;$("git-materialize-preview").disabled=false;}
 async function loadMaterializationReceipts(offset=0){
   const project=selected,generation=++materializationReceiptsGeneration;if(!project)return;
   const result=await api("projects/"+project+"/git-materializations","POST",{offset});
@@ -807,6 +807,8 @@ async function loadMaterializationReceipts(offset=0){
   for(const record of result.records){
     const card=text("div","","snapshot"),output=text("div",""),check=label("button","Check LFS receipt");
     card.append(text("p",record.created+" · "+record.id),label("p",record.status==="complete"?"LFS materialization complete":"LFS materialization incomplete"),text("p",record.recovery_directory));
+    card.append(text("p",t("Excluded LFS pointers")+": "+record.excluded));
+    if(record.selection!==null){const scope=document.createElement("details");scope.append(label("summary","LFS selection"));for(const path of record.selection)scope.append(text("p",path));card.append(scope);}
     if(record.acknowledged)card.append(label("p","Recovery reviewed"));
     let revision=0;const current=()=>selected===project && generation===materializationReceiptsGeneration && card.isConnected;
     check.addEventListener("click",()=>safe(async()=>{
@@ -833,7 +835,7 @@ async function loadMaterializationReceipts(offset=0){
 $("git-materialization-receipts-load").addEventListener("click",()=>safe(()=>loadMaterializationReceipts()));
 function showMaterialization(result){
   const output=$("git-materialize-result");output.replaceChildren();
-  for(const [key,title] of [["pending","Pending assets"],["materialized","Already materialized"],["skipped","Preserved files"],["bytes","Asset bytes"]])output.append(text("p",t(title)+": "+result[key]));
+  for(const [key,title] of [["pending","Pending assets"],["materialized","Already materialized"],["skipped","Preserved files"],["excluded","Excluded LFS pointers"],["bytes","Asset bytes"]])output.append(text("p",t(title)+": "+result[key]));
   if(result.applied)output.append(label("p","LFS materialization complete"),text("p",result.id),label("p","Recovery directory"),text("p",result.recovery_directory));
   const states={pointer:"Committed pointer",materialized:"Already materialized",modified:"Local modifications preserved",missing:"Local deletion preserved",staged:"Staged changes preserved",index_flags:"Special index flags preserved",read_only:"Read-only file preserved",attributes:"LFS attributes required",blocked:"Materialization blocked"};
   const files=document.createElement("details");files.append(label("summary","LFS file states"));
@@ -841,24 +843,28 @@ function showMaterialization(result){
   output.append(files);
   for(const issue of result.errors)output.append(text("p",issue.path+": "+issue.error));
 }
+$("git-materialize-paths").addEventListener("input",()=>{materializationPlan=null;++materializationGeneration;$("git-materialize-result").replaceChildren();$("git-materialize-apply").disabled=true;$("git-materialize-preview").disabled=false;});
 $("git-materialize-preview").addEventListener("click",()=>safe(async()=>{
   const project=selected,generation=++materializationGeneration;if(!project)return;
   materializationPlan=null;$("git-materialize-apply").disabled=true;$("git-materialize-preview").disabled=true;
   try{
-    const result=await api("projects/"+project+"/git-materialize","POST",{});
+    const paths=$("git-materialize-paths").value.split(/\r?\n/).filter(path=>path.length),query=paths.length?{paths}:{};
+    const result=await api("projects/"+project+"/git-materialize","POST",query);
     if(selected!==project || generation!==materializationGeneration)return;
     showMaterialization(result);
-    if(result.can_materialize){materializationPlan={project,plan:result.plan,base:result.base,local_ref:result.local_ref};$("git-materialize-apply").disabled=false;}
+    if(result.can_materialize){materializationPlan={project,plan:result.plan,base:result.base,local_ref:result.local_ref,paths:result.selection};$("git-materialize-apply").disabled=false;}
   }finally{if(selected===project && generation===materializationGeneration)$("git-materialize-preview").disabled=false;}
 }));
 $("git-materialize-apply").addEventListener("click",()=>safe(async()=>{
   const saved=materializationPlan;if(!saved || selected!==saved.project)return;
   materializationPlan=null;const generation=++materializationGeneration;
+  $("git-materialize-paths").disabled=true;
   $("git-materialize-apply").disabled=true;$("git-materialize-preview").disabled=true;
   try{
-    const result=await api("projects/"+saved.project+"/git-materialize","POST",{apply:true,plan:saved.plan,base:saved.base,local_ref:saved.local_ref});
+    const query={apply:true,plan:saved.plan,base:saved.base,local_ref:saved.local_ref};if(saved.paths!==null)query.paths=saved.paths;
+    const result=await api("projects/"+saved.project+"/git-materialize","POST",query);
     if(selected===saved.project && generation===materializationGeneration)showMaterialization(result);
-  }finally{if(selected===saved.project && generation===materializationGeneration)$("git-materialize-preview").disabled=false;}
+  }finally{if(selected===saved.project && generation===materializationGeneration){$("git-materialize-preview").disabled=false;$("git-materialize-paths").disabled=false;}}
 }));
 async function loadGitReceipts(offset=0) {
   const project=selected,generation=++gitReceiptsLoad;

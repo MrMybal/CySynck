@@ -96,6 +96,8 @@ globalThis.CySynckI18n = (() => {
     "Preview LFS materialization": "Prévisualiser la matérialisation LFS",
     "Materialize verified assets": "Matérialiser les assets vérifiés",
     "Replace exact committed pointers with verified cached assets. Modified, missing and staged files are preserved.": "Remplace les pointeurs commités exacts par les assets vérifiés du cache. Les fichiers modifiés, absents et indexés sont conservés.",
+    "LFS selection": "Sélection LFS", "Excluded LFS pointers": "Pointeurs LFS hors sélection",
+    "One relative path per line; folders end with /. Leave empty for all LFS pointers.": "Un chemin relatif par ligne ; les dossiers se terminent par /. Laissez vide pour tous les pointeurs LFS.",
     "Pending assets": "Assets en attente", "Already materialized": "Déjà matérialisés",
     "Preserved files": "Fichiers conservés", "Asset bytes": "Taille des assets en octets",
     "LFS materialization complete": "Matérialisation LFS terminée", "Recovery directory": "Dossier de récupération",

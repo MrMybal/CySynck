@@ -230,6 +230,11 @@ static void localize() {
           "Remplace les pointeurs commités exacts par les assets vérifiés du cache. Les fichiers "
           "modifiés, absents et indexés sont conservés."},
          {"Pending assets", "Assets en attente"},
+         {"LFS selection", "Sélection LFS"},
+         {"One relative path per line; folders end with /. Leave empty for all LFS pointers.",
+          "Un chemin relatif par ligne ; les dossiers se terminent par /. Laissez vide pour tous "
+          "les pointeurs LFS."},
+         {"Excluded LFS pointers", "Pointeurs LFS hors sélection"},
          {"Already materialized", "Déjà matérialisés"},
          {"Preserved files", "Fichiers conservés"},
          {"Asset bytes", "Taille des assets en octets"},
@@ -929,6 +934,7 @@ class App {
     std::string backup_prefix, restore_paths, history_left, history_right;
     size_t git_integration_offset = 0;
     size_t git_materialization_offset = 0;
+    std::string git_materialization_paths;
     std::string git_extract_destination;
     bool git_extract_lfs = true;
     std::string git_initial_branch = "main";
@@ -1194,6 +1200,7 @@ class App {
         git_merge_state = git_merge_file_state = nullptr;
         git_integration_records = git_integration_check = nullptr;
         git_materialize_state = nullptr;
+        git_materialization_paths.clear();
         git_materialization_records = git_materialization_check = nullptr;
         git_materialization_offset = 0;
         git_integration_offset = 0;
@@ -3332,6 +3339,13 @@ class App {
                                                              : "LFS materialization incomplete"));
                 text(c::tr("Recovery directory") + ": " +
                      record.at("recovery_directory").get<std::string>());
+                text(c::tr("Excluded LFS pointers") + ": " + record.at("excluded").dump());
+                if (!record.at("selection").is_null() &&
+                    ImGui::TreeNode(c::tr("LFS selection").c_str())) {
+                    for (const auto &path : record.at("selection"))
+                        text(path.get<std::string>());
+                    ImGui::TreePop();
+                }
                 if (record.at("acknowledged").get<bool>())
                     text(c::tr("Recovery reviewed"));
                 if (button("Check LFS receipt")) {
@@ -3409,18 +3423,40 @@ class App {
         ImGui::TextWrapped("%s", c::tr("Replace exact committed pointers with verified cached "
                                        "assets. Modified, missing and staged files are preserved.")
                                      .c_str());
+        ImGui::TextUnformatted(c::tr("LFS selection").c_str());
+        ImGui::TextWrapped(
+            "%s",
+            c::tr(
+                "One relative path per line; folders end with /. Leave empty for all LFS pointers.")
+                .c_str());
+        ImGui::BeginDisabled(busy());
+        if (ImGui::InputTextMultiline("##lfs-paths", &git_materialization_paths, c::dp(-1, 90)))
+            git_materialize_state = nullptr;
+        ImGui::EndDisabled();
         if (button("Preview LFS materialization")) {
             git_materialize_state = nullptr;
-            action("git-materialize", Json::object(), [this](const Json &r) {
-                if (r.at("project") == selected)
-                    git_materialize_state = r;
-            });
+            Json input = Json::object(), paths = Json::array();
+            std::istringstream lines(git_materialization_paths);
+            for (std::string line; std::getline(lines, line);) {
+                if (!line.empty() && line.back() == '\r')
+                    line.pop_back();
+                if (!line.empty())
+                    paths.push_back(line);
+            }
+            if (!paths.empty())
+                input["paths"] = paths;
+            action("git-materialize", input,
+                   [this, paths_text = git_materialization_paths](const Json &r) {
+                       if (r.at("project") == selected && paths_text == git_materialization_paths)
+                           git_materialize_state = r;
+                   });
         }
         if (!git_materialize_state.is_null()) {
             const auto &r = git_materialize_state;
             for (auto [key, title] : {std::pair{"pending", "Pending assets"},
                                       {"materialized", "Already materialized"},
                                       {"skipped", "Preserved files"},
+                                      {"excluded", "Excluded LFS pointers"},
                                       {"bytes", "Asset bytes"}})
                 text(c::tr(title) + ": " + r.at(key).dump());
             if (r.value("applied", false)) {
@@ -3460,11 +3496,15 @@ class App {
                            {"plan", r.at("plan")},
                            {"base", r.at("base")},
                            {"local_ref", r.at("local_ref")}};
+                if (!r.at("selection").is_null())
+                    input["paths"] = r.at("selection");
                 git_materialize_state = nullptr;
-                action("git-materialize", input, [this](const Json &result) {
-                    if (result.at("project") == selected)
-                        git_materialize_state = result;
-                });
+                action("git-materialize", input,
+                       [this, paths_text = git_materialization_paths](const Json &result) {
+                           if (result.at("project") == selected &&
+                               paths_text == git_materialization_paths)
+                               git_materialize_state = result;
+                       });
             }
             ImGui::EndDisabled();
         }
