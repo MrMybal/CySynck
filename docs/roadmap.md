@@ -1,5 +1,17 @@
 # Development milestones
 
+## Delivered in 0.37
+
+- Reviewed completion of interrupted LFS publication using verified prepared assets and intact
+  original pointers, with no cache requirement and no replacement of existing destinations.
+- Completion of an interrupted journal when every asset is already published, preserving file
+  bytes/timestamps, original errors, receipt selection and Git HEAD/index/configuration.
+- CLI/C/C++ ABI and bilingual CyUI/Web preview/apply controls, targeted SHA-1/SHA-256 recovery
+  fixtures and a staged-publication scenario against the extracted SDK.
+
+See [resuming LFS publication](git-materialization.md#resuming-verified-publication-037).
+Interrupted staging and mixed before/publication states still require manual recovery.
+
 ## Delivered in 0.36
 
 - Reviewed LFS materialization of exact files or folder prefixes, with canonical bounded

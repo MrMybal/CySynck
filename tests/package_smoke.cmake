@@ -575,6 +575,42 @@ string(JSON materialize_count LENGTH "${materialize_history}" records)
 if(NOT materialize_count EQUAL 1)
   message(FATAL_ERROR "Packaged materialization receipt history is incomplete")
 endif()
+# Stop after preserving the pointer but before publishing its prepared asset.
+# Keep integer timestamps verbatim, as in the acknowledgement fixture above.
+string(STRIP "${materialize_interrupted}" materialize_stopped)
+string(REPLACE "\"files_written\":1" "\"files_written\":0" materialize_stopped "${materialize_stopped}")
+string(REPLACE "\"phase\":\"complete\"" "\"phase\":\"publishing\"" materialize_stopped "${materialize_stopped}")
+string(REGEX REPLACE "}$" ",\"error\":\"Simulated staged publication interruption\"}" materialize_stopped "${materialize_stopped}")
+file(WRITE "${materialize_receipt}" "${materialize_stopped}")
+file(MAKE_DIRECTORY "${sdk_git_root}/${materialize_recovery}/after")
+file(RENAME "${sdk_git_root}/Asset.uasset" "${sdk_git_root}/${materialize_recovery}/after/Asset.uasset" NO_REPLACE)
+run_response("${c_consumer}" materialize_resume "${WORK_DIR}/C profil été" POST /api/projects/git-lfs/git-materialization-resume
+  "{\"receipt\":\"${materialize_id}\"}")
+string(JSON materialize_resume_can GET "${materialize_resume}" can_resume)
+string(JSON materialize_resume_pending GET "${materialize_resume}" pending_publications)
+string(JSON materialize_resume_plan GET "${materialize_resume}" plan)
+if(NOT materialize_resume_can OR NOT materialize_resume_pending EQUAL 1 OR EXISTS "${sdk_git_root}/Asset.uasset")
+  message(FATAL_ERROR "Packaged LFS resume preview did not preserve the interrupted state")
+endif()
+run_response("${c_consumer}" materialize_resumed "${WORK_DIR}/C profil été" POST /api/projects/git-lfs/git-materialization-resume
+  "{\"receipt\":\"${materialize_id}\",\"apply\":true,\"plan\":\"${materialize_resume_plan}\"}")
+string(JSON materialize_resumed_done GET "${materialize_resumed}" resumed)
+string(JSON materialize_resumed_status GET "${materialize_resumed}" status)
+file(SHA256 "${sdk_git_root}/Asset.uasset" materialize_resumed_asset)
+file(SHA256 "${sdk_git_root}/${materialize_recovery}/before/Asset.uasset" materialize_resumed_original)
+file(SHA256 "${sdk_git_root}/.git/index" materialize_resumed_index)
+if(NOT materialize_resumed_done OR NOT materialize_resumed_status STREQUAL "complete" OR
+    NOT materialize_resumed_asset STREQUAL sdk_oid OR NOT materialize_resumed_original STREQUAL materialize_pointer_before OR
+    NOT materialize_resumed_index STREQUAL materialize_index_before)
+  message(FATAL_ERROR "Packaged LFS resume changed bytes, the index or original pointers")
+endif()
+run_response("${c_consumer}" materialize_resumed_check "${WORK_DIR}/C profil été" POST /api/projects/git-lfs/git-materialization-check
+  "{\"receipt\":\"${materialize_id}\"}")
+string(JSON materialize_resumed_position GET "${materialize_resumed_check}" position)
+string(JSON materialize_resumed_errors LENGTH "${materialize_resumed_check}" errors)
+if(NOT materialize_resumed_position STREQUAL "after" OR NOT materialize_resumed_errors EQUAL 0)
+  message(FATAL_ERROR "Packaged resumed LFS receipt does not verify")
+endif()
 # Pure C ABI first-import integration uses an independent ordinary-file repository.
 # Multi-file merge application performs other bounded Git work beyond working hashes.
 set(sdk_response_timeout 120)

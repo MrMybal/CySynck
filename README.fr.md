@@ -10,6 +10,11 @@ Le cœur, le CLI et les identifiants d'API sont en anglais. Les interfaces deskt
 démarrent en anglais et proposent le français comme deuxième langue. Le choix est mémorisé
 par profil pour le desktop et dans le navigateur pour le Web.
 
+La version 0.37 permet de reprendre une publication LFS interrompue depuis les assets préparés
+et vérifiés, après un nouvel aperçu. Les fichiers déjà publiés ne sont pas réécrits et les
+pointeurs d'origine restent conservés. Le CLI, le SDK et CyUI/Web bilingues partagent ce parcours.
+Voir [la reprise de publication LFS](docs/git-materialization.md#resuming-verified-publication-037) (anglais).
+
 La version 0.36 permet de matérialiser une sélection de fichiers ou dossiers LFS après aperçu
 vérifié. Un objet absent du cache hors sélection ne bloque plus les assets choisis ; les autres
 fichiers de travail restent inchangés. Le CLI, le SDK et les interfaces CyUI/Web bilingues

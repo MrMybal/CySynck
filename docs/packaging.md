@@ -1,4 +1,4 @@
-# Platform packages (0.36)
+# Platform packages (0.37)
 
 The same C++20 core powers the desktop, CLI and SDK. Syncthing, Git and WireGuard remain
 external tools. Native builds are preferred for distribution; the optional Zig toolchain
@@ -27,6 +27,9 @@ conflict-region choices and applies the resulting edited text through the packag
 LFS checks materialize a selected committed pointer from the verified cache, keep a second
 uncached pointer unchanged, preserve HEAD/index and
 the recovery original, then check and acknowledge a simulated interrupted receipt.
+An additional interruption moves the working asset back to verified staging; the extracted
+C consumer previews and resumes publication, then verifies exact bytes, the index and original
+pointers through the receipt checker.
 Cache refill checks also verify the receipt's planned objects, then acknowledge a simulated
 interruption whose valid immutable copy outlived its last journal update. The original
 incomplete state and empty installed list must remain preserved.

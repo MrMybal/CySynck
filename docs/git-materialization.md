@@ -154,9 +154,51 @@ Only an incomplete, unacknowledged receipt at an exact complete before/after sta
 `can_acknowledge:true` and a fresh token. An acknowledgement writes only receipt metadata.
 Its original incomplete status and error remain available; it never retries, rolls back,
 restores, removes a lock or deletes recovery files. File changes invalidate a checked token,
-and completed acknowledgements cannot be replayed. Partial/interrupted states need manual
-inspection and recovery before this action is offered.
+and completed acknowledgements cannot be replayed. Partial/interrupted states need recovery
+before acknowledgement. Verified interrupted publication can use the explicit resume below.
 
 Catalog pages contain at most 100 entries (20 by default), scanning at most 10,000 receipts.
 Malformed neighboring receipts are reported separately; unindexed names are preserved.
 Receipt reads and saved acknowledgement metadata are limited to 16 MiB.
+
+## Resuming verified publication (0.37)
+
+**Check LFS receipt** reports `can_resume:true` when an incomplete, unacknowledged operation
+has only already-published assets or absent destinations with fully verified staged assets
+and intact original pointers. Use **Preview LFS resume**, inspect the counts, then
+**Resume verified publication**. These controls are available in English and French.
+
+```sh
+cysynck git materialization-resume PROJECT_ID OPERATION_ID
+cysynck git materialization-resume PROJECT_ID OPERATION_ID --apply true --plan PREVIEW_TOKEN
+```
+
+POST `/api/projects/ID/git-materialization-resume` accepts `{"receipt":"OPERATION_ID"}` for
+preview, adding `apply:true` and `plan` to apply. The existing C/C++ ABI exposes the same JSON
+route. Preview returns `already_published`, `pending_publications`, `check`, `can_resume`,
+`resumed:false` and a token binding the receipt, profile/project settings, Git configuration,
+current raw index, staged entries/flags, HEAD and all checked file fingerprints.
+
+Application acquires the shared integration lock and repeats the inspection. It rehashes
+each remaining staged asset and original pointer, preserves pointer permissions/Windows DACL,
+and publishes only into an absent destination. Existing destinations and already-published
+assets are not rewritten. No cache, Git LFS helper, filter or fetch is required. The receipt's
+original selection is retained; callers cannot broaden it with a new path list.
+
+If every asset was already published before the interruption, applying the preview completes
+only the journal. Success reports `resumed:true`, `status:"complete"` and the exact final
+`files_written`. Optional `resume` metadata records the attempt, start, completion and prior
+journal count. The original materialization `error`, if present, remains as interruption
+history. Receipt catalogs expose resume status. Completed/acknowledged operations cannot be
+resumed, and changed files or configuration invalidate the preview.
+
+A failed attempt keeps the receipt incomplete and preserves originals, remaining staging and
+already-published files. The latest attempt error is retained (up to 2048 bytes). A new preview
+can continue from the verified remaining state; after 1000 attempts manual inspection is
+required. No rollback, automatic retries or lock removal is performed. Interrupted staging,
+missing/corrupt prepared assets, changed originals, unknown entries, changed Git context, and
+mixed `before`/publication states remain blocked for manual recovery.
+
+Pause external writers during recovery. Checks and publication are not one filesystem
+transaction, and the CySynck lock does not lock other applications. Native Linux/macOS runtime
+validation and real power-loss testing remain required.

@@ -9,7 +9,7 @@ A project-based synchronization and backup companion written in **C++20**, power
 One shared core powers the native desktop app, CLI, local Web console and integration SDK.
 Build a headless server without graphical dependencies. No Python or .NET runtime is required.
 
-**Status: 0.36.0, under active development.** Windows x64 is validated locally. The headless
+**Status: 0.37.0, under active development.** Windows x64 is validated locally. The headless
 Linux core, CLI and test binaries also cross-compile from Windows with Zig.
 Native Linux and macOS execution still needs validation on those platforms.
 The Unreal bridge is an integration example and has not yet been compiled inside Unreal.
@@ -19,7 +19,7 @@ those fixes and the new package smoke checks still need another native CI run.
 
 ## Features
 
-| Area | Available in 0.36 |
+| Area | Available in 0.37 |
 | --- | --- |
 | Projects | Separate folders, settings and modes; overlapping project roots are rejected |
 | Sync modes | Two-way, send only, receive only, local backup and Git bundle exchange |
@@ -40,6 +40,11 @@ those fixes and the new package smoke checks still need another native CI run.
 | Resumable transfers | Verified 1 MiB chunks, files up to 4 GiB, configurable profile quotas, frozen source and manual resume |
 | Received files | Durable inbox catalog, integrity verification and export to a separate directory |
 | Integration | C++ library, C ABI with UTF-8 JSON and an Unreal/Blueprint bridge example |
+
+Interrupted LFS publication can now resume from fully verified staging after a fresh preview.
+Existing destinations and original pointers remain protected; already published assets are
+verified without being rewritten. CLI, SDK and bilingual CyUI/Web share the recovery workflow.
+See [resuming LFS publication](docs/git-materialization.md#resuming-verified-publication-037).
 
 LFS materialization can select exact files or folders after a checked preview. Missing cache
 objects outside that selection do not block the operation, and unselected working files stay
