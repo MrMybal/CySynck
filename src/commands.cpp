@@ -27,7 +27,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.31 (C++20)
+        return {{"help", R"(CySynck 0.32 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | plugins | events | api-token
   project mode-options ID
@@ -76,6 +76,9 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
       [--base COMMIT --head COMMIT --local-ref REF --resolutions FILE.json]
       (reviewed divergent merge; local/peer files or edited UTF-8 conflict text)
   git integrations ID [--offset 0 --limit 20]
+  git lfs-cache ID [--peer PEER --branch BRANCH] [--verify true] [--offset N --limit N --inventory-hash HASH]
+  git lfs-recover ID SOURCE_PEER [--peer PEER --branch BRANCH] [--objects IDS.json] [--apply true --plan TOKEN]
+  git lfs-recoveries ID [--offset N --limit N] | git lfs-recovery ID RECEIPT
   git materialize ID [--apply true --plan PREVIEW_TOKEN]  (verified local LFS cache; preserves modified files)
   git materializations ID [--offset 0 --limit 20]
   git materialization-check ID RECEIPT_ID
@@ -439,6 +442,42 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
                     throw std::runtime_error("Unknown LFS materialization flag: " + flag);
             }
             return core.request("POST", "/api/projects/" + args[2] + "/git-materialize", data);
+        }
+        if (command == "lfs-cache" || command == "lfs-recover" || command == "lfs-recoveries" ||
+            command == "lfs-recovery") {
+            require(command == "lfs-recover" || command == "lfs-recovery" ? 4 : 3);
+            if (command == "lfs-recover")
+                data["source_peer"] = args[3];
+            if (command == "lfs-recovery")
+                data["receipt"] = args[3];
+            for (const auto &[flag, value] : flags) {
+                if ((flag == "--peer" || flag == "--branch") &&
+                    (command == "lfs-cache" || command == "lfs-recover"))
+                    data[flag.substr(2)] = value;
+                else if ((flag == "--verify" && command == "lfs-cache") ||
+                         (flag == "--apply" && command == "lfs-recover")) {
+                    if (value != "true" && value != "false")
+                        throw std::runtime_error("Choose true or false for " + flag);
+                    data[flag.substr(2)] = value == "true";
+                } else if (flag == "--plan" && command == "lfs-recover")
+                    data["plan"] = value;
+                else if (flag == "--objects" && command == "lfs-recover")
+                    data["objects"] = Json::parse(read_file(fs::u8path(value), 300 * 1024));
+                else if (flag == "--inventory-hash" && command == "lfs-cache")
+                    data["inventory_hash"] = value;
+                else if ((flag == "--offset" || flag == "--limit") &&
+                         (command == "lfs-cache" || command == "lfs-recoveries")) {
+                    uint64_t number = 0;
+                    auto parsed =
+                        std::from_chars(value.data(), value.data() + value.size(), number);
+                    if (value.empty() || parsed.ec != std::errc{} ||
+                        parsed.ptr != value.data() + value.size())
+                        throw std::runtime_error("Invalid LFS page bound");
+                    data[flag.substr(2)] = number;
+                } else
+                    throw std::runtime_error("Unknown LFS cache flag: " + flag);
+            }
+            return core.request("POST", "/api/projects/" + args[2] + "/git-" + command, data);
         }
         if (command == "integration-check" || command == "integration-acknowledge" ||
             command == "integrations") {

@@ -22,6 +22,7 @@
 #include "git_extract.hpp"
 #include "git_integrate.hpp"
 #include "git_materialize.hpp"
+#include "git_cache.hpp"
 #include "git_storage.hpp"
 #ifdef _WIN32
 #define NOMINMAX
@@ -1001,7 +1002,15 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
             event(p.at("id"), "git",
                   action == "git-merge" ? "Reviewed divergent Git branches merged"
                                         : "Reviewed imported branch integrated by fast-forward");
-    } else if (action == "git-materialize") {
+    } else if (action == "git-lfs-cache")
+        return inspect_git_lfs_cache(state_, p, data);
+    else if (action == "git-lfs-recover") {
+        result = recover_git_lfs_cache(state_, p, data);
+        if (result.value("applied", false))
+            event(projectId, "git", "Missing Git LFS cache objects recovered from exchange");
+    } else if (action == "git-lfs-recoveries" || action == "git-lfs-recovery")
+        return git_lfs_recoveries(state_, p, data, action == "git-lfs-recovery");
+    else if (action == "git-materialize") {
         result = materialize_git_lfs(state_, p, data);
         if (result.value("applied", false))
             event(p.at("id"), "git", "Committed LFS assets materialized from verified local cache");
