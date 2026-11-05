@@ -1,5 +1,14 @@
 # Development milestones
 
+## Delivered in 0.26
+
+Manual Git conflict text editing complements whole-file local/peer choices. CyUI and Web expose
+ancestor/source views and an editable proposal; the CLI JSON file and C/C++ SDK accept the same
+bounded UTF-8 content. Saving edits requires another whole-repository preview. Edited blobs stay
+private until explicit application, and receipts retain exact content for before/after checks.
+Marker lines, LFS pointers and conflicting file permissions are refused. Empty content is an
+explicit empty file. See [edited Git conflicts](git-divergent-merge.md#editing-conflict-text-026).
+
 ## Delivered in 0.25
 
 Reviewed divergent Git integration accepts explicit whole-file local/peer choices for bounded
@@ -208,7 +217,7 @@ macOS notarization, signed Windows installers and automatic updates remain separ
 
 - Exercise multi-gigabyte resumable transfers and native Linux/macOS transport and services.
 - Benchmark content-defined backup storage on much larger project trees and real asset workloads.
-- Extend reviewed integration to LFS assets and per-region text editing; extend LFS storage/locking support and verify CyRevision interoperability.
+- Extend reviewed integration to LFS assets and richer conflict-region controls; extend LFS storage/locking support and verify CyRevision interoperability.
 - Design and test WireGuard rendezvous/NAT traversal against real network configurations;
   Syncthing discovery and relays do not themselves provide that transport.
 

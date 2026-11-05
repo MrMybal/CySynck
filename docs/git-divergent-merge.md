@@ -1,4 +1,4 @@
-# Reviewed divergent Git merge (0.25)
+# Reviewed divergent Git merge (0.26)
 
 Use **Preview repository merge** in the Git branch comparison view, then **Apply reviewed merge**
 when the whole-repository preview is ready. CyUI and Web default to English and include French.
@@ -38,11 +38,12 @@ For supported UTF-8 text conflicts, CyUI and Web offer **Use local file** or **U
 for each reported path. A missing side is labelled **Use local deletion** or **Use peer deletion**.
 Use the three-way file review to inspect committed versions before choosing. Each choice replaces
 the **entire file**, including otherwise nonconflicting edits in that file. Other files keep
-their automatic merge result. Editing individual conflict regions remains a separate milestone.
+their automatic merge result. From 0.26, an editor can combine changes within a conflicted file.
 
 Nothing is selected by default. Changing or clearing a choice disables application until another
 preview succeeds. Every conflict needs a choice; partial selection remains blocked. Choices cannot
-override clean files or select arbitrary objects, text or filesystem paths.
+override clean files or select arbitrary objects or filesystem paths. Edited text is explicit,
+as described below.
 
 The CLI accepts a UTF-8 JSON file through `--resolutions FILE.json`. For example:
 
@@ -60,7 +61,8 @@ cysynck git merge PROJECT_ID PEER_ID BRANCH --resolutions choices.json --apply t
 
 The API/C SDK accepts the same array in `resolutions`. Send the same choices with application;
 the token binds their canonical path order and the complete resulting tree. Duplicate paths,
-case aliases, unknown conflict paths, extra fields and sides other than `local`/`peer` are refused.
+case aliases, unknown conflict paths, extra fields and unknown sides are refused. `local`/`peer`
+entries contain only `path` and `side`; `edited` entries additionally require string `content`.
 The array is bounded to 10,000 paths and 1 MiB. Fast-forward integration refuses this field.
 
 Preview adds `conflict_files` (each path's nullable `local`/`peer` file metadata), canonical
@@ -76,6 +78,53 @@ then writes and validates the complete resulting tree. The source index, worktre
 storage remain untouched during preview. Apply and receipt checks recompute the same choices.
 Add/add and modify/delete text conflicts are supported. Structural/synthetic paths, binary or
 non-UTF-8 conflicts, oversized text and the other restrictions below require manual Git handling.
+
+## Editing conflict text (0.26)
+
+Choose **Edit merged text** for a supported conflict. CyUI and Web show the ancestor and both
+committed versions in read-only views and seed an editable draft with the three-way proposal.
+For modify/delete conflicts, the surviving committed text seeds the draft. Previous edits can
+be reopened while the comparison remains open. These drafts are kept in interface memory until
+you use them; refreshing or switching imported branches/projects discards them.
+
+Remove conflict markers, combine the desired regions, then choose **Use edited text** and preview
+again. Cancel closes the editor without changing its selected resolution. Preview and application
+are disabled while an editor is open. Saving a draft invalidates the earlier plan. Other files
+retain their automatic result or their own explicit resolution. This is a manual text editor;
+it does not infer which changed lines should win.
+
+CLI files and the existing C/C++ request route accept:
+
+```json
+[
+  {"path":"Source/Game.cpp","side":"edited","content":"combined text\n"},
+  {"path":"Notes.txt","side":"peer"}
+]
+```
+
+Edited content must be valid UTF-8 without NUL, at most 512 KiB per file, and fit the existing
+1 MiB serialized resolution-array bound. An empty string creates an empty regular file; it
+does not delete it. Canonical Git LFS pointers are refused. Lines beginning, after optional
+spaces/tabs/CR, with `<<<<<<<`, `|||||||`, `=======` or `>>>>>>>` are refused conservatively,
+including longer marker runs. Legitimate text containing such lines needs a committed-file
+choice or manual Git handling. This check helps catch leftover proposal markers; users still
+review the final text.
+
+When both committed sides exist, their file modes must agree for text editing. Otherwise use
+a committed-file choice or resolve permissions in Git. With one deleted side, the surviving
+file's mode is retained. `conflict_files[].editable` exposes this condition.
+
+[`git hash-object -w --no-filters --stdin`](https://git-scm.com/docs/git-hash-object) creates edited
+blobs only in the private workspace. The full resulting tree is validated before issuing a
+plan. Requests, application and receipt checks use the exact supplied bytes, including CRLF and
+a missing final newline. The Web textarea uses browser LF line endings; preview hashes reflect
+the text actually submitted. Application sends the same edited content and token, imports the
+reviewed objects and performs the existing verified checkout.
+
+Edited text is stored in the private integration receipt for deterministic recomputation,
+including checks before or after an interrupted checkout. Receipt summaries expose only an
+`edited_files` count, alongside `resolved_conflicts`. Receipts using `side:"edited"` require
+core 0.26 or later. Earlier receipts and committed-file choices remain supported.
 
 Rename detection and renormalization are disabled. Paths are validated across the local, peer,
 ancestor and resulting trees, including unchanged files. Case-only renames and case aliases,

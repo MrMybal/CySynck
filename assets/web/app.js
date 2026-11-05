@@ -490,6 +490,7 @@ async function loadGitReceipts(offset=0) {
     card.append(text("p",record.created+" / "+record.peer+" / "+record.branch),text("p",record.id),label("p",record.status==="complete"?"Integration complete":"Integration incomplete"),text("p",record.receipt_path));
     if(record.result_commit)card.append(label("p","Merge commit"),text("p",record.result_commit));
     if(record.resolved_conflicts!==undefined)card.append(label("p","Resolved conflicts"),text("p",String(record.resolved_conflicts)));
+    if(record.edited_files!==undefined)card.append(label("p","Edited files"),text("p",String(record.edited_files)));
     if(record.acknowledged_at)card.append(label("p","Recovery reviewed"),text("p",record.acknowledged_at));
     let request=0;
     const current=()=>selected===project && generation===gitReceiptsLoad && card.isConnected;
@@ -624,34 +625,64 @@ function showGitIntegration(project,review,container) {
   const merging=review.relation==="diverged",route=merging?"git-merge":"git-integrate";
   const card=text("div","","snapshot"), preview=label("button",merging?"Preview repository merge":"Preview integration"), apply=label("button",merging?"Apply reviewed merge":"Apply fast-forward"), output=text("div","");
   apply.disabled=true;
-  const hint=text("p","");
-  card.append(label("h4",merging?"Merge diverged branch":"Integrate imported branch"),label("p",merging?"Creates a reviewed two-parent merge commit. Choose whole committed files for text conflicts, then preview again. Unrelated local data is preserved.":"Updates the local branch, index and tracked files. Unrelated local files are preserved; LFS and checkout filters use separate extraction."),text("p",review.head),preview,apply,hint,output);
+  const hint=text("p",""),editor=text("div","");
+  card.append(label("h4",merging?"Merge diverged branch":"Integrate imported branch"),label("p",merging?"Creates a reviewed two-parent merge commit. Choose committed files or edit conflict text, then preview again. Unrelated local data is preserved.":"Updates the local branch, index and tracked files. Unrelated local files are preserved; LFS and checkout filters use separate extraction."),text("p",review.head),preview,apply,hint,output,editor);
   container.append(card);
-  let plan=null,request=0;const choices=new Map();
+  let plan=null,request=0,editing=false,conflictFiles=[];const choices=new Map(),drafts=new Map();
   const current=()=>selected===project && card.isConnected;
+  const lockOutput=locked=>{for(const control of output.querySelectorAll("select,button"))control.disabled=locked || control.dataset.canEdit==="false";};
   preview.addEventListener("click",()=>safe(async()=>{
     plan=null;apply.disabled=true;const generation=++request;
     const query=gitContext(review);
-    if(merging && choices.size)query.resolutions=Array.from(choices,([path,side])=>({path,side}));
+    if(merging && choices.size)query.resolutions=Array.from(choices,([path,choice])=>({path,...choice}));
     const result=await api("projects/"+project+"/"+route,"POST",query);
     if(!current() || generation!==request)return;
     output.replaceChildren();hint.textContent="";
     if(merging){
       if(result.result_tree)output.append(label("p","Reviewed result tree"),text("p",result.result_tree));
       if(result.merge_identity)output.append(label("p","Merge author"),text("p",result.merge_identity.name+" <"+result.merge_identity.email+">"));
-      if(result.conflicts.length){
+      if(result.conflict_files.length)conflictFiles=result.conflict_files;
+      if(conflictFiles.length){
         output.append(label("p","Repository merge conflicts"),label("p","Each choice replaces the entire file, including nonconflicting changes. A missing version deletes it."));
-        for(const file of result.conflict_files){
+        for(const file of conflictFiles){
           const row=text("label",""),select=document.createElement("select");
           for(const [value,title] of [["","Leave unresolved"],["local",file.local?"Use local file":"Use local deletion"],["peer",file.peer?"Use peer file":"Use peer deletion"]]){
             const option=label("option",title);option.value=value;select.append(option);
           }
-          select.value=choices.get(file.path)||"";
+          if(drafts.has(file.path)){const option=label("option","Use edited text");option.value="edited";select.append(option);}
+          select.value=choices.get(file.path)?.side||"";
           select.addEventListener("change",()=>{
-            if(select.value)choices.set(file.path,select.value);else choices.delete(file.path);
+            if(select.value)choices.set(file.path,select.value==="edited"?{side:"edited",content:drafts.get(file.path)}:{side:select.value});else choices.delete(file.path);
             plan=null;apply.disabled=true;++request;hint.textContent=t("Choices changed; preview again");
           });
-          row.append(text("span",file.path),select);output.append(row);
+          const edit=label("button","Edit merged text");edit.type="button";edit.disabled=!file.editable;edit.dataset.canEdit=String(file.editable);
+          if(!file.editable)edit.title=t("Text editing requires matching file permissions");
+          edit.addEventListener("click",()=>safe(async()=>{
+            if(editing || !current())return;
+            editing=true;lockOutput(true);preview.disabled=true;apply.disabled=true;plan=null;const generation=++request;
+            let shown=false;
+            const close=()=>{editing=false;editor.replaceChildren();lockOutput(false);preview.disabled=false;hint.textContent=t("Choices changed; preview again");};
+            try{
+              const draft=await api("projects/"+project+"/git-merge-file","POST",{...gitContext(review),merge_base:result.merge_base,path:file.path});
+              if(!current() || generation!==request)return;
+              editor.replaceChildren(label("h4","Edit merged text"),text("p",file.path),label("p","Remove conflict markers and review the final text. Maximum 512 KiB; edits are saved in the private receipt."));
+              for(const [key,title] of [["ancestor","Common ancestor"],["local","Local committed version"],["peer","Peer committed version"]]){
+                const details=document.createElement("details"),source=document.createElement("textarea");source.value=draft.texts[key]||"";source.readOnly=true;source.rows=6;
+                details.append(label("summary",title),source);editor.append(details);
+              }
+              const input=document.createElement("textarea"),count=text("p",""),use=label("button","Use edited text"),cancel=label("button","Cancel edit");input.rows=14;
+              input.value=drafts.has(file.path)?drafts.get(file.path):typeof draft.candidate==="string"?draft.candidate:draft.texts[draft.local_info.exists?"local":"peer"];
+              const update=()=>{const bytes=new TextEncoder().encode(input.value).length;count.textContent=t("Edited text bytes")+": "+bytes;use.disabled=bytes>512*1024;};
+              input.addEventListener("input",update);update();
+              use.addEventListener("click",()=>{
+                drafts.set(file.path,input.value);choices.set(file.path,{side:"edited",content:input.value});
+                if(!Array.from(select.options).some(option=>option.value==="edited")){const option=label("option","Use edited text");option.value="edited";select.append(option);}
+                select.value="edited";close();
+              });
+              cancel.addEventListener("click",close);editor.append(input,count,use,cancel);shown=true;
+            }finally{if(!shown){editing=false;preview.disabled=false;lockOutput(false);}}
+          }));
+          row.append(text("span",file.path),select);output.append(row,edit);
         }
       }
     }
@@ -662,14 +693,14 @@ function showGitIntegration(project,review,container) {
   apply.addEventListener("click",()=>safe(async()=>{
     const saved=plan;if(!saved || !current())return;
     plan=null;apply.disabled=true;preview.disabled=true;++request;
-    for(const select of output.querySelectorAll("select"))select.disabled=true;
+    lockOutput(true);
     try {
       const result=await api("projects/"+project+"/"+route,"POST",{...saved.input,apply:true,plan:saved.token});
       if(!current())return;
       $("git-result").textContent=t("Integration complete")+"\n"+(result.result_commit?result.result_commit+"\n":"")+result.receipt_path;
       await loadGitReceipts();
       await loadGitExchange();
-    } finally {preview.disabled=false;for(const select of output.querySelectorAll("select"))select.disabled=false;}
+    } finally {preview.disabled=false;lockOutput(false);}
   }));
 }
 function showGitExtraction(project,review,comparison,container) {

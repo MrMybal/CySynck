@@ -65,7 +65,7 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   git merge-file ID PEER_ID BRANCH PATH [--base COMMIT --head COMMIT --local-ref REF --merge-base COMMIT]
   git merge ID PEER_ID BRANCH [--apply true --plan PREVIEW_TOKEN]
       [--base COMMIT --head COMMIT --local-ref REF --resolutions FILE.json]
-      (reviewed divergent merge; choose whole local/peer files for text conflicts)
+      (reviewed divergent merge; local/peer files or edited UTF-8 conflict text)
   git integrations ID [--offset 0 --limit 20]
   git integration-check ID RECEIPT_ID
   git integration-acknowledge ID RECEIPT_ID --plan CHECK_TOKEN  (preserve receipt and Git files)

@@ -87,6 +87,11 @@ conflicts, including a missing side's deletion. Each item contains only `path` a
 Preview and application send the same array; `result_ready` distinguishes a complete candidate
 from unresolved conflicts. Receipt checks recompute these choices through the same C ABI.
 
+From 0.26, an item can use `{"path":"file.cpp","side":"edited","content":"combined text\n"}`.
+UTF-8 text, bounds, marker and permission checks apply before any source objects are published.
+The same edited bytes are required for application and retained privately for receipt checks.
+No C ABI version change is needed; see [manual editing](git-divergent-merge.md#editing-conflict-text-026).
+
 Backup storage policies also use the existing ABI: create or update a project with
 `{"backup_storage":"cdc"}`, then use `backup`, `verify`, `restore-plan` and `restore`.
 CDC recipes require core 0.22 or later. See [backup storage](block-backups.md) for bounds,

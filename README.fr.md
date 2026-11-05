@@ -10,6 +10,11 @@ Le cœur, le CLI et les identifiants d'API sont en anglais. Les interfaces deskt
 démarrent en anglais et proposent le français comme deuxième langue. Le choix est mémorisé
 par profil pour le desktop et dans le navigateur pour le Web.
 
+La version 0.26 ajoute un éditeur manuel des conflits Git pour combiner le texte des deux côtés.
+L'ancêtre et les versions commitées restent consultables. Le texte modifié, limité à 512 Kio par
+fichier, est vérifié dans un aperçu complet avant application et conservé dans le reçu privé.
+Le CLI, le SDK C/C++ et les interfaces CyUI/Web en anglais et français partagent cette opération.
+
 La version 0.25 ajoute le choix explicite du fichier local ou de celui du pair pour chaque conflit
 Git de texte, y compris lorsqu'un côté a supprimé le fichier. Chaque choix remplace le fichier
 entier. Il faut résoudre tous les conflits et prévisualiser à nouveau avant application. Le CLI,

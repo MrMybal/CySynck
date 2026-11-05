@@ -209,6 +209,28 @@ bool object_id(const std::string &value) {
     return (value.size() == 40 || value.size() == 64) &&
            value.find_first_not_of("0123456789abcdef") == value.npos;
 }
+void edited_merge_text(const std::string &content) {
+    if (content.size() > 512 * 1024 || content.find('\0') != content.npos)
+        throw std::runtime_error(
+            "Edited Git text requires UTF-8 without NUL, up to 512 KiB per file");
+    (void)Json(content).dump();
+    if (!git_lfs_pointer(content).is_null())
+        throw std::runtime_error("Edited Git text cannot create an LFS pointer");
+    size_t offset = 0;
+    while (offset < content.size()) {
+        auto end = content.find('\n', offset);
+        auto line = content.substr(offset, end == content.npos ? end : end - offset);
+        auto start = line.find_first_not_of(" \t\r");
+        if (start != line.npos)
+            for (auto marker : {"<<<<<<<", "|||||||", "=======", ">>>>>>>"})
+                if (line.compare(start, 7, marker) == 0)
+                    throw std::runtime_error(
+                        "Remove conflict marker lines from edited Git text before previewing");
+        if (end == content.npos)
+            break;
+        offset = end + 1;
+    }
+}
 Json merge_resolutions(const Json &value) {
     if (!value.is_array() || value.size() > 10000 || value.dump().size() > 1024 * 1024)
         throw std::runtime_error(
@@ -216,10 +238,19 @@ Json merge_resolutions(const Json &value) {
     std::map<std::string, Json> ordered;
     std::map<std::string, std::string, GitPathLess> paths;
     for (const auto &entry : value) {
-        if (!entry.is_object() || entry.size() != 2 || !entry.contains("path") ||
-            !entry.at("path").is_string() || !entry.contains("side") ||
-            (entry.at("side") != "local" && entry.at("side") != "peer"))
-            throw std::runtime_error("Each Git resolution requires only path and side local|peer");
+        if (!entry.is_object() || !entry.contains("path") || !entry.at("path").is_string() ||
+            !entry.contains("side") ||
+            (entry.at("side") != "local" && entry.at("side") != "peer" &&
+             entry.at("side") != "edited"))
+            throw std::runtime_error(
+                "Each Git resolution requires path and side local|peer|edited");
+        if (entry.at("side") == "edited") {
+            if (entry.size() != 3 || !entry.contains("content") || !entry.at("content").is_string())
+                throw std::runtime_error(
+                    "Edited Git resolutions require only path, side and string content");
+            edited_merge_text(entry.at("content").get_ref<const std::string &>());
+        } else if (entry.size() != 2)
+            throw std::runtime_error("Committed Git file choices require only path and side");
         auto name = entry.at("path").get<std::string>();
         validate_git_path(name, paths);
         if (!ordered.emplace(name, entry).second)
@@ -441,12 +472,12 @@ struct MergeWorkspace {
         }
         if ((merged.code == 0) != conflicts.empty())
             throw std::runtime_error("Inconsistent Git merge conflict output");
-        std::map<std::string, std::string> choices;
+        std::map<std::string, Json> choices;
         for (const auto &entry : merge_resolutions(resolutions)) {
             if (!conflict_paths.contains(entry.at("path").get<std::string>()))
                 throw std::runtime_error(
                     "A Git resolution must name an exact current conflict path");
-            choices.emplace(entry.at("path"), entry.at("side"));
+            choices.emplace(entry.at("path"), entry);
         }
         Json files = Json::array(), unresolved = Json::array();
         std::string updates;
@@ -489,14 +520,33 @@ struct MergeWorkspace {
                 if (versions.at(1).is_null() && versions.at(2).is_null())
                     throw std::runtime_error(
                         "Synthetic Git conflict paths require manual handling: " + name);
-                files.push_back(
-                    {{"path", name}, {"local", versions.at(1)}, {"peer", versions.at(2)}});
+                bool editable = versions.at(1).is_null() || versions.at(2).is_null() ||
+                                versions.at(1).at("mode") == versions.at(2).at("mode");
+                files.push_back({{"path", name},
+                                 {"local", versions.at(1)},
+                                 {"peer", versions.at(2)},
+                                 {"editable", editable}});
                 auto choice = choices.find(name);
                 if (choice == choices.end()) {
                     unresolved.push_back(name);
                     continue;
                 }
-                const auto &selected = versions.at(choice->second == "local" ? 1 : 2);
+                auto selected = versions.at(choice->second.at("side") == "local" ? 1 : 2);
+                if (choice->second.at("side") == "edited") {
+                    if (!editable)
+                        throw std::runtime_error(
+                            "Edited Git text requires matching file permissions; choose a "
+                            "committed file or use Git: " +
+                            name);
+                    auto content = choice->second.at("content").get<std::string>();
+                    auto oid = trim(
+                        reader->get({"hash-object", "-w", "--no-filters", "--stdin"}, content));
+                    if (!object_id(oid) || oid.size() != fields.front().size())
+                        throw std::runtime_error("Invalid edited Git blob identity");
+                    selected = {{"mode", versions.at(1).is_null() ? versions.at(2).at("mode")
+                                                                  : versions.at(1).at("mode")},
+                                {"oid", oid}};
+                }
                 updates += selected.is_null() ? "0 " + std::string(fields.front().size(), '0')
                                               : selected.at("mode").get<std::string>() + " " +
                                                     selected.at("oid").get<std::string>();
@@ -889,6 +939,10 @@ Json receipt_summary(const Json &record) {
         record.at("status") == "incomplete" && !record.contains("acknowledged_at");
     if (record.value("integration_kind", std::string("fast_forward")) == "merge")
         summary["resolved_conflicts"] = record.value("resolutions", Json::array()).size();
+    if (record.contains("resolutions"))
+        summary["edited_files"] =
+            std::count_if(record.at("resolutions").begin(), record.at("resolutions").end(),
+                          [](const Json &entry) { return entry.at("side") == "edited"; });
     return summary;
 }
 } // namespace

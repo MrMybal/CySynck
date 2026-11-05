@@ -72,11 +72,26 @@ static void localize() {
         {{"Merge diverged branch", "Fusionner les branches divergentes"},
          {"Preview repository merge", "Prévisualiser la fusion du dépôt"},
          {"Apply reviewed merge", "Appliquer la fusion vérifiée"},
-         {"Creates a reviewed two-parent merge commit. Choose whole committed files for text "
-          "conflicts, then preview again. Unrelated local data is preserved.",
-          "Crée un commit de fusion vérifié à deux parents. Choisissez les fichiers commités "
-          "entiers pour les conflits de texte, puis prévisualisez à nouveau. Les données locales "
-          "sans collision sont conservées."},
+         {"Creates a reviewed two-parent merge commit. Choose committed files or edit conflict "
+          "text, then preview again. Unrelated local data is preserved.",
+          "Crée un commit de fusion vérifié à deux parents. Choisissez des fichiers commités ou "
+          "modifiez le texte en conflit, puis prévisualisez à nouveau. Les données locales sans "
+          "collision sont conservées."},
+         {"Edit merged text", "Modifier le texte fusionné"},
+         {"Use edited text", "Utiliser le texte modifié"},
+         {"Cancel edit", "Annuler la modification"},
+         {"Edited text selected", "Texte modifié sélectionné"},
+         {"Edited text bytes", "Taille du texte modifié en octets"},
+         {"Edited files", "Fichiers modifiés manuellement"},
+         {"Text editing requires matching file permissions",
+          "La modification du texte nécessite des permissions de fichier identiques"},
+         {"Remove conflict markers and review the final text. Maximum 512 KiB; edits are saved in "
+          "the private receipt.",
+          "Retirez les marqueurs de conflit et vérifiez le texte final. Maximum 512 Kio ; les "
+          "modifications sont enregistrées dans le reçu privé."},
+         {"Remove conflict marker lines from edited Git text before previewing",
+          "Retirez les lignes de marqueurs de conflit du texte Git modifié avant la "
+          "prévisualisation"},
          {"Each choice replaces the entire file, including nonconflicting changes. A missing "
           "version deletes it.",
           "Chaque choix remplace le fichier entier, y compris les changements sans conflit. Une "
@@ -707,7 +722,7 @@ class App {
         git_branches, git_review_state, git_review_diff, git_storage_state, git_history_state,
         git_commit_state, git_setup_state, git_extract_state, git_extract_input,
         git_integrate_state, git_integrate_input, git_integration_records, git_integration_check,
-        git_merge_state, git_merge_file_state;
+        git_merge_state, git_merge_file_state, git_merge_editor;
     size_t git_integration_offset = 0;
     std::string git_extract_destination;
     bool git_extract_lfs = true;
@@ -715,6 +730,8 @@ class App {
     int git_object_format = 0;
     std::set<std::string> git_storage_selected;
     std::map<std::string, std::string> git_merge_choices;
+    std::map<std::string, std::string> git_merge_edits;
+    std::string git_merge_buffer;
     bool git_storage_current = false;
     std::string view = "Overview", selected, theme = "mid-grey", language = "en", error, output,
                 query, baseline, comparison_snapshot, destination, restore_id, compare_left,
@@ -944,7 +961,7 @@ class App {
         git_setup_state = nullptr;
         git_extract_state = git_extract_input = nullptr;
         git_integrate_state = git_integrate_input = nullptr;
-        git_merge_choices.clear();
+        clear_git_merge_choices();
         git_merge_state = git_merge_file_state = nullptr;
         git_integration_records = git_integration_check = nullptr;
         git_integration_offset = 0;
@@ -2098,6 +2115,49 @@ class App {
                result.at("local_ref") == git_review_state.at("local_ref") &&
                result.at("tracking_ref") == git_review_state.at("tracking_ref");
     }
+    void clear_git_merge_choices() {
+        git_merge_choices.clear();
+        git_merge_edits.clear();
+        git_merge_editor = nullptr;
+        git_merge_buffer.clear();
+    }
+    void git_merge_editor_view() {
+        if (git_merge_editor.is_null())
+            return;
+        auto path = git_merge_editor.at("path").get<std::string>();
+        text(c::tr("Edit merged text") + ": " + path);
+        text(c::tr("Remove conflict markers and review the final text. Maximum 512 KiB; edits are "
+                   "saved in the private receipt."));
+        if (ImGui::BeginTabBar("edited-git-versions")) {
+            for (auto [key, title] : {std::pair{"ancestor", "Common ancestor"},
+                                      {"local", "Local committed version"},
+                                      {"peer", "Peer committed version"}}) {
+                auto &texts = git_merge_editor.at("texts");
+                if (!texts.contains(key) || !texts.at(key).is_string())
+                    continue;
+                if (ImGui::BeginTabItem(c::tr(title).c_str())) {
+                    auto &value = texts.at(key).get_ref<std::string &>();
+                    ImGui::InputTextMultiline("##edited-source", &value, c::dp(-1, 130),
+                                              ImGuiInputTextFlags_ReadOnly);
+                    ImGui::EndTabItem();
+                }
+            }
+            ImGui::EndTabBar();
+        }
+        ImGui::InputTextMultiline("##edited-merge-content", &git_merge_buffer, c::dp(-1, 240));
+        text(c::tr("Edited text bytes") + ": " + std::to_string(git_merge_buffer.size()));
+        ImGui::BeginDisabled(busy() || git_merge_buffer.size() > 512 * 1024);
+        if (button("Use edited text", true)) {
+            git_merge_edits[path] = git_merge_buffer;
+            git_merge_choices[path] = "edited";
+            git_integrate_input = nullptr;
+            git_merge_editor = nullptr;
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        if (button("Cancel edit"))
+            git_merge_editor = nullptr;
+    }
     void load_git_history(uintmax_t offset = 0) {
         if (busy())
             return;
@@ -2262,6 +2322,8 @@ class App {
                 if (record.contains("resolved_conflicts"))
                     text(c::tr("Resolved conflicts") + ": " +
                          record.at("resolved_conflicts").dump());
+                if (record.contains("edited_files"))
+                    text(c::tr("Edited files") + ": " + record.at("edited_files").dump());
                 text(c::tr(record.at("status") == "complete" ? "Integration complete"
                                                              : "Integration incomplete"));
                 if (record.contains("acknowledged_at"))
@@ -2326,7 +2388,7 @@ class App {
             git_integration_records = git_integration_check = nullptr;
             git_integration_offset = 0;
             git_integrate_state = git_integrate_input = nullptr;
-            git_merge_choices.clear();
+            clear_git_merge_choices();
             git_branches = git_review_state = git_review_diff = git_history_state =
                 git_commit_state = git_setup_state = nullptr;
             git_setup_requested = false;
@@ -2466,7 +2528,7 @@ class App {
                                git_review_state = r;
                                git_merge_state = git_merge_file_state = nullptr;
                                git_integrate_state = git_integrate_input = nullptr;
-                               git_merge_choices.clear();
+                               clear_git_merge_choices();
                                git_review_diff = git_history_state = git_commit_state = nullptr;
                            });
                 ImGui::PopID();
@@ -2553,9 +2615,9 @@ class App {
                     "%s",
                     c::tr(
                         merging
-                            ? "Creates a reviewed two-parent merge commit. Choose whole committed "
-                              "files for text conflicts, then preview again. Unrelated local data "
-                              "is preserved."
+                            ? "Creates a reviewed two-parent merge commit. Choose committed files "
+                              "or edit conflict text, then preview again. Unrelated local data is "
+                              "preserved."
                             : "Updates the local branch, index and tracked files. Unrelated local "
                               "files are preserved; LFS and checkout filters use separate "
                               "extraction.")
@@ -2563,24 +2625,42 @@ class App {
                 auto integrateQuery = git_context();
                 if (merging && !git_merge_choices.empty()) {
                     integrateQuery["resolutions"] = Json::array();
-                    for (const auto &[path, side] : git_merge_choices)
-                        integrateQuery["resolutions"].push_back({{"path", path}, {"side", side}});
+                    for (const auto &[path, side] : git_merge_choices) {
+                        Json entry = {{"path", path}, {"side", side}};
+                        if (side == "edited")
+                            entry["content"] = git_merge_edits.at(path);
+                        integrateQuery["resolutions"].push_back(entry);
+                    }
                 }
                 text(git_review_state.at("head"));
-                ImGui::BeginDisabled(busy());
+                ImGui::BeginDisabled(busy() || !git_merge_editor.is_null());
                 if (button(merging ? "Preview repository merge" : "Preview integration")) {
-                    git_integrate_state = git_integrate_input = nullptr;
-                    action(integration_action, integrateQuery,
-                           [this, integrateQuery](const Json &r) {
-                               if (current_git_context(r)) {
-                                   git_integrate_state = r;
-                                   git_integrate_input = integrateQuery;
-                               }
-                           });
+                    // Keep conflict controls available when edited text fails validation.
+                    git_integrate_input = nullptr;
+                    action(
+                        integration_action, integrateQuery, [this, integrateQuery](const Json &r) {
+                            if (current_git_context(r)) {
+                                auto controls = git_integrate_state.is_null()
+                                                    ? Json::array()
+                                                    : git_integrate_state.value("conflict_files",
+                                                                                Json::array());
+                                git_integrate_state = r;
+                                if (!r.value("can_integrate", false) &&
+                                    r.contains("conflict_files") &&
+                                    r.at("conflict_files").empty() && !controls.empty()) {
+                                    git_integrate_state["conflict_files"] = controls;
+                                    git_integrate_state["conflicts"] = Json::array();
+                                    for (const auto &file : controls)
+                                        git_integrate_state["conflicts"].push_back(file.at("path"));
+                                }
+                                git_integrate_input = integrateQuery;
+                            }
+                        });
                 }
                 ImGui::EndDisabled();
                 ImGui::SameLine();
-                ImGui::BeginDisabled(busy() || git_integrate_state.is_null() ||
+                ImGui::BeginDisabled(busy() || !git_merge_editor.is_null() ||
+                                     git_integrate_state.is_null() ||
                                      git_integrate_input != integrateQuery ||
                                      !git_integrate_state.value("can_integrate", false) ||
                                      git_integrate_state.value("applied", false));
@@ -2642,12 +2722,44 @@ class App {
                                 git_merge_choices.erase(path);
                                 git_integrate_input = nullptr;
                             }
+                            ImGui::BeginDisabled(!file.at("editable").get<bool>() ||
+                                                 !git_merge_editor.is_null());
+                            if (button("Edit merged text")) {
+                                auto input = git_context();
+                                input["path"] = path;
+                                input["merge_base"] = merge.at("merge_base");
+                                action("git-merge-file", input, [this, path](const Json &r) {
+                                    if (!current_git_context(r) || git_integrate_state.is_null() ||
+                                        r.at("merge_base") != git_integrate_state.at("merge_base"))
+                                        return;
+                                    git_merge_editor = r;
+                                    auto found = git_merge_edits.find(path);
+                                    git_merge_buffer =
+                                        found != git_merge_edits.end() ? found->second
+                                        : r.at("candidate").is_string()
+                                            ? r.at("candidate").get<std::string>()
+                                            : r.at("texts")
+                                                  .at(r.at("local_info").at("exists").get<bool>()
+                                                          ? "local"
+                                                          : "peer")
+                                                  .get<std::string>();
+                                });
+                            }
+                            ImGui::EndDisabled();
+                            if (!file.at("editable").get<bool>() &&
+                                ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                                ImGui::SetTooltip(
+                                    "%s", c::tr("Text editing requires matching file permissions")
+                                              .c_str());
+                            if (selected_side == "edited")
+                                text(c::tr("Edited text selected"));
                             ImGui::EndDisabled();
                             ImGui::PopID();
                         }
                         ImGui::EndChild();
                     }
                 }
+                git_merge_editor_view();
                 if (!git_integrate_state.is_null() &&
                     !git_integrate_state.at("local_data").is_null()) {
                     const auto &local = git_integrate_state.at("local_data");

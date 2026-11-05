@@ -9,7 +9,7 @@ A project-based synchronization and backup companion written in **C++20**, power
 One shared core powers the native desktop app, CLI, local Web console and integration SDK.
 Build a headless server without graphical dependencies. No Python or .NET runtime is required.
 
-**Status: 0.25.0, under active development.** Windows x64 is validated locally. The headless
+**Status: 0.26.0, under active development.** Windows x64 is validated locally. The headless
 Linux core, CLI and test binaries also cross-compile from Windows with Zig.
 Native Linux and macOS execution still needs validation on those platforms.
 The Unreal bridge is an integration example and has not yet been compiled inside Unreal.
@@ -19,7 +19,7 @@ those fixes and the new package smoke checks still need another native CI run.
 
 ## Features
 
-| Area | Available in 0.25 |
+| Area | Available in 0.26 |
 | --- | --- |
 | Projects | Separate folders, settings and modes; overlapping project roots are rejected |
 | Sync modes | Two-way, send only, receive only, local backup and Git bundle exchange |
@@ -33,7 +33,7 @@ those fixes and the new package smoke checks still need another native CI run.
 | Diffs | Snapshot or two-file comparison, side-by-side and unified views, statistics and Git-compatible patches |
 | Conflicts | Version selection or manual text merge, checked preview, preserved sources and exportable recovery history |
 | Syncthing | Supervised isolated instance, crash restart, device and folder management, existing-instance support and access to the original Web UI |
-| Git collaboration | Repository setup, bundles and verified LFS history, branch/commit diffs, three-way file proposals, history, revision extraction, reviewed fast-forward/divergent integration, whole-file text conflict choices and exchange cleanup |
+| Git collaboration | Repository setup, bundles and verified LFS history, branch/commit diffs, three-way file proposals, history, revision extraction, reviewed fast-forward/divergent integration, whole-file choices or manual text editing for conflicts and exchange cleanup |
 | Plugins | Explicitly loaded native libraries, versioned C ABI, additional modes and events |
 | VPN | WireGuard identities, public profile exchange through Syncthing, peer trust and official tunnel tools |
 | Direct chat and files | VPN transport, project permissions, pairing secret, local history and SHA-256 verification |
@@ -41,7 +41,9 @@ those fixes and the new package smoke checks still need another native CI run.
 | Received files | Durable inbox catalog, integrity verification and export to a separate directory |
 | Integration | C++ library, C ABI with UTF-8 JSON and an Unreal/Blueprint bridge example |
 
-Divergent branches can be integrated after a whole-repository merge preview. Text conflicts offer
+Divergent branches can be integrated after a whole-repository merge preview. A manual text editor
+can combine changes from both committed sides, with ancestor/source views, bounded UTF-8 content,
+marker checks and exact edited text in private recovery receipts. Text conflicts also offer
 explicit local/peer committed-file choices, including deletions; each choice replaces the entire
 file. Every conflict needs a choice and a fresh preview before application. The action creates
 a two-parent commit, verifies the complete tree and preserves unrelated local data and a recovery
