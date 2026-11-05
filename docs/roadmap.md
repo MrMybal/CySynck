@@ -1,5 +1,17 @@
 # Development milestones
 
+## Delivered in 0.35
+
+- Bounded raw working-file hashing for integration previews, post-apply checks and receipt
+  verification, shared by fast-forward and divergent merge workflows through the existing ABI.
+- SHA-1/SHA-256 identities, exact binary and line-ending checks, disabled filters, per-file
+  metadata freshness checks and no object/index/configuration writes during inspection.
+- Dedicated multi-batch fixtures, a reported process/timing comparison and an extracted SDK
+  scenario checking multiple imported files and receipt verification.
+
+See [bounded Git inspection](git-object-inspection.md). Native platform validation and larger
+real-project performance measurements remain pending.
+
 ## Delivered in 0.34
 
 - Explicit pointer-only LFS fast-forward and first-import integration, with unchanged default

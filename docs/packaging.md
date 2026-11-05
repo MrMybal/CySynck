@@ -1,4 +1,4 @@
-# Platform packages (0.34)
+# Platform packages (0.35)
 
 The same C++20 core powers the desktop, CLI and SDK. Syncthing, Git and WireGuard remain
 external tools. Native builds are preferred for distribution; the optional Zig toolchain
@@ -19,7 +19,8 @@ separate C++ and pure C consumers from the included examples. It also compiles a
 native plugin with the extracted `CySynck::PluginSDK`, then loads and configures it through
 the C consumer. Older ABI v1 plugins remain covered by the native unit fixtures.
 The C example checks diagnostics, service planning, UTF-8 paths,
-reviewed first-import Git integration and JSON error handling. Snapshot checks cover metadata
+reviewed first-import Git integration of 33 files, exact bytes and receipt verification,
+and JSON error handling. Snapshot checks cover metadata
 browsing, exact saved-version patches and token-checked partial restoration of whole and CDC
 files, with an unselected file kept out of the output. The example also composes
 conflict-region choices and applies the resulting edited text through the packaged C ABI.
@@ -31,6 +32,8 @@ incomplete state and empty installed list must remain preserved.
 An independent receiver also imports a bundle and applies an explicit LFS pointer first import
 through the C ABI, checking exact pointer bytes, preserved local data, receipt verification
 and absence of newly created asset cache objects.
+The 33-file Git integration/merge block allows 120 seconds per consumer call; other response
+checks retain their 30-second limit. These are smoke-test deadlines, not throughput guarantees.
 
 | Platform | Archive | Desktop entry point |
 | --- | --- | --- |

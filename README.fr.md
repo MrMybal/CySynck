@@ -10,6 +10,12 @@ Le cœur, le CLI et les identifiants d'API sont en anglais. Les interfaces deskt
 démarrent en anglais et proposent le français comme deuxième langue. Le choix est mémorisé
 par profil pour le desktop et dans le navigateur pour le Web.
 
+La version 0.35 regroupe les vérifications des fichiers de travail Git pour réduire les
+lancements de processus pendant l’aperçu, l’intégration et le contrôle des reçus. Les octets
+restent intégralement vérifiés, y compris pour une modification qui conserve taille et date.
+Le même cœur bénéficie au CLI, au SDK et aux interfaces CyUI/Web.
+Voir [les vérifications Git groupées](docs/git-object-inspection.md) (anglais).
+
 La version 0.34 ajoute une politique explicite d’intégration Git/LFS en avance rapide,
 y compris au premier import. Les fichiers restent des pointeurs ; les assets sont développés
 séparément depuis le cache vérifié. Les fichiers déjà développés ou modifiés bloquent
