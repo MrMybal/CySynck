@@ -126,6 +126,12 @@
       <label><input type="checkbox" id="git-lfs" checked><span data-i18n>Include Git LFS history</span></label>
       <button id="git-export" data-i18n>Export committed branch</button>
       <button id="git-refresh" data-i18n>Refresh Git exchange</button>
+      <details><summary data-i18n>Local LFS assets</summary>
+        <p data-i18n>Replace exact committed pointers with verified cached assets. Modified, missing and staged files are preserved.</p>
+        <button id="git-materialize-preview" data-i18n>Preview LFS materialization</button>
+        <button id="git-materialize-apply" disabled data-i18n>Materialize verified assets</button>
+        <div id="git-materialize-result" aria-live="polite"></div>
+      </details>
       <div id="git-result" aria-live="polite"></div>
       <h4 data-i18n>Imported branches</h4><div id="git-branches"></div>
       <div id="git-review"></div><pre id="git-review-patch"></pre>

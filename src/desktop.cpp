@@ -79,6 +79,29 @@ static void localize() {
           "modifiez le texte en conflit, puis prévisualisez à nouveau. Les données locales sans "
           "collision sont conservées."},
          {"Edit merged text", "Modifier le texte fusionné"},
+         {"Local LFS assets", "Assets LFS locaux"},
+         {"Preview LFS materialization", "Prévisualiser la matérialisation LFS"},
+         {"Materialize verified assets", "Matérialiser les assets vérifiés"},
+         {"Replace exact committed pointers with verified cached assets. Modified, missing and "
+          "staged files are preserved.",
+          "Remplace les pointeurs commités exacts par les assets vérifiés du cache. Les fichiers "
+          "modifiés, absents et indexés sont conservés."},
+         {"Pending assets", "Assets en attente"},
+         {"Already materialized", "Déjà matérialisés"},
+         {"Preserved files", "Fichiers conservés"},
+         {"Asset bytes", "Taille des assets en octets"},
+         {"LFS materialization complete", "Matérialisation LFS terminée"},
+         {"Recovery directory", "Dossier de récupération"},
+         {"LFS file states", "État des fichiers LFS"},
+         {"Committed pointer", "Pointeur commité"},
+         {"Local modifications preserved", "Modifications locales conservées"},
+         {"Local deletion preserved", "Suppression locale conservée"},
+         {"Staged changes preserved", "Modifications indexées conservées"},
+         {"Special index flags preserved", "Drapeaux d'index particuliers conservés"},
+         {"Read-only file preserved", "Fichier en lecture seule conservé"},
+         {"LFS attributes required", "Attributs LFS requis"},
+         {"Materialization blocked", "Matérialisation bloquée"},
+         {"LFS cache object unavailable", "Objet du cache LFS indisponible"},
          {"Choose conflict regions", "Choisir les blocs de conflit"},
          {"Conflict region", "Bloc de conflit"},
          {"Use local region", "Utiliser le bloc local"},
@@ -734,7 +757,7 @@ class App {
         git_branches, git_review_state, git_review_diff, git_storage_state, git_history_state,
         git_commit_state, git_setup_state, git_extract_state, git_extract_input,
         git_integrate_state, git_integrate_input, git_integration_records, git_integration_check,
-        git_merge_state, git_merge_file_state, git_merge_editor;
+        git_merge_state, git_merge_file_state, git_merge_editor, git_materialize_state;
     size_t git_integration_offset = 0;
     std::string git_extract_destination;
     bool git_extract_lfs = true;
@@ -977,6 +1000,7 @@ class App {
         clear_git_merge_choices();
         git_merge_state = git_merge_file_state = nullptr;
         git_integration_records = git_integration_check = nullptr;
+        git_materialize_state = nullptr;
         git_integration_offset = 0;
         git_extract_destination.clear();
         git_extract_lfs = true;
@@ -2362,6 +2386,72 @@ class App {
         }
         c::endCard();
     }
+    void git_materialize_view() {
+        c::beginCard("lfs-materialization", c::tr("Local LFS assets").c_str());
+        ImGui::TextWrapped("%s", c::tr("Replace exact committed pointers with verified cached "
+                                       "assets. Modified, missing and staged files are preserved.")
+                                     .c_str());
+        if (button("Preview LFS materialization")) {
+            git_materialize_state = nullptr;
+            action("git-materialize", Json::object(), [this](const Json &r) {
+                if (r.at("project") == selected)
+                    git_materialize_state = r;
+            });
+        }
+        if (!git_materialize_state.is_null()) {
+            const auto &r = git_materialize_state;
+            for (auto [key, title] : {std::pair{"pending", "Pending assets"},
+                                      {"materialized", "Already materialized"},
+                                      {"skipped", "Preserved files"},
+                                      {"bytes", "Asset bytes"}})
+                text(c::tr(title) + ": " + r.at(key).dump());
+            if (r.value("applied", false)) {
+                text(c::tr("LFS materialization complete"));
+                text(r.at("id"));
+                text(c::tr("Recovery directory") + ": " +
+                     r.at("recovery_directory").get<std::string>());
+            }
+            if (ImGui::TreeNode(c::tr("LFS file states").c_str())) {
+                const std::map<std::string, const char *> states{
+                    {"pointer", "Committed pointer"},
+                    {"materialized", "Already materialized"},
+                    {"modified", "Local modifications preserved"},
+                    {"missing", "Local deletion preserved"},
+                    {"staged", "Staged changes preserved"},
+                    {"index_flags", "Special index flags preserved"},
+                    {"read_only", "Read-only file preserved"},
+                    {"attributes", "LFS attributes required"},
+                    {"blocked", "Materialization blocked"}};
+                ImGui::BeginChild("lfs-file-list", c::dp(0, 160), ImGuiChildFlags_Borders);
+                for (const auto &file : r.at("files")) {
+                    text(file.at("path").get<std::string>() + " · " +
+                         c::tr(states.at(file.at("state"))));
+                    if (file.at("cache") == "unavailable")
+                        text(c::tr("LFS cache object unavailable"));
+                }
+                ImGui::EndChild();
+                ImGui::TreePop();
+            }
+            for (const auto &issue : r.at("errors"))
+                ImGui::TextWrapped("%s", (issue.at("path").get<std::string>() + ": " +
+                                          issue.at("error").get<std::string>())
+                                             .c_str());
+            ImGui::BeginDisabled(busy() || !r.at("can_materialize").get<bool>());
+            if (button("Materialize verified assets", true)) {
+                Json input{{"apply", true},
+                           {"plan", r.at("plan")},
+                           {"base", r.at("base")},
+                           {"local_ref", r.at("local_ref")}};
+                git_materialize_state = nullptr;
+                action("git-materialize", input, [this](const Json &result) {
+                    if (result.at("project") == selected)
+                        git_materialize_state = result;
+                });
+            }
+            ImGui::EndDisabled();
+        }
+        c::endCard();
+    }
     void git_receipts_view() {
         c::beginCard("git-integration-receipts", c::tr("Git integration receipts").c_str());
         ImGui::TextWrapped("%s", c::tr("Check the repository before marking an interruption as "
@@ -2507,6 +2597,7 @@ class App {
             c::endCard();
             return;
         }
+        git_materialize_view();
         c::callout(
             c::Tone::info,
             c::tr("Git and LFS imports preserve the working tree. Review and merge using Git.")

@@ -68,6 +68,7 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
       [--base COMMIT --head COMMIT --local-ref REF --resolutions FILE.json]
       (reviewed divergent merge; local/peer files or edited UTF-8 conflict text)
   git integrations ID [--offset 0 --limit 20]
+  git materialize ID [--apply true --plan PREVIEW_TOKEN]  (verified local LFS cache; preserves modified files)
   git integration-check ID RECEIPT_ID
   git integration-acknowledge ID RECEIPT_ID --plan CHECK_TOKEN  (preserve receipt and Git files)
   git extract ID PEER_ID BRANCH NEW_DIRECTORY [--commit FULL_OID --lfs true|false]
@@ -370,6 +371,22 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
             throw std::runtime_error("Expected git command and project ID");
         Json data = Json::object();
         auto command = args[1];
+        if (command == "materialize") {
+            require(3);
+            for (const auto &[flag, value] : flags) {
+                if (flag == "--apply") {
+                    if (value != "true" && value != "false")
+                        throw std::runtime_error("Choose --apply true|false");
+                    data["apply"] = value == "true";
+                } else if (flag == "--plan" || flag == "--base")
+                    data[flag.substr(2)] = value;
+                else if (flag == "--local-ref")
+                    data["local_ref"] = value == "detached" ? Json(nullptr) : Json(value);
+                else
+                    throw std::runtime_error("Unknown LFS materialization flag: " + flag);
+            }
+            return core.request("POST", "/api/projects/" + args[2] + "/git-materialize", data);
+        }
         if (command == "integration-check" || command == "integration-acknowledge" ||
             command == "integrations") {
             require(command == "integrations" ? 3 : 4);

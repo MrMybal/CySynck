@@ -18,6 +18,7 @@
 #include "git_setup.hpp"
 #include "git_extract.hpp"
 #include "git_integrate.hpp"
+#include "git_materialize.hpp"
 #include "git_storage.hpp"
 #ifdef _WIN32
 #define NOMINMAX
@@ -916,6 +917,10 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
             event(p.at("id"), "git",
                   action == "git-merge" ? "Reviewed divergent Git branches merged"
                                         : "Reviewed imported branch integrated by fast-forward");
+    } else if (action == "git-materialize") {
+        result = materialize_git_lfs(state_, p, data);
+        if (result.value("applied", false))
+            event(p.at("id"), "git", "Committed LFS assets materialized from verified local cache");
     } else if (action == "git-integrations")
         result = git_integrations(state_, p, data);
     else if (action == "git-integration-check")

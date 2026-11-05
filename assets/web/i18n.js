@@ -2,6 +2,18 @@
 // English is the source language. Keep API identifiers and user content unchanged.
 globalThis.CySynckI18n = (() => {
   const french = {
+    "Local LFS assets": "Assets LFS locaux",
+    "Preview LFS materialization": "Prévisualiser la matérialisation LFS",
+    "Materialize verified assets": "Matérialiser les assets vérifiés",
+    "Replace exact committed pointers with verified cached assets. Modified, missing and staged files are preserved.": "Remplace les pointeurs commités exacts par les assets vérifiés du cache. Les fichiers modifiés, absents et indexés sont conservés.",
+    "Pending assets": "Assets en attente", "Already materialized": "Déjà matérialisés",
+    "Preserved files": "Fichiers conservés", "Asset bytes": "Taille des assets en octets",
+    "LFS materialization complete": "Matérialisation LFS terminée", "Recovery directory": "Dossier de récupération",
+    "LFS file states": "État des fichiers LFS", "Committed pointer": "Pointeur commité",
+    "Local modifications preserved": "Modifications locales conservées", "Local deletion preserved": "Suppression locale conservée",
+    "Staged changes preserved": "Modifications indexées conservées", "Special index flags preserved": "Drapeaux d'index particuliers conservés",
+    "Read-only file preserved": "Fichier en lecture seule conservé", "LFS attributes required": "Attributs LFS requis",
+    "Materialization blocked": "Matérialisation bloquée", "LFS cache object unavailable": "Objet du cache LFS indisponible",
     "Merge diverged branch": "Fusionner les branches divergentes",
     "Preview repository merge": "Prévisualiser la fusion du dépôt",
     "Apply reviewed merge": "Appliquer la fusion vérifiée",

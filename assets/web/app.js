@@ -261,6 +261,7 @@ async function select(project) {
     $("transfer-records").replaceChildren();
     $("git-records").replaceChildren();
     $("git-integrations-records").replaceChildren(); ++gitReceiptsLoad;
+    resetMaterialization();
     $("git-result").replaceChildren();
     $("git-branches").replaceChildren(); clearGitReview();
     resetGitStorage();
@@ -478,6 +479,37 @@ async function loadReceived() {
   }
 }
 $("received-load").addEventListener("click", () => safe(loadReceived));
+let materializationPlan=null,materializationGeneration=0;
+function resetMaterialization(){materializationPlan=null;++materializationGeneration;$("git-materialize-result").replaceChildren();$("git-materialize-apply").disabled=true;$("git-materialize-preview").disabled=false;}
+function showMaterialization(result){
+  const output=$("git-materialize-result");output.replaceChildren();
+  for(const [key,title] of [["pending","Pending assets"],["materialized","Already materialized"],["skipped","Preserved files"],["bytes","Asset bytes"]])output.append(text("p",t(title)+": "+result[key]));
+  if(result.applied)output.append(label("p","LFS materialization complete"),text("p",result.id),label("p","Recovery directory"),text("p",result.recovery_directory));
+  const states={pointer:"Committed pointer",materialized:"Already materialized",modified:"Local modifications preserved",missing:"Local deletion preserved",staged:"Staged changes preserved",index_flags:"Special index flags preserved",read_only:"Read-only file preserved",attributes:"LFS attributes required",blocked:"Materialization blocked"};
+  const files=document.createElement("details");files.append(label("summary","LFS file states"));
+  for(const file of result.files)files.append(text("p",file.path+" · "+t(states[file.state]||"Materialization blocked")+(file.cache==="unavailable"?" · "+t("LFS cache object unavailable"):"")));
+  output.append(files);
+  for(const issue of result.errors)output.append(text("p",issue.path+": "+issue.error));
+}
+$("git-materialize-preview").addEventListener("click",()=>safe(async()=>{
+  const project=selected,generation=++materializationGeneration;if(!project)return;
+  materializationPlan=null;$("git-materialize-apply").disabled=true;$("git-materialize-preview").disabled=true;
+  try{
+    const result=await api("projects/"+project+"/git-materialize","POST",{});
+    if(selected!==project || generation!==materializationGeneration)return;
+    showMaterialization(result);
+    if(result.can_materialize){materializationPlan={project,plan:result.plan,base:result.base,local_ref:result.local_ref};$("git-materialize-apply").disabled=false;}
+  }finally{if(selected===project && generation===materializationGeneration)$("git-materialize-preview").disabled=false;}
+}));
+$("git-materialize-apply").addEventListener("click",()=>safe(async()=>{
+  const saved=materializationPlan;if(!saved || selected!==saved.project)return;
+  materializationPlan=null;const generation=++materializationGeneration;
+  $("git-materialize-apply").disabled=true;$("git-materialize-preview").disabled=true;
+  try{
+    const result=await api("projects/"+saved.project+"/git-materialize","POST",{apply:true,plan:saved.plan,base:saved.base,local_ref:saved.local_ref});
+    if(selected===saved.project && generation===materializationGeneration)showMaterialization(result);
+  }finally{if(selected===saved.project && generation===materializationGeneration)$("git-materialize-preview").disabled=false;}
+}));
 async function loadGitReceipts(offset=0) {
   const project=selected,generation=++gitReceiptsLoad;
   if(!project)return;
