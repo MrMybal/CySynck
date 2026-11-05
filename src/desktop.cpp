@@ -7,6 +7,7 @@
 #include <shellapi.h>
 #endif
 #include <GLFW/glfw3.h>
+#include <algorithm>
 #include <fstream>
 #include <functional>
 #include <future>
@@ -78,6 +79,17 @@ static void localize() {
           "modifiez le texte en conflit, puis prévisualisez à nouveau. Les données locales sans "
           "collision sont conservées."},
          {"Edit merged text", "Modifier le texte fusionné"},
+         {"Choose conflict regions", "Choisir les blocs de conflit"},
+         {"Conflict region", "Bloc de conflit"},
+         {"Use local region", "Utiliser le bloc local"},
+         {"Use peer region", "Utiliser le bloc du pair"},
+         {"Use both (local then peer)", "Utiliser les deux (local puis pair)"},
+         {"Build draft from selected regions", "Créer le brouillon à partir des blocs choisis"},
+         {"Building a draft replaces the editor text. Review it before use.",
+          "Créer un brouillon remplace le texte de l'éditeur. Vérifiez-le avant utilisation."},
+         {"Region choices are unavailable for this proposal; edit the text manually.",
+          "Les choix par bloc sont indisponibles pour cette proposition ; modifiez le texte "
+          "manuellement."},
          {"Use edited text", "Utiliser le texte modifié"},
          {"Cancel edit", "Annuler la modification"},
          {"Edited text selected", "Texte modifié sélectionné"},
@@ -732,6 +744,7 @@ class App {
     std::map<std::string, std::string> git_merge_choices;
     std::map<std::string, std::string> git_merge_edits;
     std::string git_merge_buffer;
+    std::vector<std::string> git_region_choices;
     bool git_storage_current = false;
     std::string view = "Overview", selected, theme = "mid-grey", language = "en", error, output,
                 query, baseline, comparison_snapshot, destination, restore_id, compare_left,
@@ -2120,6 +2133,7 @@ class App {
         git_merge_edits.clear();
         git_merge_editor = nullptr;
         git_merge_buffer.clear();
+        git_region_choices.clear();
     }
     void git_merge_editor_view() {
         if (git_merge_editor.is_null())
@@ -2144,7 +2158,64 @@ class App {
             }
             ImGui::EndTabBar();
         }
+        const auto &regions = git_merge_editor.at("regions");
+        if (regions.at("available").get<bool>()) {
+            if (ImGui::CollapsingHeader(c::tr("Choose conflict regions").c_str())) {
+                text(c::tr("Building a draft replaces the editor text. Review it before use."));
+                ImGui::BeginChild("git-region-choices", c::dp(0, 260), ImGuiChildFlags_Borders);
+                for (const auto &part : regions.at("segments")) {
+                    if (part.at("kind") != "conflict")
+                        continue;
+                    auto id = part.at("id").get<size_t>();
+                    ImGui::PushID(static_cast<int>(id));
+                    text(c::tr("Conflict region") + " " + std::to_string(id + 1));
+                    for (auto [key, title] : {std::pair{"ancestor", "Common ancestor"},
+                                              {"local", "Local committed version"},
+                                              {"peer", "Peer committed version"}}) {
+                        if (ImGui::TreeNode(key, "%s", c::tr(title).c_str())) {
+                            auto value = part.at(key).get<std::string>();
+                            ImGui::InputTextMultiline("##region-source", &value, c::dp(-1, 90),
+                                                      ImGuiInputTextFlags_ReadOnly);
+                            ImGui::TreePop();
+                        }
+                    }
+                    ImGui::BeginDisabled(busy());
+                    for (auto [key, title] : {std::pair{"local", "Use local region"},
+                                              {"peer", "Use peer region"},
+                                              {"both", "Use both (local then peer)"}})
+                        if (ImGui::RadioButton(c::tr(title).c_str(),
+                                               git_region_choices.at(id) == key))
+                            git_region_choices.at(id) = key;
+                    ImGui::EndDisabled();
+                    ImGui::Separator();
+                    ImGui::PopID();
+                }
+                ImGui::EndChild();
+                bool complete = std::all_of(git_region_choices.begin(), git_region_choices.end(),
+                                            [](const auto &choice) { return !choice.empty(); });
+                ImGui::BeginDisabled(busy() || !complete);
+                if (button("Build draft from selected regions")) {
+                    auto input = git_context();
+                    input["path"] = path;
+                    input["merge_base"] = git_merge_editor.at("merge_base");
+                    input["region_token"] = regions.at("token");
+                    input["region_choices"] = git_region_choices;
+                    auto token = regions.at("token");
+                    action("git-merge-file", input, [this, path, token](const Json &r) {
+                        if (current_git_context(r) && !git_merge_editor.is_null() &&
+                            git_merge_editor.at("path") == path &&
+                            git_merge_editor.at("regions").at("token") == token)
+                            git_merge_buffer = r.at("composed_text").get<std::string>();
+                    });
+                }
+                ImGui::EndDisabled();
+            }
+        } else if (git_merge_editor.at("kind") == "conflict")
+            text(
+                c::tr("Region choices are unavailable for this proposal; edit the text manually."));
+        ImGui::BeginDisabled(busy());
         ImGui::InputTextMultiline("##edited-merge-content", &git_merge_buffer, c::dp(-1, 240));
+        ImGui::EndDisabled();
         text(c::tr("Edited text bytes") + ": " + std::to_string(git_merge_buffer.size()));
         ImGui::BeginDisabled(busy() || git_merge_buffer.size() > 512 * 1024);
         if (button("Use edited text", true)) {
@@ -2733,6 +2804,8 @@ class App {
                                         r.at("merge_base") != git_integrate_state.at("merge_base"))
                                         return;
                                     git_merge_editor = r;
+                                    git_region_choices.assign(
+                                        r.at("regions").at("count").get<size_t>(), "");
                                     auto found = git_merge_edits.find(path);
                                     git_merge_buffer =
                                         found != git_merge_edits.end() ? found->second

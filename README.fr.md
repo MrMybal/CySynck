@@ -10,6 +10,11 @@ Le cœur, le CLI et les identifiants d'API sont en anglais. Les interfaces deskt
 démarrent en anglais et proposent le français comme deuxième langue. Le choix est mémorisé
 par profil pour le desktop et dans le navigateur pour le Web.
 
+La version 0.27 ajoute le choix par bloc de conflit Git : version locale, version du pair ou
+les deux, dans cet ordre. Le cœur C++ construit un brouillon en conservant les passages sans
+conflit. Il reste modifiable avant l'aperçu complet et l'application. Les interfaces CyUI/Web
+en anglais et français, le CLI et le SDK C/C++ partagent ces contrôles et vérifications.
+
 La version 0.26 ajoute un éditeur manuel des conflits Git pour combiner le texte des deux côtés.
 L'ancêtre et les versions commitées restent consultables. Le texte modifié, limité à 512 Kio par
 fichier, est vérifié dans un aperçu complet avant application et conservé dans le reçu privé.

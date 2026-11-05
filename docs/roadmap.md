@@ -1,5 +1,14 @@
 # Development milestones
 
+## Delivered in 0.27
+
+Git text conflicts now offer per-region local, peer or combined choices. The shared C++ core
+parses bounded, unambiguous diff3 proposals, preserves automatic context and recomputes drafts
+against a context-bound token. CyUI and Web in English/French build an editable draft explicitly;
+the CLI and unchanged C ABI expose the same operation. Final text still requires a complete
+reviewed repository preview and is verified by the existing private recovery receipt.
+See [conflict regions](git-divergent-merge.md#choosing-individual-conflict-regions-027).
+
 ## Delivered in 0.26
 
 Manual Git conflict text editing complements whole-file local/peer choices. CyUI and Web expose
@@ -217,7 +226,7 @@ macOS notarization, signed Windows installers and automatic updates remain separ
 
 - Exercise multi-gigabyte resumable transfers and native Linux/macOS transport and services.
 - Benchmark content-defined backup storage on much larger project trees and real asset workloads.
-- Extend reviewed integration to LFS assets and richer conflict-region controls; extend LFS storage/locking support and verify CyRevision interoperability.
+- Extend reviewed integration to LFS assets and more advanced conflict editing; extend LFS storage/locking support and verify CyRevision interoperability.
 - Design and test WireGuard rendezvous/NAT traversal against real network configurations;
   Syncthing discovery and relays do not themselves provide that transport.
 

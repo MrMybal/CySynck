@@ -555,8 +555,29 @@ run_response("${c_consumer}" edited_export "${WORK_DIR}/C integration source ét
 string(JSON edited_bundle GET "${edited_export}" id)
 run_response("${c_consumer}" edited_import "${integration_profile}" POST /api/projects/team/import
   "{\"peer\":\"${integration_peer}\",\"bundle\":\"${edited_bundle}\"}")
-set(edited_choices "[{\"path\":\"hello.txt\",\"side\":\"edited\",\"content\":\"Local + peer SDK été\\nReviewed result\"}]")
-string(SHA256 edited_expected "Local + peer SDK été\nReviewed result")
+run_response("${c_consumer}" region_draft "${integration_profile}" POST /api/projects/team/git-merge-file
+  "{\"peer\":\"${integration_peer}\",\"branch\":\"main\",\"path\":\"hello.txt\"}")
+string(JSON region_available GET "${region_draft}" regions available)
+string(JSON region_count GET "${region_draft}" regions count)
+string(JSON region_token GET "${region_draft}" regions token)
+if(NOT region_available OR NOT region_count EQUAL 1)
+  message(FATAL_ERROR "Packaged C ABI did not expose a structured conflict region")
+endif()
+run_response("${c_consumer}" region_composed "${integration_profile}" POST /api/projects/team/git-merge-file
+  "{\"peer\":\"${integration_peer}\",\"branch\":\"main\",\"path\":\"hello.txt\",\"region_token\":\"${region_token}\",\"region_choices\":[\"both\"]}")
+string(JSON region_text GET "${region_composed}" composed_text)
+# file(WRITE) may produce CRLF on Windows; Git proposals retain those raw bytes.
+string(REPLACE "\r\n" "\n" region_lines "${region_text}")
+if(NOT region_lines STREQUAL "Local edited SDK\nPeer edited SDK\n")
+  message(FATAL_ERROR "Packaged C ABI did not compose both selected conflict versions")
+endif()
+set(region_json "${region_text}")
+string(REPLACE "\\" "\\\\" region_json "${region_json}")
+string(REPLACE "\"" "\\\"" region_json "${region_json}")
+string(REPLACE "\r" "\\r" region_json "${region_json}")
+string(REPLACE "\n" "\\n" region_json "${region_json}")
+set(edited_choices "[{\"path\":\"hello.txt\",\"side\":\"edited\",\"content\":\"${region_json}\"}]")
+string(SHA256 edited_expected "${region_text}")
 file(SHA256 "${integration_target}/hello.txt" edited_work_before)
 file(SHA256 "${integration_target}/.git/index" edited_index_before)
 run_response("${c_consumer}" edited_preview "${integration_profile}" POST /api/projects/team/git-merge

@@ -26,7 +26,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.24 (C++20)
+        return {{"help", R"(CySynck 0.27 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | events | api-token
   doctor [--probe true]  (test tool versions and engine connection only with --probe)
@@ -63,6 +63,7 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
       [--base COMMIT|unborn --head COMMIT --local-ref REF]  (clean tracked files; unrelated local files preserved)
   git merge-review ID PEER_ID BRANCH  (committed three-way file overview; no application)
   git merge-file ID PEER_ID BRANCH PATH [--base COMMIT --head COMMIT --local-ref REF --merge-base COMMIT]
+      [--regions CHOICES.json --region-token TOKEN]  (local, peer or both per conflict region; read-only draft)
   git merge ID PEER_ID BRANCH [--apply true --plan PREVIEW_TOKEN]
       [--base COMMIT --head COMMIT --local-ref REF --resolutions FILE.json]
       (reviewed divergent merge; local/peer files or edited UTF-8 conflict text)
@@ -393,7 +394,8 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
         if (command == "merge-review" || command == "merge-file")
             for (const auto &[flag, value] : flags)
                 if (flag != "--base" && flag != "--head" && flag != "--local-ref" &&
-                    flag != "--merge-base")
+                    flag != "--merge-base" &&
+                    !(command == "merge-file" && (flag == "--regions" || flag == "--region-token")))
                     throw std::runtime_error("Unknown three-way Git review flag: " + flag);
         if (command == "integrate" || command == "merge")
             for (const auto &[flag, value] : flags)
@@ -460,6 +462,14 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
             data = {{"peer", args[3]}, {"bundle", args[4]}};
         } else
             require(3);
+        if (flags.contains("--regions") || flags.contains("--region-token")) {
+            if (command != "merge-file" || !flags.contains("--regions") ||
+                !flags.contains("--region-token"))
+                throw std::runtime_error("Use git merge-file with --regions and --region-token");
+            data["region_choices"] =
+                Json::parse(read_file(fs::u8path(flags.at("--regions")), 16384));
+            data["region_token"] = flags.at("--region-token");
+        }
         if ((command == "export" || command == "extract") && flags.contains("--lfs")) {
             if (flags.at("--lfs") != "true" && flags.at("--lfs") != "false")
                 throw std::runtime_error("Choose --lfs true|false");

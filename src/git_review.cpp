@@ -1,5 +1,6 @@
 #include "git_review.hpp"
 #include "git_lfs.hpp"
+#include "git_regions.hpp"
 #include "backup.hpp"
 #include "git_paths.hpp"
 #include <algorithm>
@@ -614,6 +615,12 @@ Json review_git_branch(const Json &project, const Json &data, bool filePreview) 
 }
 Json review_git_merge(const fs::path &state, const Json &project, const Json &data,
                       bool filePreview) {
+    if ((data.contains("region_choices") || data.contains("region_token")) && !filePreview)
+        throw std::runtime_error("Conflict-region choices require a file proposal");
+    if (data.contains("region_choices") &&
+        (!data.at("region_choices").is_array() || data.at("region_choices").size() > 256 ||
+         data.at("region_choices").dump().size() > 16384))
+        throw std::runtime_error("Conflict-region choices exceed their bound");
     if (data.contains("apply") || data.contains("commit"))
         throw std::runtime_error(
             "Three-way Git review accepts branch context only and never applies changes");
@@ -710,6 +717,16 @@ Json review_git_merge(const fs::path &state, const Json &project, const Json &da
             throw std::runtime_error("Choose a changed path from the current three-way Git review");
         result.erase("files");
         result.update(file_merge(state, project, *found, review));
+        result["regions"] = git_conflict_regions(result);
+        result["composed_text"] = nullptr;
+        if (data.contains("region_choices") || data.contains("region_token")) {
+            if (!data.contains("region_choices") || !data.contains("region_token") ||
+                !data.at("region_token").is_string() ||
+                data.at("region_token") != result.at("regions").at("token"))
+                throw std::runtime_error("Git conflict-region proposal changed; reopen the editor");
+            result["composed_text"] =
+                compose_git_regions(result.at("regions"), data.at("region_choices"));
+        }
     }
     unchanged(project, review);
     return result;

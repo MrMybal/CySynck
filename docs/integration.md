@@ -92,6 +92,12 @@ UTF-8 text, bounds, marker and permission checks apply before any source objects
 The same edited bytes are required for application and retained privately for receipt checks.
 No C ABI version change is needed; see [manual editing](git-divergent-merge.md#editing-conflict-text-026).
 
+From 0.27, `git-merge-file` exposes structured conflict regions. Submit its `region_token` and
+ordered `region_choices` (`local`, `peer` or `both`) to regenerate a bounded `composed_text` draft.
+The operation remains read-only. Pass the reviewed text as an `edited` resolution to `git-merge`
+for normal preview/application and receipt checking. No public C/C++ signature or ABI changes.
+See [conflict regions](git-divergent-merge.md#choosing-individual-conflict-regions-027).
+
 Backup storage policies also use the existing ABI: create or update a project with
 `{"backup_storage":"cdc"}`, then use `backup`, `verify`, `restore-plan` and `restore`.
 CDC recipes require core 0.22 or later. See [backup storage](block-backups.md) for bounds,

@@ -9,7 +9,7 @@ A project-based synchronization and backup companion written in **C++20**, power
 One shared core powers the native desktop app, CLI, local Web console and integration SDK.
 Build a headless server without graphical dependencies. No Python or .NET runtime is required.
 
-**Status: 0.26.0, under active development.** Windows x64 is validated locally. The headless
+**Status: 0.27.0, under active development.** Windows x64 is validated locally. The headless
 Linux core, CLI and test binaries also cross-compile from Windows with Zig.
 Native Linux and macOS execution still needs validation on those platforms.
 The Unreal bridge is an integration example and has not yet been compiled inside Unreal.
@@ -19,7 +19,7 @@ those fixes and the new package smoke checks still need another native CI run.
 
 ## Features
 
-| Area | Available in 0.26 |
+| Area | Available in 0.27 |
 | --- | --- |
 | Projects | Separate folders, settings and modes; overlapping project roots are rejected |
 | Sync modes | Two-way, send only, receive only, local backup and Git bundle exchange |
@@ -41,7 +41,10 @@ those fixes and the new package smoke checks still need another native CI run.
 | Received files | Durable inbox catalog, integrity verification and export to a separate directory |
 | Integration | C++ library, C ABI with UTF-8 JSON and an Unreal/Blueprint bridge example |
 
-Divergent branches can be integrated after a whole-repository merge preview. A manual text editor
+Divergent branches can be integrated after a whole-repository merge preview. Per-region local,
+peer or combined choices build an editable draft while keeping surrounding automatic changes.
+The C++ core recomputes each draft against its pinned proposal before returning it to the editor.
+A manual text editor
 can combine changes from both committed sides, with ancestor/source views, bounded UTF-8 content,
 marker checks and exact edited text in private recovery receipts. Text conflicts also offer
 explicit local/peer committed-file choices, including deletions; each choice replaces the entire

@@ -1,4 +1,4 @@
-# Platform packages (0.26)
+# Platform packages (0.27)
 
 The same C++20 core powers the desktop, CLI and SDK. Syncthing, Git and WireGuard remain
 external tools. Native builds are preferred for distribution; the optional Zig toolchain
@@ -17,7 +17,8 @@ Use a new output directory for each package variant. The CI runs package smoke c
 against a directory containing exactly one archive, extracts it to a new directory, then
 executes its CLI and builds and runs separate C++ and pure C SDK consumers from the examples
 inside that extracted package. The C example also checks diagnostics, service planning,
-UTF-8 paths, reviewed first-import Git integration and JSON error handling.
+UTF-8 paths, reviewed first-import Git integration and JSON error handling. It also composes
+conflict-region choices and applies the resulting edited text through the packaged C ABI.
 
 | Platform | Archive | Desktop entry point |
 | --- | --- | --- |

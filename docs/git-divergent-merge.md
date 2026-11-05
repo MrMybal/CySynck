@@ -1,4 +1,4 @@
-# Reviewed divergent Git merge (0.26)
+# Reviewed divergent Git merge (0.27)
 
 Use **Preview repository merge** in the Git branch comparison view, then **Apply reviewed merge**
 when the whole-repository preview is ready. CyUI and Web default to English and include French.
@@ -143,6 +143,49 @@ at most 512 KiB per side, with at most 16 MiB of overlapping text in total. One-
 binary files can be carried unchanged by object identity. Each Git subprocess has a 120-second
 timeout. Git must support `merge-tree --write-tree --merge-base` and `check-attr --source`;
 this version was tested with Git 2.45.1.
+
+## Choosing individual conflict regions (0.27)
+
+The text editor also offers **Choose conflict regions** for unambiguous diff3 proposals.
+Each region shows the ancestor, local and peer text. Choose **Use local region**,
+**Use peer region** or **Use both (local then peer)** for every region, then select
+**Build draft from selected regions**. This replaces the editor text, preserving the
+proposal's surrounding automatic changes. It does not save or apply the draft: inspect and
+retouch it, choose **Use edited text**, and run the repository preview before application.
+Saved drafts can be reopened; region selectors start unresolved each time the editor opens.
+Cancel keeps the existing file resolution. These are per-file text choices; repository-level
+structural conflicts and file permissions still follow the existing integration checks.
+
+`POST /api/projects/ID/git-merge-file` adds a `regions` object: `available`, `reason`,
+`count`, `token` and ordered `segments`. Context segments contain `kind:"context"` and
+`text`. Conflict segments contain `kind:"conflict"`, zero-based `id`, `local`, `ancestor`
+and `peer` strings. Its count is exact even when Git caps its exit status at 127.
+The maximum is 256 regions per file. Existing source lines starting with seven conflict-marker
+characters disable the assistant to avoid treating source content as delimiters. Unsupported,
+ambiguous, malformed or oversized proposals expose no selectable segments or token; the
+manual editor and committed-file choices remain available within their existing restrictions.
+
+Send the same branch context, path, `region_token` and a `region_choices` array of
+`"local"`, `"peer"` or `"both"` in region order to the same route. The core regenerates the
+proposal and checks its context-bound token before returning `composed_text`. Every region
+needs a choice; invalid, missing or stale choices are refused. Caller-supplied segments are
+never used. The array is bounded to 256 entries and 16 KiB. Composition remains read-only
+and refuses output above the existing 512 KiB edited-text limit. No new C ABI is needed.
+
+```powershell
+cysynck git merge-file team alice main Source/Game.cpp
+# Save ["local", "both"] to regions.json and use regions.token from the response.
+cysynck git merge-file team alice main Source/Game.cpp --regions regions.json --region-token TOKEN
+```
+
+Both choices concatenate local then peer bytes without deduplication or an extra separator.
+Region bodies and context retain the exact bytes emitted by
+[`git merge-file --diff3 --stdout`](https://git-scm.com/docs/git-merge-file), including CRLF.
+Git can insert a newline next to a conflict marker when an input lacked its final newline;
+composition preserves that proposal behavior. Retouch the final newline in the editor if
+needed. Web textareas normalize line endings to LF as before. The token identifies a file
+proposal, not permission to apply a merge. Only the final edited text and the existing reviewed
+integration plan determine application and receipts; per-region UI choices are not stored.
 
 ## Applying a reviewed result
 

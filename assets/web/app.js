@@ -674,6 +674,33 @@ function showGitIntegration(project,review,container) {
               input.value=drafts.has(file.path)?drafts.get(file.path):typeof draft.candidate==="string"?draft.candidate:draft.texts[draft.local_info.exists?"local":"peer"];
               const update=()=>{const bytes=new TextEncoder().encode(input.value).length;count.textContent=t("Edited text bytes")+": "+bytes;use.disabled=bytes>512*1024;};
               input.addEventListener("input",update);update();
+              if(draft.regions.available){
+                const panel=document.createElement("details"),regionChoices=Array(draft.regions.count).fill(""),build=label("button","Build draft from selected regions");
+                panel.append(label("summary","Choose conflict regions"),label("p","Building a draft replaces the editor text. Review it before use."));build.disabled=true;
+                const controls=[];let composing=false;
+                for(const part of draft.regions.segments){
+                  if(part.kind!=="conflict")continue;
+                  const region=document.createElement("details"),pick=document.createElement("select");
+                  region.append(text("summary",t("Conflict region")+" "+(part.id+1)));
+                  for(const [key,title] of [["ancestor","Common ancestor"],["local","Local committed version"],["peer","Peer committed version"]]){
+                    const version=document.createElement("details"),value=document.createElement("textarea");value.readOnly=true;value.rows=5;value.value=part[key];
+                    version.append(label("summary",title),value);region.append(version);
+                  }
+                  for(const [value,title] of [["","Leave unresolved"],["local","Use local region"],["peer","Use peer region"],["both","Use both (local then peer)"]]){
+                    const option=label("option",title);option.value=value;pick.append(option);
+                  }
+                  pick.addEventListener("change",()=>{regionChoices[part.id]=pick.value;build.disabled=composing || regionChoices.some(value=>!value);});
+                  controls.push(pick);region.append(pick);panel.append(region);
+                }
+                build.addEventListener("click",()=>safe(async()=>{
+                  composing=true;build.disabled=true;input.disabled=true;use.disabled=true;for(const control of controls)control.disabled=true;
+                  try{
+                    const composed=await api("projects/"+project+"/git-merge-file","POST",{...gitContext(review),merge_base:draft.merge_base,path:file.path,region_token:draft.regions.token,region_choices:regionChoices});
+                    if(current() && generation===request && editing && input.isConnected)input.value=composed.composed_text;
+                  }finally{composing=false;input.disabled=false;update();for(const control of controls)control.disabled=false;build.disabled=regionChoices.some(value=>!value);}
+                }));
+                panel.append(build);editor.append(panel);
+              }else if(draft.kind==="conflict")editor.append(label("p","Region choices are unavailable for this proposal; edit the text manually."));
               use.addEventListener("click",()=>{
                 drafts.set(file.path,input.value);choices.set(file.path,{side:"edited",content:input.value});
                 if(!Array.from(select.options).some(option=>option.value==="edited")){const option=label("option","Use edited text");option.value="edited";select.append(option);}
