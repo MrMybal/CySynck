@@ -223,7 +223,8 @@ Json inspect(const Json &p, const Json &data) {
         if (!indexed.emplace(name, line.substr(0, tab)).second)
             indexed[name] = "unmerged";
     }
-    for (const auto &line : records(read_git(p, {"ls-files", "-v", "-z"}))) {
+    auto index_flags = read_git(p, {"ls-files", "-v", "-z"});
+    for (const auto &line : records(index_flags)) {
         if (line.size() < 3 || line[1] != ' ')
             throw std::runtime_error("Invalid Git index flags");
         flags[line.substr(2)] = line.substr(0, 1);
@@ -328,6 +329,7 @@ Json inspect(const Json &p, const Json &data) {
                    {"skipped", skipped},
                    {"bytes", bytes},
                    {"index_hash", sha256(index)},
+                   {"index_flags_hash", sha256(index_flags)},
                    {"index_file_hash", index_file_hash},
                    {"config_hash", config},
                    {"lfs_storage", store.empty() ? Json(nullptr) : Json(path_string(store))},
@@ -535,4 +537,302 @@ Json materialize_git_lfs(const fs::path &state, const Json &project, const Json 
     }
     return record;
 }
+namespace {
+fs::path materialization_receipt(const fs::path &state, const Json &p, const std::string &id) {
+    if (!hex(id, 32))
+        throw std::runtime_error("Invalid LFS materialization receipt identifier");
+    return project_child(state, "git-materializations/" + p.at("id").get<std::string>() + "/" + id +
+                                    ".json");
+}
+Json read_materialization(const fs::path &state, const Json &p, const std::string &id) {
+    auto path = materialization_receipt(state, p, id);
+    if (!fs::is_regular_file(path))
+        throw std::runtime_error("LFS materialization receipt is missing");
+    auto record = Json::parse(read_file(path, 16 * 1024 * 1024));
+    if (record.at("schema") != 1 || record.at("id") != id || record.at("project") != p.at("id") ||
+        record.at("root") != p.at("root") ||
+        record.at("recovery_directory") != recovery_name + "/" + id ||
+        !record.at("created").is_string() || !record.at("base").is_string() ||
+        (!hex(record.at("base"), 40) && !hex(record.at("base"), 64)) ||
+        !hex(record.at("index_hash"), 64) || !hex(record.at("index_file_hash"), 64) ||
+        !hex(record.at("index_flags_hash"), 64) || !record.at("files").is_array() ||
+        record.at("files").size() > 4096 ||
+        (record.at("status") != "complete" && record.at("status") != "incomplete"))
+        throw std::runtime_error("Invalid LFS materialization receipt identity or schema");
+    if (!record.at("local_ref").is_null() &&
+        (!record.at("local_ref").is_string() ||
+         !record.at("local_ref").get<std::string>().starts_with("refs/heads/") ||
+         record.at("local_ref").get<std::string>().size() > 1024))
+        throw std::runtime_error("Invalid LFS receipt branch identity");
+    std::map<std::string, std::string, GitPathLess> names;
+    std::set<std::string> unique;
+    size_t pending = 0;
+    uintmax_t bytes = 0;
+    for (const auto &file : record.at("files")) {
+        auto name = file.at("path").get<std::string>();
+        validate_git_path(name, names);
+        if (!unique.insert(name).second)
+            throw std::runtime_error("Duplicate LFS receipt path");
+        auto state_name = file.at("state").get<std::string>();
+        if (!std::set<std::string>{"pointer", "materialized", "modified", "missing", "staged",
+                                   "index_flags", "read_only", "attributes", "blocked"}
+                 .contains(state_name))
+            throw std::runtime_error("Invalid LFS receipt file state");
+        if (state_name != "pointer")
+            continue;
+        if (file.at("mode") != "100644" && file.at("mode") != "100755")
+            throw std::runtime_error("Invalid LFS receipt file mode");
+        if ((!hex(file.at("oid"), 40) && !hex(file.at("oid"), 64)) ||
+            !file.at("pointer_text").is_string() ||
+            file.at("pointer_text").get_ref<const std::string &>().size() >= 1024 ||
+            git_lfs_pointer(file.at("pointer_text")) != file.at("asset") ||
+            file.at("asset").is_null())
+            throw std::runtime_error("Invalid LFS receipt pointer identity");
+        const auto &before = file.at("before");
+        if (before.at("exists") != true ||
+            before.at("bytes") != file.at("pointer_text").get_ref<const std::string &>().size() ||
+            before.at("sha256") != sha256(file.at("pointer_text")) ||
+            !before.at("permissions").is_number_integer() ||
+            before.at("permissions").get<int64_t>() < 0 ||
+            before.at("permissions").get<uintmax_t>() > 07777 ||
+            !before.at("modified").is_number_integer())
+            throw std::runtime_error("Invalid LFS receipt pointer fingerprint");
+        (void)before.at("modified").get<int64_t>();
+        auto size = file.at("asset").at("size").get<uintmax_t>();
+        if (size > total_limit - bytes)
+            throw std::runtime_error("LFS receipt assets exceed 16 GiB");
+        bytes += size;
+        ++pending;
+    }
+    if (!pending || record.at("pending") != pending || record.at("bytes") != bytes ||
+        !record.at("files_written").is_number_integer() ||
+        record.at("files_written").get<int64_t>() < 0 ||
+        record.at("files_written").get<size_t>() > pending || !record.at("applied").is_boolean() ||
+        record.at("applied").get<bool>() != (record.at("status") == "complete") ||
+        (record.at("status") == "complete" && record.at("files_written") != pending))
+        throw std::runtime_error("Invalid LFS receipt progress");
+    if (record.contains("acknowledged_at") &&
+        (!record.at("acknowledged_at").is_string() || record.at("status") != "incomplete" ||
+         !record.contains("acknowledgement") || !record.at("acknowledgement").is_object()))
+        throw std::runtime_error("Invalid LFS receipt acknowledgement");
+    return record;
+}
+Json materialization_summary(const Json &record) {
+    bool acknowledged = record.contains("acknowledged_at");
+    return {{"id", record.at("id")},
+            {"created", record.at("created")},
+            {"status", record.at("status")},
+            {"files", record.at("pending")},
+            {"bytes", record.at("bytes")},
+            {"files_written", record.at("files_written")},
+            {"recovery_directory", record.at("recovery_directory")},
+            {"acknowledged", acknowledged},
+            {"needs_attention", record.at("status") == "incomplete" && !acknowledged}};
+}
+bool same_pointer(const Json &info, const Json &before) {
+    return info.at("exists").get<bool>() && info.at("bytes") == before.at("bytes") &&
+           info.at("sha256") == before.at("sha256") &&
+           info.at("permissions") == before.at("permissions");
+}
+void check_recovery_entries(const fs::path &root, const Json &record) {
+    auto op = project_child(root, record.at("recovery_directory"));
+    if (!fs::exists(op))
+        return;
+    plain_directory(op);
+    std::set<std::string> files, dirs;
+    for (const auto &file : record.at("files"))
+        if (file.at("state") == "pointer")
+            for (auto prefix : {"before/", "after/"}) {
+                auto name = std::string(prefix) + file.at("path").get<std::string>();
+                files.insert(name);
+                for (auto parent = fs::u8path(name).parent_path(); !parent.empty();
+                     parent = parent.parent_path())
+                    dirs.insert(path_string(parent));
+            }
+    size_t count = 0;
+    for (const auto &entry : fs::recursive_directory_iterator(op)) {
+        if (++count > 32768)
+            throw std::runtime_error("LFS recovery listing exceeds its bound");
+        auto name = path_string(entry.path().lexically_relative(op));
+        auto path = project_child(op, name);
+        if (fs::is_directory(path) ? !dirs.contains(name)
+                                   : (!fs::is_regular_file(path) || !files.contains(name)))
+            throw std::runtime_error(
+                "Unexpected LFS recovery entry is preserved; inspect it manually");
+    }
+}
+} // namespace
+Json git_materializations(const fs::path &state, const Json &project, const Json &data) {
+    auto number = [&](const char *key, size_t fallback, size_t maximum) {
+        if (!data.contains(key))
+            return fallback;
+        const auto &value = data.at(key);
+        if (!value.is_number_integer() ||
+            (!value.is_number_unsigned() && value.get<int64_t>() < 0) ||
+            value.get<uintmax_t>() > maximum || (std::string(key) == "limit" && value == 0))
+            throw std::runtime_error("Invalid LFS receipt page bound");
+        return value.get<size_t>();
+    };
+    auto offset = number("offset", 0, 100000), limit = number("limit", 20, 100);
+    auto directory =
+        project_child(state, "git-materializations/" + project.at("id").get<std::string>());
+    plain_directory(directory);
+    Json rows = Json::array(), errors = Json::array(), unknown = Json::array();
+    size_t count = 0;
+    if (fs::exists(directory))
+        for (const auto &entry : fs::directory_iterator(directory)) {
+            if (++count > 10000)
+                throw std::runtime_error("LFS receipt catalog exceeds 10000 entries");
+            auto name = path_string(entry.path().filename()), id = path_string(entry.path().stem());
+            if (entry.path().extension() != ".json" || !hex(id, 32)) {
+                unknown.push_back(name);
+                continue;
+            }
+            try {
+                rows.push_back(materialization_summary(read_materialization(state, project, id)));
+            } catch (const std::exception &e) {
+                errors.push_back({{"id", id}, {"error", e.what()}});
+            }
+        }
+    std::sort(rows.begin(), rows.end(), [](const Json &a, const Json &b) {
+        return a.at("created") == b.at("created") ? a.at("id") < b.at("id")
+                                                  : a.at("created") > b.at("created");
+    });
+    Json page = Json::array();
+    for (size_t i = std::min(offset, rows.size()); i < rows.size() && page.size() < limit; ++i)
+        page.push_back(rows[i]);
+    return {{"records", page},
+            {"offset", offset},
+            {"limit", limit},
+            {"has_more", offset < rows.size() && page.size() < rows.size() - offset},
+            {"errors", errors},
+            {"unindexed", unknown}};
+}
+Json check_git_materialization(const fs::path &state, const Json &project, const Json &data) {
+    auto id = data.at("receipt").get<std::string>();
+    auto record = read_materialization(state, project, id);
+    Json result{{"record", materialization_summary(record)},
+                {"receipt_hash", sha256(record.dump())},
+                {"position", "unknown"},
+                {"context_matches", false},
+                {"index_metadata_matches", nullptr},
+                {"files", Json::array()},
+                {"errors", Json::array()},
+                {"can_acknowledge", false},
+                {"plan", nullptr}};
+    try {
+        layout(project);
+        auto root = fs::u8path(project.at("root").get<std::string>());
+        auto head = git_local_head(project);
+        if (fs::exists(project_child(root, ".git/cysynck-integration.lock")))
+            throw std::runtime_error(
+                "An integration lock is present; inspect it before checking LFS recovery");
+        auto current_index = sha256(read_git(project, {"ls-files", "--stage", "-z"}));
+        auto raw_index = index_digest(project);
+        auto flag_hash = sha256(read_git(project, {"ls-files", "-v", "-z"}));
+        result["current_index_file_hash"] = raw_index;
+        result["index_metadata_matches"] = Json(raw_index) == record.at("index_file_hash");
+        result["context_matches"] = head.at("base") == record.at("base") &&
+                                    head.at("local_ref") == record.at("local_ref") &&
+                                    Json(current_index) == record.at("index_hash") &&
+                                    Json(flag_hash) == record.at("index_flags_hash");
+        if (!result.at("context_matches").get<bool>())
+            result["errors"].push_back(
+                "Git HEAD or index differs from the LFS materialization receipt");
+        std::map<std::string, Json> committed;
+        for (const auto &file : committed_files(project, record.at("base")))
+            committed[file.at("path")] = file;
+        check_recovery_entries(root, record);
+        size_t before_count = 0, after_count = 0, interrupted_count = 0, changed_count = 0;
+        for (const auto &file : record.at("files")) {
+            if (file.at("state") != "pointer")
+                continue;
+            auto name = file.at("path").get<std::string>();
+            auto found = committed.find(name);
+            if (found == committed.end())
+                throw std::runtime_error("LFS receipt path is absent from its committed tree");
+            for (auto key : {"mode", "oid", "pointer_text", "asset"})
+                if (file.at(key) != found->second.at(key))
+                    throw std::runtime_error("LFS receipt differs from its committed pointer");
+            auto target = project_child(root, name),
+                 backup = project_child(root, record.at("recovery_directory").get<std::string>() +
+                                                  "/before/" + name),
+                 staged = project_child(root, record.at("recovery_directory").get<std::string>() +
+                                                  "/after/" + name);
+            auto bounded = [&](const fs::path &path, bool asset_file) {
+                bool hash_file =
+                    fs::is_regular_file(path) &&
+                    (Json(fs::file_size(path)) == file.at("before").at("bytes") ||
+                     (asset_file && Json(fs::file_size(path)) == file.at("asset").at("size")));
+                return fingerprint(path, hash_file);
+            };
+            auto current = bounded(target, true), original = bounded(backup, false),
+                 prepared = bounded(staged, true);
+            bool valid_backup = original.at("exists").get<bool>() && original == file.at("before");
+            if (original.at("exists").get<bool>() && !valid_backup)
+                throw std::runtime_error("Preserved LFS pointer changed in the recovery directory");
+            if (prepared.at("exists").get<bool>() && !matches(prepared, file.at("asset")))
+                throw std::runtime_error("Staged LFS recovery asset is incomplete or changed");
+            std::string position = "changed";
+            if (same_pointer(current, file.at("before"))) {
+                position = "before";
+                ++before_count;
+            } else if (matches(current, file.at("asset")) &&
+                       current.at("permissions") == file.at("before").at("permissions") &&
+                       valid_backup) {
+                position = "after";
+                ++after_count;
+            } else if (!current.at("exists").get<bool>() && valid_backup &&
+                       prepared.at("exists").get<bool>()) {
+                position = "interrupted";
+                ++interrupted_count;
+            } else
+                ++changed_count;
+            result["files"].push_back({{"path", name},
+                                       {"position", position},
+                                       {"current", current},
+                                       {"original", original},
+                                       {"staged", prepared}});
+        }
+        auto total = record.at("pending").get<size_t>();
+        result["position"] = before_count == total  ? "before"
+                             : after_count == total ? "after"
+                             : changed_count        ? "changed"
+                             : interrupted_count    ? "interrupted"
+                                                    : "partial";
+        if (git_local_head(project) != head || index_digest(project) != raw_index)
+            throw std::runtime_error("Git context changed during the LFS receipt check");
+        bool exact = result.at("position") == "before" || result.at("position") == "after";
+        result["can_acknowledge"] = result.at("record").at("needs_attention").get<bool>() &&
+                                    exact && result.at("errors").empty();
+        if (result.at("can_acknowledge").get<bool>())
+            result["plan"] = sha256(result.dump());
+    } catch (const std::exception &e) {
+        result["can_acknowledge"] = false;
+        result["plan"] = nullptr;
+        result["errors"].push_back(e.what());
+    }
+    return result;
+}
+Json acknowledge_git_materialization(const fs::path &state, const Json &project, const Json &data) {
+    auto checked = check_git_materialization(state, project, data);
+    if (!checked.at("can_acknowledge").get<bool>() || !data.contains("plan") ||
+        data.at("plan") != checked.at("plan"))
+        throw std::runtime_error(
+            "LFS receipt acknowledgement is blocked or its check changed; check again");
+    auto id = data.at("receipt").get<std::string>();
+    auto record = read_materialization(state, project, id);
+    if (Json(sha256(record.dump())) != checked.at("receipt_hash"))
+        throw std::runtime_error("LFS receipt changed during acknowledgement");
+    checked.erase("plan");
+    checked.erase("record");
+    record["acknowledged_at"] = timestamp();
+    record["acknowledgement"] = checked;
+    auto bytes = record.dump();
+    if (bytes.size() > 16 * 1024 * 1024)
+        throw std::runtime_error("LFS acknowledgement metadata exceeds 16 MiB");
+    atomic_write(materialization_receipt(state, project, id), bytes, true);
+    return materialization_summary(record);
+}
+
 } // namespace cysynck

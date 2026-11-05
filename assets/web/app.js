@@ -479,8 +479,41 @@ async function loadReceived() {
   }
 }
 $("received-load").addEventListener("click", () => safe(loadReceived));
-let materializationPlan=null,materializationGeneration=0;
-function resetMaterialization(){materializationPlan=null;++materializationGeneration;$("git-materialize-result").replaceChildren();$("git-materialize-apply").disabled=true;$("git-materialize-preview").disabled=false;}
+let materializationPlan=null,materializationGeneration=0,materializationReceiptsGeneration=0;
+function resetMaterialization(){materializationPlan=null;++materializationGeneration;++materializationReceiptsGeneration;$("git-materialization-receipts").replaceChildren();$("git-materialize-result").replaceChildren();$("git-materialize-apply").disabled=true;$("git-materialize-preview").disabled=false;}
+async function loadMaterializationReceipts(offset=0){
+  const project=selected,generation=++materializationReceiptsGeneration;if(!project)return;
+  const result=await api("projects/"+project+"/git-materializations","POST",{offset});
+  if(selected!==project || generation!==materializationReceiptsGeneration)return;
+  const container=$("git-materialization-receipts");container.replaceChildren();
+  if(!result.records.length)container.append(label("p","No LFS receipts"));
+  for(const record of result.records){
+    const card=text("div","","snapshot"),output=text("div",""),check=label("button","Check LFS receipt");
+    card.append(text("p",record.created+" · "+record.id),label("p",record.status==="complete"?"LFS materialization complete":"LFS materialization incomplete"),text("p",record.recovery_directory));
+    if(record.acknowledged)card.append(label("p","Recovery reviewed"));
+    let revision=0;const current=()=>selected===project && generation===materializationReceiptsGeneration && card.isConnected;
+    check.addEventListener("click",()=>safe(async()=>{
+      output.replaceChildren();const request=++revision;
+      const checked=await api("projects/"+project+"/git-materialization-check","POST",{receipt:record.id});
+      if(!current() || request!==revision)return;
+      const valid=checked.context_matches && !checked.errors.length;
+      if(checked.context_matches && checked.index_metadata_matches===false)output.append(label("p","Index metadata refreshed; staged entries and flags match"));
+      output.append(label("p",valid && checked.position==="after"?"LFS assets and recovery pointers verified":valid && checked.position==="before"?"LFS files match the original pointers":"LFS recovery needs manual inspection"));
+      for(const file of checked.files)output.append(text("p",file.path+" / "+t(file.position==="before"?"Original pointer":file.position==="after"?"Verified asset":file.position==="interrupted"?"Publication interrupted":"Local contents differ")));
+      for(const error of checked.errors)output.append(text("p",error));
+      if(checked.can_acknowledge){const acknowledge=label("button","Mark as reviewed");output.append(acknowledge);acknowledge.addEventListener("click",()=>safe(async()=>{
+        if(!current() || request!==revision)return;acknowledge.disabled=true;check.disabled=true;++revision;
+        try{await api("projects/"+project+"/git-materialization-acknowledge","POST",{receipt:record.id,plan:checked.plan});if(current())await loadMaterializationReceipts(offset);}
+        finally{check.disabled=false;}
+      }));}
+    }));
+    card.append(check,output);container.append(card);
+  }
+  for(const issue of result.errors)container.append(text("p",issue.id+": "+issue.error));
+  for(const name of result.unindexed)container.append(text("p",name));
+  for(const [show,title,page] of [[offset>0,"Previous receipts",Math.max(0,offset-20)],[result.has_more,"Next receipts",offset+20]])if(show){const button=label("button",title);button.addEventListener("click",()=>safe(()=>loadMaterializationReceipts(page)));container.append(button);}
+}
+$("git-materialization-receipts-load").addEventListener("click",()=>safe(()=>loadMaterializationReceipts()));
 function showMaterialization(result){
   const output=$("git-materialize-result");output.replaceChildren();
   for(const [key,title] of [["pending","Pending assets"],["materialized","Already materialized"],["skipped","Preserved files"],["bytes","Asset bytes"]])output.append(text("p",t(title)+": "+result[key]));

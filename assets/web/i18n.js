@@ -3,6 +3,15 @@
 globalThis.CySynckI18n = (() => {
   const french = {
     "Local LFS assets": "Assets LFS locaux",
+    "LFS materialization receipts": "Reçus de matérialisation LFS",
+    "LFS materialization incomplete": "Matérialisation LFS interrompue", "Original pointer": "Pointeur d'origine",
+    "Index metadata refreshed; staged entries and flags match": "Métadonnées de l'index actualisées ; les entrées indexées et les drapeaux correspondent",
+    "Verified asset": "Asset vérifié", "Publication interrupted": "Publication interrompue", "Local contents differ": "Le contenu local diffère",
+    "Load LFS receipts": "Charger les reçus LFS", "Check LFS receipt": "Vérifier le reçu LFS", "No LFS receipts": "Aucun reçu LFS",
+    "LFS files match the original pointers": "Les fichiers LFS correspondent aux pointeurs d'origine",
+    "LFS assets and recovery pointers verified": "Assets LFS et pointeurs de récupération vérifiés",
+    "LFS recovery needs manual inspection": "La récupération LFS nécessite une inspection manuelle",
+    "Receipt checks preserve working files, staged assets and original pointers. Mark reviewed only after an exact before or after check.": "La vérification conserve les fichiers de travail, les assets préparés et les pointeurs d'origine. Marquez comme examiné uniquement après une vérification exacte avant ou après.",
     "Preview LFS materialization": "Prévisualiser la matérialisation LFS",
     "Materialize verified assets": "Matérialiser les assets vérifiés",
     "Replace exact committed pointers with verified cached assets. Modified, missing and staged files are preserved.": "Remplace les pointeurs commités exacts par les assets vérifiés du cache. Les fichiers modifiés, absents et indexés sont conservés.",

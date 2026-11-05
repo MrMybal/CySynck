@@ -1,5 +1,22 @@
 # Development milestones
 
+## Delivered in 0.28
+
+Three related Git/LFS milestones share the C++20 core and local commits:
+
+- Small committed blobs are deduplicated and read in bounded Git batches, with binary-safe
+  framing and measured object-read timings in [object inspection](git-object-inspection.md).
+- Exact checked-out LFS pointers can be materialized from verified local cache objects after
+  a context-bound preview. Local edits/deletions, staged work, flags and read-only files stay
+  preserved; original pointers remain in owner-private recovery storage.
+- Paginated LFS receipts can be verified against committed pointers, HEAD, staged entries and flags,
+  working assets and recovery originals. Interrupted operations at an exact before/after
+  state can be acknowledged without modifying those files or discarding the original error.
+
+CLI, unchanged C ABI and bilingual CyUI/Web views expose materialization and receipt controls.
+See [offline LFS materialization](git-materialization.md). Automatic LFS checkout during
+reviewed branch integration remains separate work.
+
 ## Delivered in 0.27
 
 Git text conflicts now offer per-region local, peer or combined choices. The shared C++ core

@@ -26,7 +26,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.27 (C++20)
+        return {{"help", R"(CySynck 0.28 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | events | api-token
   doctor [--probe true]  (test tool versions and engine connection only with --probe)
@@ -69,6 +69,9 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
       (reviewed divergent merge; local/peer files or edited UTF-8 conflict text)
   git integrations ID [--offset 0 --limit 20]
   git materialize ID [--apply true --plan PREVIEW_TOKEN]  (verified local LFS cache; preserves modified files)
+  git materializations ID [--offset 0 --limit 20]
+  git materialization-check ID RECEIPT_ID
+  git materialization-acknowledge ID RECEIPT_ID --plan CHECK_TOKEN  (preserves Git and recovery files)
   git integration-check ID RECEIPT_ID
   git integration-acknowledge ID RECEIPT_ID --plan CHECK_TOKEN  (preserve receipt and Git files)
   git extract ID PEER_ID BRANCH NEW_DIRECTORY [--commit FULL_OID --lfs true|false]
@@ -371,6 +374,28 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
             throw std::runtime_error("Expected git command and project ID");
         Json data = Json::object();
         auto command = args[1];
+        if (command == "materializations" || command == "materialization-check" ||
+            command == "materialization-acknowledge") {
+            require(command == "materializations" ? 3 : 4);
+            if (command != "materializations")
+                data["receipt"] = args[3];
+            for (const auto &[flag, value] : flags) {
+                if (command == "materialization-acknowledge" && flag == "--plan")
+                    data["plan"] = value;
+                else if (command == "materializations" &&
+                         (flag == "--offset" || flag == "--limit")) {
+                    uint64_t number = 0;
+                    auto parsed =
+                        std::from_chars(value.data(), value.data() + value.size(), number);
+                    if (value.empty() || parsed.ec != std::errc{} ||
+                        parsed.ptr != value.data() + value.size())
+                        throw std::runtime_error("Expected an integer " + flag);
+                    data[flag.substr(2)] = number;
+                } else
+                    throw std::runtime_error("Unknown LFS receipt flag: " + flag);
+            }
+            return core.request("POST", "/api/projects/" + args[2] + "/git-" + command, data);
+        }
         if (command == "materialize") {
             require(3);
             for (const auto &[flag, value] : flags) {

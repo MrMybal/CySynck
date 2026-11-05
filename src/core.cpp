@@ -921,6 +921,14 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
         result = materialize_git_lfs(state_, p, data);
         if (result.value("applied", false))
             event(p.at("id"), "git", "Committed LFS assets materialized from verified local cache");
+    } else if (action == "git-materializations")
+        result = git_materializations(state_, p, data);
+    else if (action == "git-materialization-check")
+        result = check_git_materialization(state_, p, data);
+    else if (action == "git-materialization-acknowledge") {
+        result = acknowledge_git_materialization(state_, p, data);
+        event(p.at("id"), "git",
+              "Interrupted LFS materialization marked as reviewed; recovery files preserved");
     } else if (action == "git-integrations")
         result = git_integrations(state_, p, data);
     else if (action == "git-integration-check")

@@ -79,3 +79,46 @@ applications. Multi-file publication is not one filesystem transaction and does 
 power-loss durability across all files and receipt updates. Leftover locks are preserved.
 The new recovery namespace is untracked; consider excluding `.cysynck-lfs/` in your normal
 Git workflow. CySynck does not edit `.gitignore` or index that directory.
+
+## Checking and acknowledging receipts
+
+The bilingual interfaces list **LFS materialization receipts** and offer **Check LFS receipt**.
+CLI and C/C++ callers use these POST routes, with no ABI version change:
+
+| Route | Body |
+| --- | --- |
+| `/api/projects/ID/git-materializations` | `{"offset":0,"limit":20}` |
+| `/api/projects/ID/git-materialization-check` | `{"receipt":"OPERATION_ID"}` |
+| `/api/projects/ID/git-materialization-acknowledge` | `{"receipt":"OPERATION_ID","plan":"CHECK_TOKEN"}` |
+
+```sh
+cysynck git materializations PROJECT_ID
+cysynck git materialization-check PROJECT_ID OPERATION_ID
+cysynck git materialization-acknowledge PROJECT_ID OPERATION_ID --plan CHECK_TOKEN
+```
+
+Checks validate the receipt against its immutable committed pointers, current HEAD, staged
+entries and index flags, working asset SHA-256, original pointer fingerprints and
+known staged files. They do not need the LFS cache to remain present. Unknown recovery entries,
+links, altered originals or incomplete staging block acknowledgement and remain preserved.
+An existing integration lock also blocks verification until it is inspected manually.
+`index_metadata_matches` reports the original raw-index comparison separately. Git stat-cache
+refreshes can change those bytes while staged entries and flags remain identical; that alone
+does not block acknowledgement. The check token also pins the currently observed raw index.
+
+The result's `position` is `before`, `after`, `partial`, `interrupted`, `changed` or `unknown`.
+Per-file diagnostics show the actual working, original and staged fingerprints. `before` means
+the original pointer bytes and permissions are present again; copied-back pointers may have
+new timestamps. `after` additionally requires the original pointer files to remain unchanged
+in recovery storage. `context_matches` must also hold for acknowledgement.
+
+Only an incomplete, unacknowledged receipt at an exact complete before/after state exposes
+`can_acknowledge:true` and a fresh token. An acknowledgement writes only receipt metadata.
+Its original incomplete status and error remain available; it never retries, rolls back,
+restores, removes a lock or deletes recovery files. File changes invalidate a checked token,
+and completed acknowledgements cannot be replayed. Partial/interrupted states need manual
+inspection and recovery before this action is offered.
+
+Catalog pages contain at most 100 entries (20 by default), scanning at most 10,000 receipts.
+Malformed neighboring receipts are reported separately; unindexed names are preserved.
+Receipt reads and saved acknowledgement metadata are limited to 16 MiB.

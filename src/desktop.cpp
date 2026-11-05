@@ -80,6 +80,29 @@ static void localize() {
           "collision sont conservées."},
          {"Edit merged text", "Modifier le texte fusionné"},
          {"Local LFS assets", "Assets LFS locaux"},
+         {"LFS materialization receipts", "Reçus de matérialisation LFS"},
+         {"LFS materialization incomplete", "Matérialisation LFS interrompue"},
+         {"Index metadata refreshed; staged entries and flags match",
+          "Métadonnées de l'index actualisées ; les entrées indexées et les drapeaux "
+          "correspondent"},
+         {"Original pointer", "Pointeur d'origine"},
+         {"Verified asset", "Asset vérifié"},
+         {"Publication interrupted", "Publication interrompue"},
+         {"Local contents differ", "Le contenu local diffère"},
+         {"Load LFS receipts", "Charger les reçus LFS"},
+         {"Check LFS receipt", "Vérifier le reçu LFS"},
+         {"No LFS receipts", "Aucun reçu LFS"},
+         {"LFS files match the original pointers",
+          "Les fichiers LFS correspondent aux pointeurs d'origine"},
+         {"LFS assets and recovery pointers verified",
+          "Assets LFS et pointeurs de récupération vérifiés"},
+         {"LFS recovery needs manual inspection",
+          "La récupération LFS nécessite une inspection manuelle"},
+         {"Receipt checks preserve working files, staged assets and original pointers. Mark "
+          "reviewed only after an exact before or after check.",
+          "La vérification conserve les fichiers de travail, les assets préparés et les pointeurs "
+          "d'origine. Marquez comme examiné uniquement après une vérification exacte avant ou "
+          "après."},
          {"Preview LFS materialization", "Prévisualiser la matérialisation LFS"},
          {"Materialize verified assets", "Matérialiser les assets vérifiés"},
          {"Replace exact committed pointers with verified cached assets. Modified, missing and "
@@ -757,8 +780,10 @@ class App {
         git_branches, git_review_state, git_review_diff, git_storage_state, git_history_state,
         git_commit_state, git_setup_state, git_extract_state, git_extract_input,
         git_integrate_state, git_integrate_input, git_integration_records, git_integration_check,
-        git_merge_state, git_merge_file_state, git_merge_editor, git_materialize_state;
+        git_merge_state, git_merge_file_state, git_merge_editor, git_materialize_state,
+        git_materialization_records, git_materialization_check;
     size_t git_integration_offset = 0;
+    size_t git_materialization_offset = 0;
     std::string git_extract_destination;
     bool git_extract_lfs = true;
     std::string git_initial_branch = "main";
@@ -1001,6 +1026,8 @@ class App {
         git_merge_state = git_merge_file_state = nullptr;
         git_integration_records = git_integration_check = nullptr;
         git_materialize_state = nullptr;
+        git_materialization_records = git_materialization_check = nullptr;
+        git_materialization_offset = 0;
         git_integration_offset = 0;
         git_extract_destination.clear();
         git_extract_lfs = true;
@@ -2386,6 +2413,109 @@ class App {
         }
         c::endCard();
     }
+    void git_materialization_receipts_view() {
+        c::beginCard("lfs-receipts", c::tr("LFS materialization receipts").c_str());
+        ImGui::TextWrapped(
+            "%s", c::tr("Receipt checks preserve working files, staged assets and original "
+                        "pointers. Mark reviewed only after an exact before or after check.")
+                      .c_str());
+        auto load = [this](size_t offset) {
+            auto project = selected;
+            git_materialization_check = nullptr;
+            action("git-materializations", {{"offset", offset}},
+                   [this, project, offset](const Json &r) {
+                       if (selected == project) {
+                           git_materialization_records = r;
+                           git_materialization_offset = offset;
+                       }
+                   });
+        };
+        if (button("Load LFS receipts"))
+            load(0);
+        if (!git_materialization_records.is_null()) {
+            ImGui::BeginChild("lfs-receipts-list", c::dp(0, 220), ImGuiChildFlags_Borders);
+            if (git_materialization_records.at("records").empty())
+                text(c::tr("No LFS receipts"));
+            for (const auto &record : git_materialization_records.at("records")) {
+                auto id = record.at("id").get<std::string>();
+                ImGui::PushID(id.c_str());
+                text(record.at("created").get<std::string>() + " / " + id);
+                text(c::tr(record.at("status") == "complete" ? "LFS materialization complete"
+                                                             : "LFS materialization incomplete"));
+                text(c::tr("Recovery directory") + ": " +
+                     record.at("recovery_directory").get<std::string>());
+                if (record.at("acknowledged").get<bool>())
+                    text(c::tr("Recovery reviewed"));
+                if (button("Check LFS receipt")) {
+                    auto project = selected;
+                    git_materialization_check = nullptr;
+                    action("git-materialization-check", {{"receipt", id}},
+                           [this, project](const Json &r) {
+                               if (selected == project)
+                                   git_materialization_check = r;
+                           });
+                }
+                if (!git_materialization_check.is_null() &&
+                    git_materialization_check.at("record").at("id") == id) {
+                    const auto &checked = git_materialization_check;
+                    if (checked.at("context_matches").get<bool>() &&
+                        !checked.value("index_metadata_matches", true))
+                        ImGui::TextWrapped(
+                            "%s", c::tr("Index metadata refreshed; staged entries and flags match")
+                                      .c_str());
+                    bool valid =
+                        checked.at("errors").empty() && checked.at("context_matches").get<bool>();
+                    text(c::tr(valid && checked.at("position") == "after"
+                                   ? "LFS assets and recovery pointers verified"
+                               : valid && checked.at("position") == "before"
+                                   ? "LFS files match the original pointers"
+                                   : "LFS recovery needs manual inspection"));
+                    for (const auto &file : checked.at("files"))
+                        text(file.at("path").get<std::string>() + " / " +
+                             c::tr(file.at("position") == "before"  ? "Original pointer"
+                                   : file.at("position") == "after" ? "Verified asset"
+                                   : file.at("position") == "interrupted"
+                                       ? "Publication interrupted"
+                                       : "Local contents differ"));
+                    for (const auto &error : checked.at("errors"))
+                        ImGui::TextWrapped("%s", error.get_ref<const std::string &>().c_str());
+                    ImGui::BeginDisabled(busy() || !checked.at("can_acknowledge").get<bool>());
+                    if (button("Mark as reviewed")) {
+                        auto project = selected;
+                        Json input{{"receipt", id}, {"plan", checked.at("plan")}};
+                        git_materialization_check = nullptr;
+                        action("git-materialization-acknowledge", input,
+                               [this, project, id](const Json &r) {
+                                   if (selected == project &&
+                                       !git_materialization_records.is_null())
+                                       for (auto &row : git_materialization_records["records"])
+                                           if (row.at("id") == id)
+                                               row = r;
+                               });
+                    }
+                    ImGui::EndDisabled();
+                }
+                ImGui::Separator();
+                ImGui::PopID();
+            }
+            ImGui::EndChild();
+            for (const auto &issue : git_materialization_records.at("errors"))
+                text(issue.at("id").get<std::string>() + ": " +
+                     issue.at("error").get<std::string>());
+            for (const auto &name : git_materialization_records.at("unindexed"))
+                text(name);
+            ImGui::BeginDisabled(busy() || git_materialization_offset == 0);
+            if (button("Previous receipts"))
+                load(git_materialization_offset >= 20 ? git_materialization_offset - 20 : 0);
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+            ImGui::BeginDisabled(busy() || !git_materialization_records.at("has_more").get<bool>());
+            if (button("Next receipts"))
+                load(git_materialization_offset + 20);
+            ImGui::EndDisabled();
+        }
+        c::endCard();
+    }
     void git_materialize_view() {
         c::beginCard("lfs-materialization", c::tr("Local LFS assets").c_str());
         ImGui::TextWrapped("%s", c::tr("Replace exact committed pointers with verified cached "
@@ -2556,6 +2686,7 @@ class App {
             git_loaded = git_storage_current = false;
         }
         git_receipts_view();
+        git_materialization_receipts_view();
         auto setupQuery = Json{{"branch", git_initial_branch},
                                {"object_format", git_object_format ? "sha256" : "sha1"}};
         if (git_setup_state.is_null()) {

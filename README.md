@@ -9,7 +9,7 @@ A project-based synchronization and backup companion written in **C++20**, power
 One shared core powers the native desktop app, CLI, local Web console and integration SDK.
 Build a headless server without graphical dependencies. No Python or .NET runtime is required.
 
-**Status: 0.27.0, under active development.** Windows x64 is validated locally. The headless
+**Status: 0.28.0, under active development.** Windows x64 is validated locally. The headless
 Linux core, CLI and test binaries also cross-compile from Windows with Zig.
 Native Linux and macOS execution still needs validation on those platforms.
 The Unreal bridge is an integration example and has not yet been compiled inside Unreal.
@@ -19,7 +19,7 @@ those fixes and the new package smoke checks still need another native CI run.
 
 ## Features
 
-| Area | Available in 0.27 |
+| Area | Available in 0.28 |
 | --- | --- |
 | Projects | Separate folders, settings and modes; overlapping project roots are rejected |
 | Sync modes | Two-way, send only, receive only, local backup and Git bundle exchange |
@@ -40,6 +40,15 @@ those fixes and the new package smoke checks still need another native CI run.
 | Resumable transfers | Verified 1 MiB chunks, files up to 4 GiB, configurable profile quotas, frozen source and manual resume |
 | Received files | Durable inbox catalog, integrity verification and export to a separate directory |
 | Integration | C++ library, C ABI with UTF-8 JSON and an Unreal/Blueprint bridge example |
+
+Committed LFS pointer files can be materialized from a verified local cache after an explicit
+preview. Modified, missing, staged and read-only files are preserved. Original pointers and
+interrupted-operation receipts remain available for verification and acknowledgement through
+the CLI, C/C++ SDK and bilingual CyUI/Web views. This does not apply or merge LFS branches.
+See [offline LFS materialization](docs/git-materialization.md).
+
+Small committed blobs are inspected in bounded batches rather than one Git process per blob.
+See [object inspection and measured scope](docs/git-object-inspection.md).
 
 Divergent branches can be integrated after a whole-repository merge preview. Per-region local,
 peer or combined choices build an editable draft while keeping surrounding automatic changes.

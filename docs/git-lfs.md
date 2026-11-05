@@ -31,7 +31,8 @@ The implementation follows the [official pointer and storage specification](http
 and reads immutable objects with [Git's batch object interface](https://git-scm.com/docs/git-cat-file).
 
 Local objects are read from `<git-common-dir>/lfs/objects/aa/bb/SHA256`. Linked Git worktrees
-share that common cache. Git LFS itself is not required for CySynck's export/import; install it
+share that common cache. Git LFS itself is not required for CySynck's export/import or explicit
+[working-tree materialization](git-materialization.md) of already checked-out pointers; install it
 to track new assets and materialize them through Git in your normal workflow. `lfs.storage`
 overrides require an explicit per-project directory approval, as described below.
 Shallow repositories are refused; missing promisor objects are not downloaded during inspection.

@@ -185,6 +185,155 @@ int main() {
                   "Repeated inspection never rehydrates already materialized files");
             rejects([&] { request({{"apply", true}, {"plan", ready.at("plan")}}); },
                     "A completed plan was reused");
+            auto receipt_file = fs::u8path(result.at("receipt_path").get<std::string>());
+            auto receipt_query = Json{{"receipt", result.at("id")}};
+            auto check_receipt = [&] {
+                return core.request("POST", "/api/projects/team/git-materialization-check",
+                                    receipt_query);
+            };
+            auto history = cli(core, {"git", "materializations", "team"});
+            check(history.at("records").size() == 1 &&
+                      !history.at("records")[0].at("needs_attention").get<bool>(),
+                  "Completed materializations have a bounded receipt history");
+            auto checked = check_receipt();
+            check(checked.at("position") == "after" && checked.at("context_matches") &&
+                      checked.at("errors").empty() && !checked.at("can_acknowledge").get<bool>(),
+                  "Completed receipt verifies committed pointers, exact assets, index and recovery "
+                  "originals");
+            check(cli(core, {"git", "materialization-check", "team", result.at("id")})
+                          .at("position") == "after",
+                  "CLI uses the same receipt verifier");
+            rejects(
+                [&] {
+                    core.request("POST", "/api/projects/team/git-materialization-check",
+                                 {{"receipt", "../escape"}});
+                },
+                "Receipt path traversal accepted");
+            rejects([&] { cli(core, {"git", "materializations", "team", "--offset", "-1"}); },
+                    "Negative receipt offset accepted");
+            rejects(
+                [&] {
+                    core.request("POST", "/api/projects/team/git-materializations", {{"limit", 0}});
+                },
+                "Empty receipt page accepted");
+            auto incomplete = saved;
+            incomplete.update({{"status", "incomplete"},
+                               {"applied", false},
+                               {"phase", "publishing"},
+                               {"error", "Simulated post-publication interruption"}});
+            atomic_write(receipt_file, incomplete.dump(), true);
+            checked = check_receipt();
+            check(checked.at("position") == "after" && checked.at("can_acknowledge"),
+                  "An interrupted post-publication receipt is recognized from actual files");
+            auto bad = incomplete;
+            for (auto &file : bad["files"])
+                if (file.at("state") == "pointer") {
+                    file["oid"] = std::string(format == std::string("sha1") ? 40 : 64, '0');
+                    break;
+                }
+            atomic_write(receipt_file, bad.dump(), true);
+            check(!check_receipt().at("errors").empty(),
+                  "Receipt pointer identities are checked against the immutable committed tree");
+            atomic_write(receipt_file, incomplete.dump(), true);
+            auto index_bytes = read_file(root / ".git/index");
+            git(p, {"update-index", "--no-assume-unchanged", "flag.uasset"});
+            check(!check_receipt().at("context_matches").get<bool>(),
+                  "Raw index flag changes are detected even when stage-zero entries match");
+            atomic_write(root / ".git/index", index_bytes);
+            std::string pointer_id;
+            for (const auto &file : result.at("files"))
+                if (file.at("path") == "a.uasset")
+                    pointer_id = file.at("oid");
+            git(p, {"update-index", "--cacheinfo", "100644," + pointer_id + ",a.uasset"});
+            auto refreshed = check_receipt();
+            check(refreshed.at("context_matches") && refreshed.at("can_acknowledge") &&
+                      !refreshed.at("index_metadata_matches").get<bool>(),
+                  "Stat-cache-only index changes preserve receipt eligibility when entries and "
+                  "flags match");
+            auto refreshed_index = sha256_file(root / ".git/index");
+            check_receipt();
+            check(sha256_file(root / ".git/index") == refreshed_index,
+                  "Receipt verification preserves refreshed index metadata");
+            atomic_write(root / ".git/index", index_bytes);
+            atomic_write(cache_path, std::string(bytes.size(), 'x'), true);
+            check(check_receipt().at("position") == "after" && check_receipt().at("errors").empty(),
+                  "Receipt verification does not depend on a surviving LFS cache");
+            atomic_write(cache_path, bytes, true);
+            atomic_write(recovery / "unexpected-note", "preserve this note");
+            check(!check_receipt().at("can_acknowledge").get<bool>() &&
+                      fs::exists(recovery / "unexpected-note"),
+                  "Unexpected recovery entries block acknowledgement and remain preserved");
+            fs::remove(recovery / "unexpected-note");
+            checked = check_receipt();
+            auto stale_check = checked.at("plan");
+            atomic_write(root / "a.uasset", std::string(bytes.size(), 'z'));
+            check(check_receipt().at("position") == "changed",
+                  "Same-size asset corruption is detected by SHA-256");
+            rejects(
+                [&] {
+                    auto q = receipt_query;
+                    q["plan"] = stale_check;
+                    core.request("POST", "/api/projects/team/git-materialization-acknowledge", q);
+                },
+                "Stale asset acknowledgement accepted");
+            atomic_write(root / "a.uasset", bytes);
+            checked = check_receipt();
+            auto before_ack = hashes(root);
+            auto acknowledged = cli(core, {"git", "materialization-acknowledge", "team",
+                                           result.at("id"), "--plan", checked.at("plan")});
+            auto acknowledged_record = Json::parse(read_file(receipt_file, 16 * 1024 * 1024));
+            check(acknowledged.at("acknowledged") &&
+                      !acknowledged.at("needs_attention").get<bool>() &&
+                      acknowledged_record.at("status") == "incomplete" &&
+                      acknowledged_record.at("error") == incomplete.at("error"),
+                  "Acknowledgement preserves the original incomplete status and error");
+            check(hashes(root) == before_ack,
+                  "Acknowledgement never retries checkout or changes working and recovery files");
+            rejects(
+                [&] {
+                    auto q = receipt_query;
+                    q["plan"] = checked.at("plan");
+                    core.request("POST", "/api/projects/team/git-materialization-acknowledge", q);
+                },
+                "Acknowledgement token replay accepted");
+            atomic_write(receipt_file, incomplete.dump(), true);
+            atomic_write(root / "a.uasset", text);
+            check(check_receipt().at("position") == "partial" &&
+                      !check_receipt().at("can_acknowledge").get<bool>(),
+                  "Mixed pointer and asset states need manual recovery");
+            fs::remove(root / "a.uasset");
+            fs::create_directories(recovery / "after");
+            atomic_write(recovery / "after/a.uasset", bytes);
+            check(check_receipt().at("position") == "interrupted" &&
+                      !check_receipt().at("can_acknowledge").get<bool>(),
+                  "Interruption between moving a pointer and publishing its asset is identified");
+            atomic_write(root / "a.uasset", "another application wrote this file");
+            check(check_receipt().at("position") == "changed" &&
+                      read_file(root / "a.uasset") == "another application wrote this file",
+                  "Receipt checks preserve a replacement destination");
+            for (const auto &file : incomplete.at("files"))
+                if (file.at("state") == "pointer") {
+                    auto path = root / fs::u8path(file.at("path").get<std::string>());
+                    atomic_write(path, file.at("pointer_text"));
+                    fs::permissions(path, static_cast<fs::perms>(
+                                              file.at("before").at("permissions").get<unsigned>()));
+                }
+            checked = check_receipt();
+            check(checked.at("position") == "before" && checked.at("can_acknowledge"),
+                  "A manually restored original state can be acknowledged without removing staged "
+                  "recovery assets");
+            before_ack = hashes(root);
+            cli(core, {"git", "materialization-acknowledge", "team", result.at("id"), "--plan",
+                       checked.at("plan")});
+            check(hashes(root) == before_ack && fs::exists(recovery / "after/a.uasset"),
+                  "Before-state acknowledgement preserves all known staged assets");
+            auto directory = receipt_file.parent_path();
+            auto corrupt = directory / (std::string(32, 'f') + ".json");
+            atomic_write(corrupt, "{broken", true);
+            history = cli(core, {"git", "materializations", "team", "--limit", "1"});
+            check(history.at("records").size() == 1 && history.at("errors").size() == 1,
+                  "A corrupt neighboring receipt does not hide valid history");
+            fs::remove(corrupt);
             fs::permissions(root / "readonly.uasset",
                             fs::perms::owner_read | fs::perms::owner_write);
         }

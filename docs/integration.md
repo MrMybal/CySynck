@@ -98,6 +98,12 @@ The operation remains read-only. Pass the reviewed text as an `edited` resolutio
 for normal preview/application and receipt checking. No public C/C++ signature or ABI changes.
 See [conflict regions](git-divergent-merge.md#choosing-individual-conflict-regions-027).
 
+From 0.28, `git-materialize` previews and materializes exact committed LFS pointers using only
+verified local cache bytes. `git-materializations`, `git-materialization-check` and
+`git-materialization-acknowledge` list, verify and acknowledge its private recovery receipts.
+The current HEAD and raw index are preserved. No new public C/C++ signature or C ABI is needed.
+See [LFS working-tree materialization](git-materialization.md).
+
 Backup storage policies also use the existing ABI: create or update a project with
 `{"backup_storage":"cdc"}`, then use `backup`, `verify`, `restore-plan` and `restore`.
 CDC recipes require core 0.22 or later. See [backup storage](block-backups.md) for bounds,

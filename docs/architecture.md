@@ -80,6 +80,8 @@ Routes principales :
 | `/api/projects/<id>/git-extract` (preview, then extraction to a new directory with plan) | POST |
 | `/api/projects/<id>/git-integrate` (preview, then clean fast-forward with plan) | POST |
 | `/api/projects/<id>/git-merge` (preview, optional committed-file or edited-text resolutions, then divergent merge with plan) | POST |
+| `/api/projects/<id>/git-materialize` (verified offline LFS preview and explicit materialization) | POST |
+| `/api/projects/<id>/git-materializations`, `git-materialization-check`, `git-materialization-acknowledge` | POST |
 | `/api/projects/<id>/git-integrations` (paginated receipt summaries) | POST |
 | `/api/projects/<id>/git-integration-check` (read-only repository verification) | POST |
 | `/api/projects/<id>/git-integration-acknowledge` (fresh check token, receipt preserved) | POST |

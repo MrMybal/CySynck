@@ -1,4 +1,4 @@
-# Platform packages (0.27)
+# Platform packages (0.28)
 
 The same C++20 core powers the desktop, CLI and SDK. Syncthing, Git and WireGuard remain
 external tools. Native builds are preferred for distribution; the optional Zig toolchain
@@ -19,6 +19,8 @@ executes its CLI and builds and runs separate C++ and pure C SDK consumers from 
 inside that extracted package. The C example also checks diagnostics, service planning,
 UTF-8 paths, reviewed first-import Git integration and JSON error handling. It also composes
 conflict-region choices and applies the resulting edited text through the packaged C ABI.
+LFS checks materialize a committed pointer from the verified cache, preserve HEAD/index and
+the recovery original, then check and acknowledge a simulated interrupted receipt.
 
 | Platform | Archive | Desktop entry point |
 | --- | --- | --- |
