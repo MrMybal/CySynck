@@ -4,6 +4,7 @@
 #include "git_lfs.hpp"
 #include "git_review.hpp"
 #include <algorithm>
+#include <map>
 #include <regex>
 #include <set>
 
@@ -27,15 +28,18 @@ size_t bound(const Json &data, const char *key, size_t fallback, size_t maximum)
         throw std::runtime_error("Invalid LFS cache page bound");
     return value.get<size_t>();
 }
-Json context(const Json &p, const Json &data) {
-    if (p.at("mode") != "git-bundles")
-        throw std::runtime_error("LFS cache inspection requires git-bundles mode");
+void environment() {
     require_default_git_environment();
     for (auto key : {"GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT", "GIT_ATTR_SOURCE", "GIT_CONFIG",
                      "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM"})
         if (!env(key).empty())
             throw std::runtime_error(
                 "LFS cache inspection requires Git configuration overrides to be unset");
+}
+Json context(const Json &p, const Json &data) {
+    if (p.at("mode") != "git-bundles")
+        throw std::runtime_error("LFS cache inspection requires git-bundles mode");
+    environment();
     if (data.contains("peer") || data.contains("branch"))
         return git_revision_context(p, data);
     auto local = git_local_head(p);
@@ -264,6 +268,24 @@ Json read_receipt(const fs::path &state, const Json &p, const std::string &id) {
     if ((record.at("status") == "complete") != record.at("applied").get<bool>() ||
         (record.at("status") == "complete" && installed != planned))
         throw std::runtime_error("Inconsistent LFS recovery receipt completion");
+    const auto &cache = record.at("cache");
+    auto revision = cache.at("revision").get<std::string>();
+    if ((!hex(revision, 40) && !hex(revision, 64)) || !cache.at("store").is_string() ||
+        !hex(cache.at("config_hash").get<std::string>(), 64))
+        throw std::runtime_error("Invalid LFS recovery cache identity");
+    if (record.contains("acknowledged_at") || record.contains("acknowledgement")) {
+        const auto &ack = record.at("acknowledgement");
+        auto time = record.at("acknowledged_at").get<std::string>();
+        if (record.at("status") != "incomplete" || time.empty() || time.size() > 64 ||
+            !ack.at("verified").is_number_unsigned() || !ack.at("missing").is_number_unsigned() ||
+            ack.at("verified").get<uint64_t>() > planned.size() ||
+            ack.at("missing").get<uint64_t>() > planned.size() ||
+            ack.at("verified").get<uint64_t>() + ack.at("missing").get<uint64_t>() !=
+                planned.size() ||
+            ack.at("store") != cache.at("store") || ack.at("revision") != cache.at("revision") ||
+            !hex(ack.at("check_hash").get<std::string>(), 64))
+            throw std::runtime_error("Invalid LFS recovery acknowledgement");
+    }
     return record;
 }
 Json summary(const Json &record) {
@@ -274,7 +296,11 @@ Json summary(const Json &record) {
             {"planned", record.at("objects").size()},
             {"installed", record.at("installed").size()},
             {"bytes", record.at("bytes")},
-            {"error", record.value("error", Json(nullptr))}};
+            {"error", record.value("error", Json(nullptr))},
+            {"acknowledged", record.contains("acknowledged_at")},
+            {"acknowledged_at", record.value("acknowledged_at", Json(nullptr))},
+            {"needs_attention",
+             record.at("status") == "incomplete" && !record.contains("acknowledged_at")}};
 }
 } // namespace
 Json inspect_git_lfs_cache(const fs::path &state, const Json &p, const Json &data) {
@@ -383,5 +409,102 @@ Json git_lfs_recoveries(const fs::path &state, const Json &p, const Json &data, 
         page.push_back(records.at(i));
     return {{"total", records.size()},          {"offset", offset}, {"limit", limit},
             {"has_more", end < records.size()}, {"records", page},  {"errors", errors}};
+}
+Json check_git_lfs_recovery(const fs::path &state, const Json &p, const Json &data) {
+    if (p.at("mode") != "git-bundles")
+        throw std::runtime_error("LFS recovery checks require git-bundles mode");
+    auto id = data.at("receipt").get<std::string>();
+    auto record = read_receipt(state, p, id);
+    Json result{{"record", summary(record)},
+                {"receipt_hash", sha256(record.dump())},
+                {"revision", record.at("cache").at("revision")},
+                {"store", record.at("cache").at("store")},
+                {"position", "unknown"},
+                {"verified", 0u},
+                {"missing", 0u},
+                {"damaged", 0u},
+                {"content_verified", false},
+                {"objects", Json::array()},
+                {"errors", Json::array()},
+                {"can_acknowledge", false},
+                {"plan", nullptr}};
+    try {
+        environment();
+        auto store = lfs_local_store(p);
+        if (Json(path_string(store)) != result.at("store"))
+            throw std::runtime_error(
+                "LFS storage differs from this receipt; restore its approved configuration first");
+        auto config = sha256(offline_git(p, {"config", "--null", "--list"}));
+        result["config_hash"] = config;
+        // Anchor recorded identities to Git objects, even after HEAD or imported refs move.
+        auto committed = lfs_inventory(p, result.at("revision"));
+        std::map<std::string, Json> trusted;
+        for (const auto &object : committed.at("objects"))
+            trusted.emplace(object.at("sha256").get<std::string>(), object.at("size"));
+        size_t verified = 0, missing = 0, damaged = 0;
+        for (const auto &object : record.at("objects")) {
+            auto digest = object.at("sha256").get<std::string>();
+            auto found = trusted.find(digest);
+            if (found == trusted.end() || found->second != object.at("size"))
+                throw std::runtime_error("LFS receipt object differs from its committed history");
+            auto row = status(store, object, true);
+            row.update({{"sha256", digest}, {"size", object.at("size")}});
+            result["objects"].push_back(row);
+            if (row.at("state") == "verified")
+                ++verified;
+            else if (row.at("state") == "missing")
+                ++missing;
+            else
+                ++damaged;
+        }
+        if (lfs_local_store(p) != store ||
+            sha256(offline_git(p, {"config", "--null", "--list"})) != config ||
+            sha256(read_receipt(state, p, id).dump()) !=
+                result.at("receipt_hash").get<std::string>())
+            throw std::runtime_error(
+                "LFS configuration or receipt changed during verification; check again");
+        bool complete = verified == record.at("objects").size();
+        result.update({{"verified", verified},
+                       {"missing", missing},
+                       {"damaged", damaged},
+                       {"content_verified", complete},
+                       {"position", damaged    ? "damaged"
+                                    : complete ? "complete"
+                                    : verified ? "partial"
+                                               : "missing"}});
+        result["can_acknowledge"] =
+            result.at("record").at("needs_attention").get<bool>() && !damaged;
+        if (result.at("can_acknowledge").get<bool>())
+            result["plan"] = sha256(Json{
+                {"profile", path_string(fs::absolute(state))},
+                {"project", p},
+                {"check", result}}.dump());
+    } catch (const std::exception &e) {
+        result["errors"].push_back(e.what());
+        result["can_acknowledge"] = false;
+        result["plan"] = nullptr;
+    }
+    return result;
+}
+Json acknowledge_git_lfs_recovery(const fs::path &state, const Json &p, const Json &data) {
+    auto checked = check_git_lfs_recovery(state, p, data);
+    if (!checked.at("can_acknowledge").get<bool>() || !data.contains("plan") ||
+        data.at("plan") != checked.at("plan"))
+        throw std::runtime_error("LFS recovery acknowledgement is blocked or changed; check again");
+    auto id = data.at("receipt").get<std::string>();
+    auto record = read_receipt(state, p, id);
+    if (Json(sha256(record.dump())) != checked.at("receipt_hash"))
+        throw std::runtime_error("LFS recovery receipt changed during acknowledgement");
+    record["acknowledged_at"] = timestamp();
+    record["acknowledgement"] = {{"check_hash", checked.at("plan")},
+                                 {"store", checked.at("store")},
+                                 {"revision", checked.at("revision")},
+                                 {"verified", checked.at("verified")},
+                                 {"missing", checked.at("missing")}};
+    auto bytes = record.dump(2);
+    if (bytes.size() > 16 * 1024 * 1024)
+        throw std::runtime_error("LFS recovery acknowledgement exceeds 16 MiB");
+    atomic_write(receipt_file(state, p, id), bytes, true);
+    return summary(record);
 }
 } // namespace cysynck

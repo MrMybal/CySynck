@@ -83,6 +83,8 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   git materializations ID [--offset 0 --limit 20]
   git materialization-check ID RECEIPT_ID
   git materialization-acknowledge ID RECEIPT_ID --plan CHECK_TOKEN  (preserves Git and recovery files)
+  git lfs-recovery-check ID RECEIPT_ID  (verify every planned cache object)
+  git lfs-recovery-acknowledge ID RECEIPT_ID --plan CHECK_TOKEN  (mark an interruption as reviewed)
   git integration-check ID RECEIPT_ID
   git integration-acknowledge ID RECEIPT_ID --plan CHECK_TOKEN  (preserve receipt and Git files)
   git extract ID PEER_ID BRANCH NEW_DIRECTORY [--commit FULL_OID --lfs true|false]
@@ -444,11 +446,14 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
             return core.request("POST", "/api/projects/" + args[2] + "/git-materialize", data);
         }
         if (command == "lfs-cache" || command == "lfs-recover" || command == "lfs-recoveries" ||
-            command == "lfs-recovery") {
-            require(command == "lfs-recover" || command == "lfs-recovery" ? 4 : 3);
+            command == "lfs-recovery" || command == "lfs-recovery-check" ||
+            command == "lfs-recovery-acknowledge") {
+            bool receipt = command == "lfs-recovery" || command == "lfs-recovery-check" ||
+                           command == "lfs-recovery-acknowledge";
+            require(command == "lfs-recover" || receipt ? 4 : 3);
             if (command == "lfs-recover")
                 data["source_peer"] = args[3];
-            if (command == "lfs-recovery")
+            if (receipt)
                 data["receipt"] = args[3];
             for (const auto &[flag, value] : flags) {
                 if ((flag == "--peer" || flag == "--branch") &&
@@ -459,7 +464,8 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
                     if (value != "true" && value != "false")
                         throw std::runtime_error("Choose true or false for " + flag);
                     data[flag.substr(2)] = value == "true";
-                } else if (flag == "--plan" && command == "lfs-recover")
+                } else if (flag == "--plan" &&
+                           (command == "lfs-recover" || command == "lfs-recovery-acknowledge"))
                     data["plan"] = value;
                 else if (flag == "--objects" && command == "lfs-recover")
                     data["objects"] = Json::parse(read_file(fs::u8path(value), 300 * 1024));

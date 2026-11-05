@@ -4,4 +4,6 @@ namespace cysynck {
 Json inspect_git_lfs_cache(const fs::path &state, const Json &project, const Json &data);
 Json recover_git_lfs_cache(const fs::path &state, const Json &project, const Json &data);
 Json git_lfs_recoveries(const fs::path &state, const Json &project, const Json &data, bool detail);
+Json check_git_lfs_recovery(const fs::path &state, const Json &project, const Json &data);
+Json acknowledge_git_lfs_recovery(const fs::path &state, const Json &project, const Json &data);
 } // namespace cysynck

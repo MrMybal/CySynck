@@ -1010,7 +1010,13 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
             event(projectId, "git", "Missing Git LFS cache objects recovered from exchange");
     } else if (action == "git-lfs-recoveries" || action == "git-lfs-recovery")
         return git_lfs_recoveries(state_, p, data, action == "git-lfs-recovery");
-    else if (action == "git-materialize") {
+    else if (action == "git-lfs-recovery-check")
+        return check_git_lfs_recovery(state_, p, data);
+    else if (action == "git-lfs-recovery-acknowledge") {
+        result = acknowledge_git_lfs_recovery(state_, p, data);
+        event(projectId, "git",
+              "Interrupted LFS cache recovery marked as reviewed; receipt preserved");
+    } else if (action == "git-materialize") {
         result = materialize_git_lfs(state_, p, data);
         if (result.value("applied", false))
             event(p.at("id"), "git", "Committed LFS assets materialized from verified local cache");

@@ -143,6 +143,107 @@ int main() {
             auto receipt = action("lfs-recovery", {{"receipt", restored.at("id")}});
             check(receipt.at("installed") == Json{sha256(a)} && receipt.at("objects").size() == 1,
                   "Detailed receipt retains exact installed identities");
+            auto health = action("lfs-recovery-check", {{"receipt", restored.at("id")}});
+            check(health.at("content_verified") && health.at("verified") == 1 &&
+                      health.at("position") == "complete" &&
+                      !health.at("can_acknowledge").get<bool>(),
+                  "Completed receipts can be reverified without acknowledgement");
+            auto interrupted_id = random_id();
+            auto interrupted_path =
+                core.state() / "git-lfs-recoveries/team" / (interrupted_id + ".json");
+            auto interrupted = preview;
+            interrupted.update({{"version", 1},
+                                {"id", interrupted_id},
+                                {"created", timestamp()},
+                                {"status", "incomplete"},
+                                {"installed", Json::array()},
+                                {"plan", nullptr},
+                                {"error", "Simulated process interruption"}});
+            atomic_write(interrupted_path, interrupted.dump());
+            auto partial_check = action("lfs-recovery-check", {{"receipt", interrupted_id}});
+            check(partial_check.at("position") == "partial" && partial_check.at("verified") == 1 &&
+                      partial_check.at("missing") == 2 && partial_check.at("can_acknowledge"),
+                  "Interrupted receipts reconcile verified additions not recorded as installed");
+            check(action("lfs-recovery", {{"receipt", interrupted_id}}).at("installed").empty(),
+                  "Inspection preserves original interruption evidence");
+            rejects(
+                [&] {
+                    action("lfs-recovery-acknowledge",
+                           {{"receipt", interrupted_id}, {"plan", "stale"}});
+                },
+                "Acknowledgement requires the exact check token");
+            auto asset_path = lfs_object_path(local, sha256(a));
+            auto old_mtime = fs::last_write_time(asset_path);
+            fs::last_write_time(asset_path, old_mtime + std::chrono::seconds(2));
+            rejects(
+                [&] {
+                    action("lfs-recovery-acknowledge",
+                           {{"receipt", interrupted_id}, {"plan", partial_check.at("plan")}});
+                },
+                "Cache metadata changes invalidate acknowledgement tokens");
+            atomic_write(asset_path, std::string(a.size(), 'x'));
+            auto corrupt_check = action("lfs-recovery-check", {{"receipt", interrupted_id}});
+            check(corrupt_check.at("damaged") == 1 && corrupt_check.at("position") == "damaged" &&
+                      !corrupt_check.at("can_acknowledge").get<bool>() &&
+                      corrupt_check.at("plan").is_null(),
+                  "Same-size corruption blocks acknowledgement and remains preserved");
+            check(read_file(asset_path) == std::string(a.size(), 'x'),
+                  "Checks never repair damaged bytes");
+            fs::remove(asset_path);
+            auto missing_check = action("lfs-recovery-check", {{"receipt", interrupted_id}});
+            check(missing_check.at("position") == "missing" && missing_check.at("missing") == 3 &&
+                      missing_check.at("can_acknowledge"),
+                  "An untouched missing cache can be explicitly reviewed");
+            atomic_write(asset_path, a);
+            auto fresh_check = action("lfs-recovery-check", {{"receipt", interrupted_id}});
+            interrupted["error"] = "Changed interruption evidence";
+            atomic_write(interrupted_path, interrupted.dump());
+            rejects(
+                [&] {
+                    action("lfs-recovery-acknowledge",
+                           {{"receipt", interrupted_id}, {"plan", fresh_check.at("plan")}});
+                },
+                "Receipt edits invalidate acknowledgement tokens");
+            auto tampered_history = interrupted;
+            tampered_history["objects"][0]["sha256"] = sha256("foreign asset");
+            atomic_write(interrupted_path, tampered_history.dump());
+            auto untrusted = action("lfs-recovery-check", {{"receipt", interrupted_id}});
+            check(!untrusted.at("errors").empty() && !untrusted.at("can_acknowledge").get<bool>(),
+                  "Receipt identities must belong to their recorded Git history");
+            atomic_write(interrupted_path, interrupted.dump());
+            auto later =
+                git(p, {"-c", "user.name=Cache Test", "-c", "user.email=cache@example.invalid",
+                        "commit-tree", git(p, {"rev-parse", "HEAD^{tree}"}), "-p", head, "-m",
+                        "Later HEAD"});
+            git(p, {"update-ref", "refs/heads/main", later});
+            check(action("lfs-recovery-check", {{"receipt", interrupted_id}}).at("position") ==
+                      "partial",
+                  "Receipt checks survive HEAD advancement and staged working changes");
+            git(p, {"update-ref", "refs/heads/main", head});
+            auto cli_check = cli(core, {"git", "lfs-recovery-check", "team", interrupted_id});
+            auto reviewed = cli(core, {"git", "lfs-recovery-acknowledge", "team", interrupted_id,
+                                       "--plan", cli_check.at("plan")});
+            check(reviewed.at("acknowledged") && !reviewed.at("needs_attention").get<bool>() &&
+                      reviewed.at("status") == "incomplete" && reviewed.at("installed") == 0,
+                  "Acknowledgement preserves incomplete status and original installed count");
+            auto reviewed_record = action("lfs-recovery", {{"receipt", interrupted_id}});
+            check(reviewed_record.at("acknowledgement").at("missing") == 2 &&
+                      reviewed_record.at("acknowledgement").at("verified") == 1,
+                  "Durable acknowledgement discloses outstanding missing objects");
+            rejects(
+                [&] {
+                    action("lfs-recovery-acknowledge",
+                           {{"receipt", interrupted_id}, {"plan", cli_check.at("plan")}});
+                },
+                "Acknowledgements cannot be replayed");
+            Core reopened(work / "profile");
+            check(!reopened
+                       .request("POST", "/api/projects/team/git-lfs-recovery-check",
+                                {{"receipt", interrupted_id}})
+                       .at("can_acknowledge")
+                       .get<bool>(),
+                  "Reviewed interruption state survives reopening the core");
+            fs::remove(interrupted_path);
             rejects(
                 [&] {
                     action("lfs-recover", {{"source_peer", "peer-a"},
@@ -286,6 +387,16 @@ int main() {
             check(read_file(lfs_object_path(custom / "objects", sha256(a))) == a &&
                       action("lfs-cache", {{"verify", true}}).at("verified") == 2,
                   "Custom cache bytes are verified independently of the original cache");
+            auto relocated = action("lfs-recovery-check", {{"receipt", restored.at("id")}});
+            check(!relocated.at("errors").empty() && relocated.at("position") == "unknown" &&
+                      !relocated.at("content_verified").get<bool>(),
+                  "Storage relocation never silently verifies a different cache");
+            rejects(
+                [&] {
+                    cli(core,
+                        {"git", "lfs-recovery-check", "team", restored.at("id"), "--plan", "x"});
+                },
+                "Check CLI rejects acknowledgement-only flags");
         }
         std::cout << "PASS " << checks
                   << " LFS cache workflow checks; fixtures: " << path_string(run) << '\n';
