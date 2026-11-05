@@ -18,6 +18,7 @@
 #include <misc/cpp/imgui_stdlib.h>
 #include <thread>
 #include <set>
+#include <sstream>
 #include <unordered_map>
 #include <utility>
 #include "desktop_support.hpp"
@@ -70,7 +71,31 @@ static void field(const char *label, std::string &value) {
 static void localize() {
     c::registerTranslations(
         "fr",
-        {{"Merge diverged branch", "Fusionner les branches divergentes"},
+        {{"Browse saved files", "Parcourir les fichiers sauvegardés"},
+         {"Folder prefix", "Dossier à parcourir"},
+         {"Metadata only; file contents are verified when previewed or restored.",
+          "Métadonnées uniquement ; les contenus sont vérifiés lors d'un aperçu ou d'une "
+          "restauration."},
+         {"Add folder to selection", "Ajouter le dossier à la sélection"},
+         {"Restore selection", "Sélection à restaurer"},
+         {"One relative path per line; folders end with /. Leave empty for the whole snapshot.",
+          "Un chemin relatif par ligne ; terminez les dossiers par /. Laissez vide pour restaurer "
+          "toute la sauvegarde."},
+         {"Clear selection", "Vider la sélection"},
+         {"Compare saved versions", "Comparer deux sauvegardes"},
+         {"Older snapshot", "Sauvegarde de départ"},
+         {"Newer snapshot", "Sauvegarde d'arrivée"},
+         {"Compare snapshots", "Comparer les sauvegardes"},
+         {"Select a file to inspect its saved versions.",
+          "Sélectionnez un fichier pour examiner ses versions sauvegardées."},
+         {"Preview verifies the selected files before creating a new destination.",
+          "L'aperçu vérifie les fichiers sélectionnés avant de créer un nouveau dossier de "
+          "sortie."},
+         {"Permissions changed", "Permissions modifiées"},
+         {"Added", "Ajouté"},
+         {"Deleted", "Supprimé"},
+         {"Modified", "Modifié"},
+         {"Merge diverged branch", "Fusionner les branches divergentes"},
          {"Preview repository merge", "Prévisualiser la fusion du dépôt"},
          {"Apply reviewed merge", "Appliquer la fusion vérifiée"},
          {"Creates a reviewed two-parent merge commit. Choose committed files or edit conflict "
@@ -782,6 +807,8 @@ class App {
         git_integrate_state, git_integrate_input, git_integration_records, git_integration_check,
         git_merge_state, git_merge_file_state, git_merge_editor, git_materialize_state,
         git_materialization_records, git_materialization_check;
+    Json backup_files, snapshot_comparison, snapshot_file_diff;
+    std::string backup_prefix, restore_paths, history_left, history_right;
     size_t git_integration_offset = 0;
     size_t git_materialization_offset = 0;
     std::string git_extract_destination;
@@ -842,6 +869,8 @@ class App {
     int service_platform = 0, service_port = 8484;
     std::unordered_map<std::string, bool> verified;
     c::DiffDocument document;
+    c::DiffDocument backup_document;
+    c::DiffState backup_diff_view;
     c::DiffState diff_state;
     c::DiffDocument conflict_document;
     c::DiffState conflict_diff_state;
@@ -1016,6 +1045,11 @@ class App {
         snapshots = Json::array();
         restore_id.clear();
         backup_check = restore_preview = nullptr;
+        backup_files = snapshot_comparison = snapshot_file_diff = nullptr;
+        backup_prefix.clear();
+        restore_paths.clear();
+        history_left.clear();
+        history_right.clear();
         git_state = nullptr;
         git_branches = git_review_state = git_review_diff = git_history_state = git_commit_state =
             nullptr;
@@ -2001,6 +2035,158 @@ class App {
             ImGui::TextWrapped("%s: %s", e.at("path").get<std::string>().c_str(),
                                e.at("error").get<std::string>().c_str());
     }
+    Json restore_request() const {
+        Json data{{"snapshot", restore_id}, {"destination", destination}};
+        Json paths = Json::array();
+        std::istringstream input(restore_paths);
+        std::string line;
+        while (std::getline(input, line)) {
+            if (!line.empty() && line.back() == '\r')
+                line.pop_back();
+            if (!line.empty())
+                paths.push_back(line);
+        }
+        if (!paths.empty())
+            data["paths"] = paths;
+        if (!backup_files.is_null() && backup_files.at("snapshot") == restore_id)
+            data["manifest_hash"] = backup_files.at("manifest_hash");
+        return data;
+    }
+    void browse_backup(size_t offset, bool continuation = false) {
+        auto snapshot = restore_id, prefix = backup_prefix;
+        Json query{{"snapshot", snapshot}, {"prefix", prefix}, {"offset", offset}};
+        if (continuation && !backup_files.is_null())
+            query["manifest_hash"] = backup_files.at("manifest_hash");
+        action("snapshot-files", query, [this, snapshot, prefix](const Json &r) {
+            if (restore_id == snapshot && backup_prefix == prefix)
+                backup_files = r;
+        });
+    }
+    void compare_snapshots(size_t offset, bool continuation = false) {
+        auto left = history_left, right = history_right;
+        Json query{{"left", left}, {"right", right}, {"offset", offset}};
+        if (continuation && !snapshot_comparison.is_null()) {
+            query["left_hash"] = snapshot_comparison.at("left_hash");
+            query["right_hash"] = snapshot_comparison.at("right_hash");
+        }
+        action("snapshot-compare", query, [this, left, right](const Json &r) {
+            if (left == history_left && right == history_right) {
+                snapshot_comparison = r;
+                snapshot_file_diff = nullptr;
+            }
+        });
+    }
+    void saved_snapshot_selector(const char *label, std::string &value) {
+        if (ImGui::BeginCombo(c::trLabel(label).c_str(), value.c_str())) {
+            for (const auto &s : snapshots)
+                if (ImGui::Selectable(
+                        (s.at("created").get<std::string>() + " / " + s.at("id").get<std::string>())
+                            .c_str(),
+                        s.at("id") == value)) {
+                    value = s.at("id");
+                    snapshot_comparison = snapshot_file_diff = nullptr;
+                }
+            ImGui::EndCombo();
+        }
+    }
+    void saved_files_view() {
+        c::beginCard("backup-browser", c::tr("Browse saved files").c_str());
+        ImGui::TextWrapped(
+            "%s",
+            c::tr("Metadata only; file contents are verified when previewed or restored.").c_str());
+        ImGui::TextUnformatted(c::tr("Folder prefix").c_str());
+        if (ImGui::InputText("##backup-prefix", &backup_prefix))
+            backup_files = nullptr;
+        if (button("Browse saved files"))
+            browse_backup(0);
+        ImGui::SameLine();
+        ImGui::BeginDisabled(backup_prefix.empty());
+        if (button("Add folder to selection")) {
+            restore_paths += backup_prefix + (backup_prefix.back() == '/' ? "\n" : "/\n");
+            restore_preview = nullptr;
+        }
+        ImGui::EndDisabled();
+        if (!backup_files.is_null()) {
+            text(c::tr("Files") + ": " + backup_files.at("total").dump());
+            auto offset = backup_files.at("offset").get<size_t>();
+            ImGui::BeginDisabled(offset == 0);
+            if (button("Previous page"))
+                browse_backup(offset > 100 ? offset - 100 : 0, true);
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+            ImGui::BeginDisabled(!backup_files.at("has_more").get<bool>());
+            if (button("Next page"))
+                browse_backup(offset + 100, true);
+            ImGui::EndDisabled();
+            ImGui::BeginChild("backup-page", c::dp(0, 180), ImGuiChildFlags_Borders);
+            for (const auto &entry : backup_files.at("files")) {
+                auto path = entry.at("path").get<std::string>();
+                if (ImGui::Selectable((path + " / " + entry.at("size").dump() + " B").c_str())) {
+                    restore_paths += path + "\n";
+                    restore_preview = nullptr;
+                }
+            }
+            ImGui::EndChild();
+        }
+        c::endCard();
+    }
+    void saved_comparison_view() {
+        if (snapshots.empty())
+            return;
+        if (history_left.empty())
+            history_left = snapshots.back().at("id");
+        if (history_right.empty())
+            history_right = snapshots.front().at("id");
+        c::beginCard("snapshot-comparison", c::tr("Compare saved versions").c_str());
+        saved_snapshot_selector("Older snapshot", history_left);
+        saved_snapshot_selector("Newer snapshot", history_right);
+        if (button("Compare snapshots"))
+            compare_snapshots(0);
+        if (!snapshot_comparison.is_null()) {
+            text(c::tr("Files") + ": " + snapshot_comparison.at("total").dump());
+            auto offset = snapshot_comparison.at("offset").get<size_t>();
+            ImGui::BeginDisabled(offset == 0);
+            if (button("Previous page"))
+                compare_snapshots(offset > 100 ? offset - 100 : 0, true);
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+            ImGui::BeginDisabled(!snapshot_comparison.at("has_more").get<bool>());
+            if (button("Next page"))
+                compare_snapshots(offset + 100, true);
+            ImGui::EndDisabled();
+            ImGui::BeginChild("saved-changes", c::dp(0, 150), ImGuiChildFlags_Borders);
+            for (const auto &entry : snapshot_comparison.at("files")) {
+                auto path = entry.at("path").get<std::string>();
+                auto status = entry.at("status").get<std::string>();
+                auto label = c::tr(status == "added"      ? "Added"
+                                   : status == "deleted"  ? "Deleted"
+                                   : status == "modified" ? "Modified"
+                                                          : "Permissions changed");
+                if (ImGui::Selectable((label + " / " + path).c_str())) {
+                    Json request{{"left", history_left},
+                                 {"right", history_right},
+                                 {"path", path},
+                                 {"left_hash", snapshot_comparison.at("left_hash")},
+                                 {"right_hash", snapshot_comparison.at("right_hash")}};
+                    action("snapshot-compare-file", request, [this, request](const Json &r) {
+                        if (!snapshot_comparison.is_null() &&
+                            snapshot_comparison.at("left_hash") == request.at("left_hash") &&
+                            snapshot_comparison.at("right_hash") == request.at("right_hash"))
+                            set_comparison(r, snapshot_file_diff, backup_document);
+                    });
+                }
+            }
+            ImGui::EndChild();
+        }
+        if (!snapshot_file_diff.is_null()) {
+            if (snapshot_file_diff.at("permissions_changed").get<bool>())
+                text(c::tr("Permissions changed"));
+            comparison_view("saved-file-diff", snapshot_file_diff, backup_document,
+                            backup_diff_view);
+        } else
+            ImGui::TextWrapped("%s", c::tr("Select a file to inspect its saved versions.").c_str());
+        c::endCard();
+    }
     void backup_view() {
         if (button("Create backup", true))
             action("backup");
@@ -2019,6 +2205,8 @@ class App {
                                   restore_id == s["id"].get<std::string>())) {
                 restore_id = s["id"];
                 backup_check = restore_preview = nullptr;
+                backup_files = nullptr;
+                restore_paths.clear();
             }
             if (s.at("id") == restore_id && s.contains("block_storage")) {
                 const auto &stats = s.at("block_storage");
@@ -2035,9 +2223,22 @@ class App {
         }
         if (!restore_id.empty()) {
             c::space(12);
+            saved_files_view();
             c::beginCard("restore", c::tr("Restore to new directory").c_str());
             ImGui::TextWrapped(
-                "%s", c::tr("Preview checks every file before creating the destination.").c_str());
+                "%s",
+                c::tr("Preview verifies the selected files before creating a new destination.")
+                    .c_str());
+            ImGui::TextUnformatted(c::tr("Restore selection").c_str());
+            ImGui::TextWrapped("%s", c::tr("One relative path per line; folders end with /. Leave "
+                                           "empty for the whole snapshot.")
+                                         .c_str());
+            if (ImGui::InputTextMultiline("##restore-paths", &restore_paths, c::dp(-1, 90)))
+                restore_preview = nullptr;
+            if (button("Clear selection")) {
+                restore_paths.clear();
+                restore_preview = nullptr;
+            }
             if (button("Verify backup"))
                 action("verify", {{"snapshot", restore_id}},
                        [this](const Json &r) { backup_check = r; });
@@ -2051,22 +2252,24 @@ class App {
             }
             ImGui::BeginDisabled(destination.empty());
             if (button("Preview restoration")) {
-                auto requested = destination;
-                action("restore-plan", {{"snapshot", restore_id}, {"destination", requested}},
-                       [this, requested](const Json &r) {
-                           restore_preview = r;
-                           restore_preview["input_destination"] = requested;
-                       });
+                auto requested = restore_request();
+                action("restore-plan", requested, [this, requested](const Json &r) {
+                    if (requested != restore_request())
+                        return;
+                    restore_preview = r;
+                    restore_preview["input"] = requested;
+                });
             }
             ImGui::EndDisabled();
-            bool preview_current = !restore_preview.is_null() &&
-                                   restore_preview.at("snapshot") == restore_id &&
-                                   restore_preview.at("input_destination") == destination;
+            bool preview_current =
+                !restore_preview.is_null() && restore_preview.at("input") == restore_request();
             ImGui::SameLine();
             ImGui::BeginDisabled(!preview_current || !restore_preview.value("ok", false));
-            if (button("Restore to new directory", true))
-                action("restore", {{"snapshot", restore_id}, {"destination", destination}},
-                       [this](const Json &) { restore_preview = nullptr; });
+            if (button("Restore to new directory", true)) {
+                auto request = restore_request();
+                request["plan"] = restore_preview.at("plan");
+                action("restore", request, [this](const Json &) { restore_preview = nullptr; });
+            }
             ImGui::EndDisabled();
             if (preview_current) {
                 integrity_result(restore_preview);
@@ -2083,6 +2286,7 @@ class App {
                 ImGui::EndChild();
             }
             c::endCard();
+            saved_comparison_view();
         }
     }
     void integrity_result(const Json &result) {

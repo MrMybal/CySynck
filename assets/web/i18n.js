@@ -2,6 +2,18 @@
 // English is the source language. Keep API identifiers and user content unchanged.
 globalThis.CySynckI18n = (() => {
   const french = {
+    "Snapshot": "Sauvegarde",
+    "Added": "Ajouté", "Deleted": "Supprimé", "Modified": "Modifié",
+    "Browse saved files": "Parcourir les fichiers sauvegardés", "Folder prefix": "Dossier à parcourir",
+    "Metadata only; file contents are verified when previewed or restored.": "Métadonnées uniquement ; les contenus sont vérifiés lors d'un aperçu ou d'une restauration.",
+    "Add folder to selection": "Ajouter le dossier à la sélection", "Restore selection": "Sélection à restaurer",
+    "One relative path per line; folders end with /. Leave empty for the whole snapshot.": "Un chemin relatif par ligne ; terminez les dossiers par /. Laissez vide pour restaurer toute la sauvegarde.",
+    "Restore to new directory": "Restaurer dans un nouveau dossier", "Preview restoration": "Prévisualiser la restauration",
+    "Destination": "Destination", "Compare saved versions": "Comparer deux sauvegardes",
+    "Older snapshot": "Sauvegarde de départ", "Newer snapshot": "Sauvegarde d'arrivée", "Compare snapshots": "Comparer les sauvegardes",
+    "Permissions changed": "Permissions modifiées", "{count} files · {bytes} bytes": "{count} fichiers · {bytes} octets",
+    "Changed files: {count}": "Fichiers modifiés : {count}", "Restoration complete": "Restauration terminée",
+    "Integrity verified": "Intégrité vérifiée", "Integrity check failed": "Échec de la vérification d'intégrité",
     "Local LFS assets": "Assets LFS locaux",
     "LFS materialization receipts": "Reçus de matérialisation LFS",
     "LFS materialization incomplete": "Matérialisation LFS interrompue", "Original pointer": "Pointeur d'origine",

@@ -78,6 +78,33 @@
     <button id="copy-patch" disabled data-i18n>Copy patch</button>
     <pre id="patch" data-i18n>Select a file from the changes list.</pre>
     <h3 data-i18n>Backups</h3><div id="snapshots"></div>
+    <h3 data-i18n>Browse saved files</h3>
+    <p data-i18n>Metadata only; file contents are verified when previewed or restored.</p>
+    <form id="snapshot-browser-form">
+      <label><span data-i18n>Snapshot</span><select id="backup-snapshot"></select></label>
+      <label><span data-i18n>Folder prefix</span><input id="backup-prefix"></label>
+      <button data-i18n>Browse saved files</button>
+      <button id="backup-add-folder" type="button" data-i18n>Add folder to selection</button>
+    </form>
+    <div class="actions"><button id="backup-prev" disabled data-i18n>Previous page</button><button id="backup-next" disabled data-i18n>Next page</button></div>
+    <p id="backup-files-summary" aria-live="polite"></p><div id="backup-files" class="snapshot-file-list"></div>
+    <h3 data-i18n>Restore to new directory</h3>
+    <p data-i18n>One relative path per line; folders end with /. Leave empty for the whole snapshot.</p>
+    <form id="backup-restore-form">
+      <label><span data-i18n>Restore selection</span><textarea id="backup-paths" rows="4"></textarea></label>
+      <label><span data-i18n>Destination</span><input id="backup-destination" required></label>
+      <button data-i18n>Preview restoration</button><button id="backup-restore" type="button" disabled data-i18n>Restore to new directory</button>
+    </form>
+    <pre id="backup-restore-summary" aria-live="polite"></pre>
+    <h3 data-i18n>Compare saved versions</h3>
+    <form id="snapshot-compare-form">
+      <label><span data-i18n>Older snapshot</span><select id="backup-left"></select></label>
+      <label><span data-i18n>Newer snapshot</span><select id="backup-right"></select></label>
+      <button data-i18n>Compare snapshots</button>
+    </form>
+    <div class="actions"><button id="backup-compare-prev" disabled data-i18n>Previous page</button><button id="backup-compare-next" disabled data-i18n>Next page</button></div>
+    <p id="backup-compare-summary" aria-live="polite"></p><div id="backup-changes" class="snapshot-file-list"></div>
+    <pre id="backup-patch" aria-live="polite"></pre>
   </section>
   <section id="resolution-panel" hidden>
     <h3 data-i18n>Resolve conflict</h3><p id="resolution-path"></p>

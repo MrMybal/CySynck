@@ -10,6 +10,109 @@ function clearGitReview() {
 try { token = sessionStorage.getItem("cysynck-token") || ""; } catch (_) { /* Storage may be disabled. */ }
 let storagePlan = null, servicePreview = null;
 let backupStorageDirty = false;
+let backupFiles=null, backupRestore=null, backupComparison=null, backupGeneration=0, backupCompareGeneration=0, backupFileGeneration=0, backupRestoreGeneration=0;
+function invalidateBackupRestore() {
+  ++backupRestoreGeneration;
+  backupRestore=null; $("backup-restore").disabled=true; $("backup-restore-summary").textContent="";
+}
+function resetBackupBrowser() {
+  ++backupGeneration; ++backupCompareGeneration; backupFiles=backupComparison=null;
+  invalidateBackupRestore();
+  for(const id of ["backup-prefix","backup-paths","backup-destination"]) $(id).value="";
+  for(const id of ["backup-files","backup-changes"]) $(id).replaceChildren();
+  for(const id of ["backup-files-summary","backup-compare-summary","backup-patch"]) $(id).textContent="";
+  for(const id of ["backup-prev","backup-next","backup-compare-prev","backup-compare-next"]) $(id).disabled=true;
+}
+function backupPaths() {return $("backup-paths").value.split(/\r?\n/).filter(line=>line.length>0);}
+function backupRestoreInput() {
+  const input={snapshot:$("backup-snapshot").value,destination:$("backup-destination").value},paths=backupPaths();
+  if(paths.length) input.paths=paths;
+  if(backupFiles && backupFiles.snapshot===input.snapshot) input.manifest_hash=backupFiles.manifest_hash;
+  return input;
+}
+function populateBackupSelectors(snapshots) {
+  for(const id of ["backup-snapshot","backup-left","backup-right"]) {
+    const current=$(id).value, fallback=id==="backup-left"?snapshots.at(-1)?.id:snapshots[0]?.id;
+    $(id).replaceChildren(...snapshots.map(s=>{const option=document.createElement("option");option.value=s.id;option.textContent=s.created+" / "+s.id;return option;}));
+    $(id).value=snapshots.some(s=>s.id===current)?current:(fallback||"");
+    if(current && current!==$(id).value) {
+      if(id==="backup-snapshot") {++backupGeneration; backupFiles=null; invalidateBackupRestore(); $("backup-files").replaceChildren();}
+      else {++backupCompareGeneration; backupComparison=null; $("backup-changes").replaceChildren(); $("backup-patch").textContent="";}
+    }
+  }
+}
+async function browseBackup(offset=0,continuation=false) {
+  const project=selected,snapshot=$("backup-snapshot").value,prefix=$("backup-prefix").value;
+  if(!project || !snapshot) return;
+  const generation=++backupGeneration,input={snapshot,prefix,offset,limit:100};
+  if(continuation && backupFiles) input.manifest_hash=backupFiles.manifest_hash;
+  const result=await api("projects/"+project+"/snapshot-files","POST",input);
+  if(project!==selected || generation!==backupGeneration || snapshot!==$("backup-snapshot").value || prefix!==$("backup-prefix").value) return;
+  backupFiles=result; invalidateBackupRestore();
+  $("backup-prev").disabled=result.offset===0; $("backup-next").disabled=!result.has_more;
+  translated($("backup-files-summary"),"{count} files · {bytes} bytes",{count:result.total,bytes:result.bytes});
+  $("backup-files").replaceChildren(...result.files.map(entry=>{
+    const button=text("button",entry.path+" / "+entry.size+" B");
+    button.addEventListener("click",()=>{
+      const paths=new Set(backupPaths()); paths.add(entry.path); $("backup-paths").value=[...paths].join("\n"); invalidateBackupRestore();
+    });return button;
+  }));
+}
+$("snapshot-browser-form").addEventListener("submit",event=>{event.preventDefault();safe(()=>browseBackup());});
+$("backup-prefix").addEventListener("input",()=>{++backupGeneration;backupFiles=null;$("backup-files").replaceChildren();$("backup-prev").disabled=$("backup-next").disabled=true;invalidateBackupRestore();});
+$("backup-snapshot").addEventListener("change",()=>{++backupGeneration;backupFiles=null;$("backup-files").replaceChildren();$("backup-paths").value="";$("backup-prev").disabled=$("backup-next").disabled=true;invalidateBackupRestore();});
+$("backup-add-folder").addEventListener("click",()=>{
+  const prefix=$("backup-prefix").value;if(!prefix) return;
+  const paths=new Set(backupPaths()); paths.add(prefix.endsWith("/")?prefix:prefix+"/");$("backup-paths").value=[...paths].join("\n");invalidateBackupRestore();
+});
+$("backup-prev").addEventListener("click",()=>safe(()=>browseBackup(Math.max(0,(backupFiles?.offset||0)-100),true)));
+$("backup-next").addEventListener("click",()=>safe(()=>browseBackup((backupFiles?.offset||0)+100,true)));
+$("backup-restore-form").addEventListener("input",invalidateBackupRestore);
+$("backup-restore-form").addEventListener("submit",event=>{event.preventDefault();safe(async()=>{
+  const project=selected,input=backupRestoreInput(),generation=backupGeneration;
+  if(!project || !input.snapshot) return; invalidateBackupRestore();
+  const restoreGeneration=backupRestoreGeneration;
+  const result=await api("projects/"+project+"/restore-plan","POST",input);
+  if(project!==selected || generation!==backupGeneration || restoreGeneration!==backupRestoreGeneration || JSON.stringify(input)!==JSON.stringify(backupRestoreInput())) return;
+  backupRestore=result.ok?{project,input,plan:result.plan}:null;$("backup-restore").disabled=!backupRestore;
+  $("backup-restore-summary").textContent=[t(result.ok?"Integrity verified":"Integrity check failed"),
+    t("{count} files · {bytes} bytes",{count:result.files,bytes:result.bytes}),t("Destination")+": "+result.destination,
+    ...result.issues.map(issue=>issue.path+": "+issue.error),...result.entries.slice(0,100).map(entry=>entry.path+" / "+entry.size+" B")].join("\n");
+});});
+$("backup-restore").addEventListener("click",()=>safe(async()=>{
+  const preview=backupRestore;if(!preview || preview.project!==selected || JSON.stringify(preview.input)!==JSON.stringify(backupRestoreInput())) return;
+  invalidateBackupRestore();
+  const restoreGeneration=backupRestoreGeneration;
+  const result=await api("projects/"+preview.project+"/restore","POST",{...preview.input,plan:preview.plan});
+  if(preview.project===selected && restoreGeneration===backupRestoreGeneration) $("backup-restore-summary").textContent=t("Restoration complete")+" / "+result.files+" / "+result.destination;
+}));
+function backupComparisonInput() {return {left:$("backup-left").value,right:$("backup-right").value};}
+async function compareBackups(offset=0,continuation=false) {
+  const project=selected,input={...backupComparisonInput(),offset,limit:100},generation=++backupCompareGeneration;
+  if(!project || !input.left || !input.right) return;
+  if(continuation && backupComparison) {input.left_hash=backupComparison.left_hash;input.right_hash=backupComparison.right_hash;}
+  const result=await api("projects/"+project+"/snapshot-compare","POST",input);
+  if(project!==selected || generation!==backupCompareGeneration) return;
+  backupComparison=result;$("backup-patch").textContent="";
+  $("backup-compare-prev").disabled=result.offset===0;$("backup-compare-next").disabled=!result.has_more;
+  translated($("backup-compare-summary"),"Changed files: {count}",{count:result.total});
+  $("backup-changes").replaceChildren(...result.files.map(entry=>{
+    const names={added:"Added",deleted:"Deleted",modified:"Modified",permissions:"Permissions changed"};
+    const button=text("button",t(names[entry.status])+" / "+entry.path);
+    button.addEventListener("click",()=>safe(async()=>{
+      const fileGeneration=++backupFileGeneration;
+      const query={left:result.left,right:result.right,left_hash:result.left_hash,right_hash:result.right_hash,path:entry.path};
+      const diff=await api("projects/"+project+"/snapshot-compare-file","POST",query);
+      if(project===selected && generation===backupCompareGeneration && fileGeneration===backupFileGeneration) {
+        $("backup-patch").textContent=(diff.permissions_changed?t("Permissions changed")+"\n":"")+(diff.binary?t(diff.message):diff.patch||t("No differences"));
+      }
+    })); return button;
+  }));
+}
+for(const id of ["backup-left","backup-right"]) $(id).addEventListener("change",()=>{++backupCompareGeneration;backupComparison=null;$("backup-changes").replaceChildren();$("backup-patch").textContent="";$("backup-compare-prev").disabled=$("backup-compare-next").disabled=true;});
+$("snapshot-compare-form").addEventListener("submit",event=>{event.preventDefault();safe(()=>compareBackups());});
+$("backup-compare-prev").addEventListener("click",()=>safe(()=>compareBackups(Math.max(0,(backupComparison?.offset||0)-100),true)));
+$("backup-compare-next").addEventListener("click",()=>safe(()=>compareBackups((backupComparison?.offset||0)+100,true)));
 let gitSettingsDirty = false;
 let gitSetupPlan = null, gitSetupLoad = 0;
 function gitSetupInput() { return {branch:$("git-setup-branch").value,object_format:$("git-setup-format").value}; }
@@ -245,6 +348,7 @@ async function refresh() {
 }
 async function select(project) {
   if (selected !== project.id) {
+    resetBackupBrowser();
     backupStorageDirty = false;
     gitSettingsDirty = false;
     $("git-settings-result").replaceChildren();
@@ -292,6 +396,7 @@ async function select(project) {
   if (!backupStorageDirty) $("backup-storage-policy").value = project.backup_storage || "auto";
   const snapshots = await api("projects/" + selected + "/snapshots");
   if (selected !== project.id) return;
+  populateBackupSelectors(snapshots);
   $("snapshots").replaceChildren(...snapshots.map(s => {
     const card = text("div", "", "snapshot");
     card.append(label("div", "{created} · {count} files · {id}", {created: s.created.slice(0, 19), count: s.file_count, id: s.id}));
