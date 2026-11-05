@@ -797,7 +797,7 @@ async function loadReceived() {
 }
 $("received-load").addEventListener("click", () => safe(loadReceived));
 let materializationPlan=null,materializationGeneration=0,materializationReceiptsGeneration=0;
-function resetMaterialization(){materializationPlan=null;++materializationGeneration;++materializationReceiptsGeneration;$("git-materialize-paths").value="";$("git-materialize-paths").disabled=false;$("git-materialization-receipts").replaceChildren();$("git-materialize-result").replaceChildren();$("git-materialize-apply").disabled=true;$("git-materialize-preview").disabled=false;}
+function resetMaterialization(){materializationPlan=null;++materializationGeneration;++materializationReceiptsGeneration;$("git-materialize-paths").value="";$("git-materialize-paths").disabled=false;$("git-lfs-dehydrate").checked=false;$("git-lfs-dehydrate").disabled=false;materializationLabels();$("git-materialization-receipts").replaceChildren();$("git-materialize-result").replaceChildren();$("git-materialize-apply").disabled=true;$("git-materialize-preview").disabled=false;}
 async function loadMaterializationReceipts(offset=0){
   const project=selected,generation=++materializationReceiptsGeneration;if(!project)return;
   const result=await api("projects/"+project+"/git-materializations","POST",{offset});
@@ -805,8 +805,9 @@ async function loadMaterializationReceipts(offset=0){
   const container=$("git-materialization-receipts");container.replaceChildren();
   if(!result.records.length)container.append(label("p","No LFS receipts"));
   for(const record of result.records){
+    const inverse=record.operation==="dehydrate";
     const card=text("div","","snapshot"),output=text("div",""),check=label("button","Check LFS receipt");
-    card.append(text("p",record.created+" · "+record.id),label("p",record.status==="complete"?"LFS materialization complete":"LFS materialization incomplete"),text("p",record.recovery_directory));
+    card.append(text("p",record.created+" · "+record.id),label("p",record.status==="complete"?(inverse?"LFS pointer checkout complete":"LFS materialization complete"):(inverse?"LFS pointer checkout incomplete":"LFS materialization incomplete")),text("p",record.recovery_directory));
     card.append(text("p",t("Excluded LFS pointers")+": "+record.excluded));
     if(record.selection!==null){const scope=document.createElement("details");scope.append(label("summary","LFS selection"));for(const path of record.selection)scope.append(text("p",path));card.append(scope);}
     if(record.acknowledged)card.append(label("p","Recovery reviewed"));
@@ -818,8 +819,8 @@ async function loadMaterializationReceipts(offset=0){
       if(!current() || request!==revision)return;
       const valid=checked.context_matches && !checked.errors.length;
       if(checked.context_matches && checked.index_metadata_matches===false)output.append(label("p","Index metadata refreshed; staged entries and flags match"));
-      output.append(label("p",valid && checked.position==="after"?"LFS assets and recovery pointers verified":valid && checked.position==="before"?"LFS files match the original pointers":checked.can_resume?"LFS recovery can be resumed":"LFS recovery needs manual inspection"));
-      for(const file of checked.files)output.append(text("p",file.path+" / "+t(file.position==="before"?"Original pointer":file.position==="after"?"Verified asset":file.position==="interrupted"?"Publication interrupted":"Local contents differ")));
+      output.append(label("p",valid && checked.position==="after"?(inverse?"LFS pointers and preserved assets verified":"LFS assets and recovery pointers verified"):valid && checked.position==="before"?(inverse?"Original LFS assets verified":"LFS files match the original pointers"):checked.can_resume?"LFS recovery can be resumed":"LFS recovery needs manual inspection"));
+      for(const file of checked.files)output.append(text("p",file.path+" / "+t(file.position==="before"?(inverse?"Verified asset":"Original pointer"):file.position==="after"?(inverse?"Committed pointer":"Verified asset"):file.position==="interrupted"?"Publication interrupted":"Local contents differ")));
       for(const error of checked.errors)output.append(text("p",error));
       for(const error of checked.resume_errors)output.append(text("p",error.path+": "+error.error));
       if(checked.can_resume){
@@ -854,37 +855,45 @@ async function loadMaterializationReceipts(offset=0){
 }
 $("git-materialization-receipts-load").addEventListener("click",()=>safe(()=>loadMaterializationReceipts()));
 function showMaterialization(result){
+  const inverse=result.operation==="dehydrate";
   const output=$("git-materialize-result");output.replaceChildren();
-  for(const [key,title] of [["pending","Pending assets"],["materialized","Already materialized"],["skipped","Preserved files"],["excluded","Excluded LFS pointers"],["bytes","Asset bytes"]])output.append(text("p",t(title)+": "+result[key]));
-  if(result.applied)output.append(label("p","LFS materialization complete"),text("p",result.id),label("p","Recovery directory"),text("p",result.recovery_directory));
+  for(const [key,title] of [["pending",inverse?"Assets to preserve":"Pending assets"],[inverse?"pointers":"materialized",inverse?"Already committed pointers":"Already materialized"],["skipped","Preserved files"],["excluded","Excluded LFS pointers"],["bytes","Asset bytes"]])output.append(text("p",t(title)+": "+result[key]));
+  if(result.applied)output.append(label("p",inverse?"LFS pointer checkout complete":"LFS materialization complete"),text("p",result.id),label("p","Recovery directory"),text("p",result.recovery_directory));
   const states={pointer:"Committed pointer",materialized:"Already materialized",modified:"Local modifications preserved",missing:"Local deletion preserved",staged:"Staged changes preserved",index_flags:"Special index flags preserved",read_only:"Read-only file preserved",attributes:"LFS attributes required",blocked:"Materialization blocked"};
+  if(inverse)states.materialized="Asset to preserve";
   const files=document.createElement("details");files.append(label("summary","LFS file states"));
   for(const file of result.files)files.append(text("p",file.path+" · "+t(states[file.state]||"Materialization blocked")+(file.cache==="unavailable"?" · "+t("LFS cache object unavailable"):"")));
   output.append(files);
   for(const issue of result.errors)output.append(text("p",issue.path+": "+issue.error));
 }
 $("git-materialize-paths").addEventListener("input",()=>{materializationPlan=null;++materializationGeneration;$("git-materialize-result").replaceChildren();$("git-materialize-apply").disabled=true;$("git-materialize-preview").disabled=false;});
+function materializationLabels(){const inverse=$("git-lfs-dehydrate").checked;$("git-lfs-dehydrate-help").hidden=!inverse;$("git-lfs-materialize-help").hidden=inverse;translated($("git-materialize-preview"),inverse?"Preview LFS pointer checkout":"Preview LFS materialization");translated($("git-materialize-apply"),inverse?"Restore committed LFS pointers":"Materialize verified assets");}
+$("git-lfs-dehydrate").addEventListener("change",()=>{materializationPlan=null;++materializationGeneration;$("git-materialize-result").replaceChildren();$("git-materialize-apply").disabled=true;$("git-materialize-preview").disabled=false;materializationLabels();});
 $("git-materialize-preview").addEventListener("click",()=>safe(async()=>{
   const project=selected,generation=++materializationGeneration;if(!project)return;
   materializationPlan=null;$("git-materialize-apply").disabled=true;$("git-materialize-preview").disabled=true;
   try{
     const paths=$("git-materialize-paths").value.split(/\r?\n/).filter(path=>path.length),query=paths.length?{paths}:{};
+    if($("git-lfs-dehydrate").checked)query.operation="dehydrate";
     const result=await api("projects/"+project+"/git-materialize","POST",query);
     if(selected!==project || generation!==materializationGeneration)return;
+    if(query.operation==="dehydrate" && result.operation!=="dehydrate")throw new Error(t("LFS pointer checkout requires CySynck 0.39 or later"));
     showMaterialization(result);
-    if(result.can_materialize){materializationPlan={project,plan:result.plan,base:result.base,local_ref:result.local_ref,paths:result.selection};$("git-materialize-apply").disabled=false;}
+    if(result.can_materialize || result.can_dehydrate){materializationPlan={project,operation:result.operation,plan:result.plan,base:result.base,local_ref:result.local_ref,paths:result.selection};$("git-materialize-apply").disabled=false;}
   }finally{if(selected===project && generation===materializationGeneration)$("git-materialize-preview").disabled=false;}
 }));
 $("git-materialize-apply").addEventListener("click",()=>safe(async()=>{
   const saved=materializationPlan;if(!saved || selected!==saved.project)return;
   materializationPlan=null;const generation=++materializationGeneration;
   $("git-materialize-paths").disabled=true;
+  $("git-lfs-dehydrate").disabled=true;
   $("git-materialize-apply").disabled=true;$("git-materialize-preview").disabled=true;
   try{
     const query={apply:true,plan:saved.plan,base:saved.base,local_ref:saved.local_ref};if(saved.paths!==null)query.paths=saved.paths;
+    query.operation=saved.operation;
     const result=await api("projects/"+saved.project+"/git-materialize","POST",query);
     if(selected===saved.project && generation===materializationGeneration)showMaterialization(result);
-  }finally{if(selected===saved.project && generation===materializationGeneration){$("git-materialize-preview").disabled=false;$("git-materialize-paths").disabled=false;}}
+  }finally{if(selected===saved.project && generation===materializationGeneration){$("git-materialize-preview").disabled=false;$("git-materialize-paths").disabled=false;$("git-lfs-dehydrate").disabled=false;}}
 }));
 async function loadGitReceipts(offset=0) {
   const project=selected,generation=++gitReceiptsLoad;

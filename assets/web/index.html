@@ -199,7 +199,9 @@
       <button id="git-export" data-i18n>Export committed branch</button>
       <button id="git-refresh" data-i18n>Refresh Git exchange</button>
       <details><summary data-i18n>Local LFS assets</summary>
-        <p data-i18n>Replace exact committed pointers with verified cached assets. Modified, missing and staged files are preserved.</p>
+        <label><input id="git-lfs-dehydrate" type="checkbox"><span data-i18n>Prepare pointers for Git updates</span></label>
+        <p id="git-lfs-dehydrate-help" hidden data-i18n>Preserve unchanged expanded assets in recovery storage and restore their committed pointers before Git integration.</p>
+        <p id="git-lfs-materialize-help" data-i18n>Replace exact committed pointers with verified cached assets. Modified, missing and staged files are preserved.</p>
         <label><span data-i18n>LFS selection</span><textarea id="git-materialize-paths" rows="4"></textarea></label>
         <p data-i18n>One relative path per line; folders end with /. Leave empty for all LFS pointers.</p>
         <button id="git-materialize-preview" data-i18n>Preview LFS materialization</button>
