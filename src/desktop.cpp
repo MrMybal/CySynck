@@ -224,6 +224,14 @@ static void localize() {
           "d'origine. Marquez comme examiné uniquement après une vérification exacte avant ou "
           "après."},
          {"Preview LFS materialization", "Prévisualiser la matérialisation LFS"},
+         {"Preview LFS resume", "Prévisualiser la reprise LFS"},
+         {"Resume verified publication", "Reprendre la publication vérifiée"},
+         {"Verified LFS staging is ready to resume",
+          "Les assets LFS préparés sont vérifiés et prêts à être publiés"},
+         {"Already published assets", "Assets déjà publiés"},
+         {"Pending publications", "Publications en attente"},
+         {"LFS publication resumed", "Publication LFS reprise"},
+         {"LFS publication resume incomplete", "Reprise de publication LFS interrompue"},
          {"Materialize verified assets", "Matérialiser les assets vérifiés"},
          {"Replace exact committed pointers with verified cached assets. Modified, missing and "
           "staged files are preserved.",
@@ -917,7 +925,7 @@ class App {
         git_commit_state, git_setup_state, git_extract_state, git_extract_input,
         git_integrate_state, git_integrate_input, git_integration_records, git_integration_check,
         git_merge_state, git_merge_file_state, git_merge_editor, git_materialize_state,
-        git_materialization_records, git_materialization_check;
+        git_materialization_records, git_materialization_check, git_materialization_resume;
     Json lfs_cache_state, lfs_cache_plan, lfs_cache_records;
     Json lfs_recovery_receipt, lfs_recovery_check;
     std::string lfs_revision_peer, lfs_revision_branch, lfs_source_peer;
@@ -1202,6 +1210,7 @@ class App {
         git_materialize_state = nullptr;
         git_materialization_paths.clear();
         git_materialization_records = git_materialization_check = nullptr;
+        git_materialization_resume = nullptr;
         git_materialization_offset = 0;
         git_integration_offset = 0;
         git_extract_destination.clear();
@@ -3317,6 +3326,7 @@ class App {
         auto load = [this](size_t offset) {
             auto project = selected;
             git_materialization_check = nullptr;
+            git_materialization_resume = nullptr;
             action("git-materializations", {{"offset", offset}},
                    [this, project, offset](const Json &r) {
                        if (selected == project) {
@@ -3348,9 +3358,14 @@ class App {
                 }
                 if (record.at("acknowledged").get<bool>())
                     text(c::tr("Recovery reviewed"));
+                if (!record.at("resume").is_null())
+                    text(c::tr(record.at("resume").at("status") == "complete"
+                                   ? "LFS publication resumed"
+                                   : "LFS publication resume incomplete"));
                 if (button("Check LFS receipt")) {
                     auto project = selected;
                     git_materialization_check = nullptr;
+                    git_materialization_resume = nullptr;
                     action("git-materialization-check", {{"receipt", id}},
                            [this, project](const Json &r) {
                                if (selected == project)
@@ -3371,6 +3386,8 @@ class App {
                                    ? "LFS assets and recovery pointers verified"
                                : valid && checked.at("position") == "before"
                                    ? "LFS files match the original pointers"
+                               : checked.at("can_resume").get<bool>()
+                                   ? "Verified LFS staging is ready to resume"
                                    : "LFS recovery needs manual inspection"));
                     for (const auto &file : checked.at("files"))
                         text(file.at("path").get<std::string>() + " / " +
@@ -3381,11 +3398,21 @@ class App {
                                        : "Local contents differ"));
                     for (const auto &error : checked.at("errors"))
                         ImGui::TextWrapped("%s", error.get_ref<const std::string &>().c_str());
+                    if (checked.at("can_resume").get<bool>() && button("Preview LFS resume")) {
+                        auto project = selected;
+                        git_materialization_resume = nullptr;
+                        action("git-materialization-resume", {{"receipt", id}},
+                               [this, project](const Json &r) {
+                                   if (selected == project)
+                                       git_materialization_resume = r;
+                               });
+                    }
                     ImGui::BeginDisabled(busy() || !checked.at("can_acknowledge").get<bool>());
                     if (button("Mark as reviewed")) {
                         auto project = selected;
                         Json input{{"receipt", id}, {"plan", checked.at("plan")}};
                         git_materialization_check = nullptr;
+                        git_materialization_resume = nullptr;
                         action("git-materialization-acknowledge", input,
                                [this, project, id](const Json &r) {
                                    if (selected == project &&
@@ -3393,6 +3420,35 @@ class App {
                                        for (auto &row : git_materialization_records["records"])
                                            if (row.at("id") == id)
                                                row = r;
+                               });
+                    }
+                    ImGui::EndDisabled();
+                }
+                if (!git_materialization_resume.is_null() &&
+                    git_materialization_resume.at("receipt") == id) {
+                    const auto &resume = git_materialization_resume;
+                    text(c::tr("Already published assets") + ": " +
+                         resume.at("already_published").dump());
+                    text(c::tr("Pending publications") + ": " +
+                         resume.at("pending_publications").dump());
+                    for (const auto &error : resume.at("check").at("errors"))
+                        text(error.get<std::string>());
+                    ImGui::BeginDisabled(busy() || !resume.at("can_resume").get<bool>());
+                    if (button("Resume verified publication", true)) {
+                        auto project = selected;
+                        Json input{{"receipt", id}, {"apply", true}, {"plan", resume.at("plan")}};
+                        git_materialization_resume = git_materialization_check = nullptr;
+                        action("git-materialization-resume", input,
+                               [this, project, id](const Json &r) {
+                                   if (selected == project &&
+                                       !git_materialization_records.is_null())
+                                       for (auto &row : git_materialization_records["records"])
+                                           if (row.at("id") == id) {
+                                               row["status"] = r.at("status");
+                                               row["files_written"] = r.at("files_written");
+                                               row["resume"] = r.at("resume");
+                                               row["needs_attention"] = false;
+                                           }
                                });
                     }
                     ImGui::EndDisabled();

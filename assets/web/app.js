@@ -810,6 +810,7 @@ async function loadMaterializationReceipts(offset=0){
     card.append(text("p",t("Excluded LFS pointers")+": "+record.excluded));
     if(record.selection!==null){const scope=document.createElement("details");scope.append(label("summary","LFS selection"));for(const path of record.selection)scope.append(text("p",path));card.append(scope);}
     if(record.acknowledged)card.append(label("p","Recovery reviewed"));
+    if(record.resume)card.append(label("p",record.resume.status==="complete"?"LFS publication resumed":"LFS publication resume incomplete"));
     let revision=0;const current=()=>selected===project && generation===materializationReceiptsGeneration && card.isConnected;
     check.addEventListener("click",()=>safe(async()=>{
       output.replaceChildren();const request=++revision;
@@ -817,9 +818,26 @@ async function loadMaterializationReceipts(offset=0){
       if(!current() || request!==revision)return;
       const valid=checked.context_matches && !checked.errors.length;
       if(checked.context_matches && checked.index_metadata_matches===false)output.append(label("p","Index metadata refreshed; staged entries and flags match"));
-      output.append(label("p",valid && checked.position==="after"?"LFS assets and recovery pointers verified":valid && checked.position==="before"?"LFS files match the original pointers":"LFS recovery needs manual inspection"));
+      output.append(label("p",valid && checked.position==="after"?"LFS assets and recovery pointers verified":valid && checked.position==="before"?"LFS files match the original pointers":checked.can_resume?"Verified LFS staging is ready to resume":"LFS recovery needs manual inspection"));
       for(const file of checked.files)output.append(text("p",file.path+" / "+t(file.position==="before"?"Original pointer":file.position==="after"?"Verified asset":file.position==="interrupted"?"Publication interrupted":"Local contents differ")));
       for(const error of checked.errors)output.append(text("p",error));
+      if(checked.can_resume){
+        const preview=label("button","Preview LFS resume"),resumeOutput=text("div","");output.append(preview,resumeOutput);
+        preview.addEventListener("click",()=>safe(async()=>{
+          if(!current() || request!==revision)return;preview.disabled=true;resumeOutput.replaceChildren();
+          try{
+            const planned=await api("projects/"+project+"/git-materialization-resume","POST",{receipt:record.id});
+            if(!current() || request!==revision)return;
+            for(const [key,title] of [["already_published","Already published assets"],["pending_publications","Pending publications"]])resumeOutput.append(text("p",t(title)+": "+planned[key]));
+            for(const error of planned.check.errors)resumeOutput.append(text("p",error));
+            if(planned.can_resume){const apply=label("button","Resume verified publication");resumeOutput.append(apply);apply.addEventListener("click",()=>safe(async()=>{
+              if(!current() || request!==revision)return;const operation=++revision;check.disabled=true;preview.disabled=true;apply.disabled=true;
+              try{await api("projects/"+project+"/git-materialization-resume","POST",{receipt:record.id,apply:true,plan:planned.plan});if(current() && operation===revision)await loadMaterializationReceipts(offset);}
+              finally{check.disabled=false;}
+            }));}
+          }finally{if(current() && request===revision)preview.disabled=false;}
+        }));
+      }
       if(checked.can_acknowledge){const acknowledge=label("button","Mark as reviewed");output.append(acknowledge);acknowledge.addEventListener("click",()=>safe(async()=>{
         if(!current() || request!==revision)return;acknowledge.disabled=true;check.disabled=true;++revision;
         try{await api("projects/"+project+"/git-materialization-acknowledge","POST",{receipt:record.id,plan:checked.plan});if(current())await loadMaterializationReceipts(offset);}
