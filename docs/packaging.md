@@ -1,4 +1,4 @@
-# Platform packages (0.29)
+# Platform packages (0.30)
 
 The same C++20 core powers the desktop, CLI and SDK. Syncthing, Git and WireGuard remain
 external tools. Native builds are preferred for distribution; the optional Zig toolchain
@@ -13,10 +13,12 @@ ctest --test-dir build -C Release --output-on-failure
 cpack --config build/CPackConfig.cmake -C Release -B dist/packages
 ```
 
-Use a new output directory for each package variant. The CI runs package smoke checks
-against a directory containing exactly one archive, extracts it to a new directory, then
-executes its CLI and builds and runs separate C++ and pure C SDK consumers from the examples
-inside that extracted package. The C example checks diagnostics, service planning, UTF-8 paths,
+Use a new output directory for each package variant. CI checks a directory containing exactly
+one archive. Each run extracts it to a new directory, executes its CLI, and builds and runs
+separate C++ and pure C consumers from the included examples. It also compiles an independent
+native plugin with the extracted `CySynck::PluginSDK`, then loads and configures it through
+the C consumer. Older ABI v1 plugins remain covered by the native unit fixtures.
+The C example checks diagnostics, service planning, UTF-8 paths,
 reviewed first-import Git integration and JSON error handling. Snapshot checks cover metadata
 browsing, exact saved-version patches and token-checked partial restoration of whole and CDC
 files, with an unselected file kept out of the output. The example also composes

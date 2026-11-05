@@ -10,6 +10,11 @@ Le cœur, le CLI et les identifiants d'API sont en anglais. Les interfaces deskt
 démarrent en anglais et proposent le français comme deuxième langue. Le choix est mémorisé
 par profil pour le desktop et dans le navigateur pour le Web.
 
+La version 0.30 ajoute le catalogue des plugins chargés, leurs descriptions bilingues et des
+paramètres typés propres à chaque projet. Les anciens plugins ABI v1 restent compatibles.
+Un nouvel export C permet leur chargement explicite depuis une application intégrée, et le
+SDK fournit un exemple de plugin autonome. Voir [le guide des plugins](docs/plugins.md) (anglais).
+
 La version 0.29 ajoute le parcours paginé des fichiers sauvegardés, la restauration d'une
 sélection de fichiers ou de dossiers après aperçu vérifié, et la comparaison entre deux
 sauvegardes. Le CLI, le SDK C/C++ et CyUI/Web en anglais et français partagent ces fonctions.

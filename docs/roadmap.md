@@ -1,5 +1,17 @@
 # Development milestones
 
+## Delivered in 0.30
+
+- Loaded native plugin inventory, descriptions, library fingerprints and optional bilingual
+  metadata, with validation before publishing modes and continued ABI v1 compatibility.
+- Per-project typed mode options, defaults, strict value checking and profile/project/schema-
+  bound editor tokens, shared by CLI, C/C++ API and bilingual CyUI/Web controls.
+- Additive C plugin loading and a header-only `CySynck::PluginSDK` target, with an independent
+  example built from the extracted package and exercised through the pure C consumer.
+
+See [native plugins and mode options](plugins.md). Native libraries execute with host rights;
+loading remains explicit. Unreal and native Linux/macOS execution still need platform validation.
+
 ## Delivered in 0.29
 
 - Paginated snapshot contents with folder prefixes and manifest freshness hashes, without

@@ -24,6 +24,11 @@ consumer. The C ABI avoids exposing those C++ types across the library boundary.
 
 ## C ABI, version 1
 
+Core 0.30 adds `cysynck_load_plugin(handle, library_path_utf8, &result_json)` while retaining
+ABI version 1 for existing entry points. The function requires a 0.30+ core. The header-only
+`CySynck::PluginSDK` target and packaged standalone example support native extension authors;
+see [plugins and typed per-project options](plugins.md) for ownership, metadata and routes.
+
 Version 0.29 adds snapshot file browsing, selective restoration and snapshot-to-snapshot
 comparison through the existing JSON request entry point. No ABI change is required.
 See [snapshot workflows](snapshot-workflows.md) for routes, freshness tokens and limits.

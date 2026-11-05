@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 project(CySynckCConsumer LANGUAGES C)
-find_package(CySynck 0.1 CONFIG REQUIRED)
+find_package(CySynck 0.30 CONFIG REQUIRED)
 add_executable(cysynck-c-consumer main.c)
 set_target_properties(cysynck-c-consumer PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED YES LINKER_LANGUAGE C)
 target_link_libraries(cysynck-c-consumer PRIVATE CySynck::Core)

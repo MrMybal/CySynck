@@ -1,6 +1,7 @@
 #include <cysynck/c_api.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -9,9 +10,11 @@
 static int run(int argc, char **argv) {
     char *output = NULL;
     cysynck_handle core;
-    int result;
-    if (argc < 2 || argc > 5) {
-        fprintf(stderr, "Usage: cysynck-c-consumer STATE [METHOD [API_PATH [JSON_BODY]]]\n");
+    int result, argument = 2;
+    if (argc < 2) {
+        fprintf(
+            stderr,
+            "Usage: cysynck-c-consumer STATE [--plugin LIBRARY] [METHOD [API_PATH [JSON_BODY]]]\n");
         return 2;
     }
     if (cysynck_abi_version() != 1) {
@@ -26,8 +29,29 @@ static int run(int argc, char **argv) {
     }
     cysynck_free(output);
     output = NULL;
-    result = cysynck_request(core, argc > 2 ? argv[2] : "GET", argc > 3 ? argv[3] : "/api/overview",
-                             argc > 4 ? argv[4] : "{}", &output);
+    while (argument < argc && strcmp(argv[argument], "--plugin") == 0) {
+        if (argument + 1 >= argc) {
+            cysynck_close(core);
+            return 2;
+        }
+        result = cysynck_load_plugin(core, argv[argument + 1], &output);
+        if (result) {
+            fprintf(stderr, "%s\n", output ? output : "Cannot load plugin");
+            cysynck_free(output);
+            cysynck_close(core);
+            return 1;
+        }
+        cysynck_free(output);
+        output = NULL;
+        argument += 2;
+    }
+    if (argc - argument > 3) {
+        cysynck_close(core);
+        return 2;
+    }
+    result = cysynck_request(core, argc > argument ? argv[argument] : "GET",
+                             argc > argument + 1 ? argv[argument + 1] : "/api/overview",
+                             argc > argument + 2 ? argv[argument + 2] : "{}", &output);
     if (output)
         fprintf(result ? stderr : stdout, "%s\n", output);
     else
