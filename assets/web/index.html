@@ -23,6 +23,11 @@
 <main>
   <header><div><p class="eyebrow" data-i18n>WORKSPACE</p><h2 data-i18n>Overview</h2></div><a id="syncthing" target="_blank" rel="noreferrer">Syncthing Web ↗</a></header>
   <p id="error" role="alert"></p><section id="summary"></section>
+  <section id="plugins-panel">
+    <h3 data-i18n>Plugins</h3>
+    <p data-i18n>Native plugins are loaded explicitly when the host starts.</p>
+    <button id="plugins-refresh" data-i18n>Refresh plugins</button><div id="plugins-list"></div>
+  </section>
   <section>
     <h3 data-i18n>Add a project</h3>
     <form id="create">
@@ -56,6 +61,14 @@
       <button data-action="status" data-i18n>Engine status</button>
     </div>
     <p data-i18n>Synchronize requests a scan. Syncthing continues to manage background transfers.</p>
+    <section id="mode-options-panel" hidden>
+      <h3 data-i18n>Mode options</h3><p data-i18n>These settings belong to this project.</p>
+      <button id="mode-options-reload" data-i18n>Reload mode options</button>
+      <p id="mode-options-note" aria-live="polite"></p>
+      <form id="mode-options-form"><div id="mode-options-fields"></div>
+        <div class="actions"><button id="mode-options-save" data-i18n>Save mode options</button><button id="mode-options-defaults" type="button" data-i18n>Use defaults</button></div>
+      </form>
+    </section>
     <form id="backup-storage-form">
       <label><span data-i18n>Backup storage</span><select id="backup-storage-policy">
         <option value="auto" data-i18n>Fixed blocks (4 MiB)</option>

@@ -10,6 +10,71 @@ function clearGitReview() {
 try { token = sessionStorage.getItem("cysynck-token") || ""; } catch (_) { /* Storage may be disabled. */ }
 let storagePlan = null, servicePreview = null;
 let backupStorageDirty = false;
+let loadedPlugins=null, availableModes=[], modeOptions=null, modeOptionsProject="", modeOptionsGeneration=0, modeOptionsDirty=false;
+function pluginLabel(value,key) {return document.documentElement.lang==="fr" && value[key+"_fr"]?value[key+"_fr"]:value[key]||"";}
+function renderPlugins() {
+  if(!loadedPlugins) return;
+  $("plugins-list").replaceChildren();
+  if(!loadedPlugins.plugins.length) $("plugins-list").append(label("p","No plugins loaded"));
+  for(const plugin of loadedPlugins.plugins) {
+    const card=text("div","","snapshot");card.append(text("strong",pluginLabel(plugin,"name")+(plugin.version?" / "+plugin.version:"")),text("p",pluginLabel(plugin,"description")));
+    for(const mode of plugin.modes) card.append(text("p",pluginLabel(mode,"label")+" — "+pluginLabel(mode,"description")));
+    const details=document.createElement("details");details.append(label("summary","Plugin details"),text("p",plugin.id+" / ABI "+plugin.abi_version),text("p",plugin.path),text("p","SHA-256: "+plugin.sha256));card.append(details);
+    $("plugins-list").append(card);
+  }
+}
+$("plugins-refresh").addEventListener("click",()=>safe(async()=>{loadedPlugins=await api("plugins");renderPlugins();}));
+function renderModeChoices() {
+  const select=$("create").elements.mode,current=select.value;
+  select.replaceChildren(...availableModes.map(mode=>{const option=document.createElement("option");option.value=mode.id;
+    option.textContent=mode.plugin?pluginLabel(mode,"label"):t(mode.id==="sendreceive"?"Two-way synchronization":mode.label);return option;}));
+  select.value=availableModes.some(mode=>mode.id===current)?current:(availableModes[0]?.id||"");
+}
+function resetModeOptions() {
+  ++modeOptionsGeneration;modeOptions=null;modeOptionsProject="";modeOptionsDirty=false;
+  $("mode-options-panel").hidden=true;$("mode-options-fields").replaceChildren();$("mode-options-note").removeAttribute("data-i18n");$("mode-options-note").textContent="";
+}
+function renderModeOptions() {
+  if(!modeOptions || modeOptionsProject!==selected) return;
+  const fields=$("mode-options-fields");fields.replaceChildren();
+  $("mode-options-note").removeAttribute("data-i18n");
+  $("mode-options-note").textContent=!modeOptions.available?t("Load the plugin providing this mode."):
+    modeOptions.errors.length?modeOptions.errors.join("\n"):modeOptions.fields.length?"":t("No configurable options");
+  $("mode-options-save").disabled=$("mode-options-defaults").disabled=!modeOptions.available || (!modeOptions.fields.length && modeOptions.valid);
+  for(const field of modeOptions.fields) {
+    const row=document.createElement("label"),input=document.createElement("input");
+    row.append(text("span",pluginLabel(field,"label")));input.name=field.id;
+    if(field.type==="boolean") {input.type="checkbox";input.checked=modeOptions.values[field.id];}
+    else {input.type=field.type==="integer"?"number":"text";input.value=modeOptions.values[field.id];
+      if(field.type==="integer") {input.min=field.minimum;input.max=field.maximum;input.step="1";input.required=true;}
+      else input.maxLength=field.max_length;
+    }
+    input.addEventListener("input",()=>{modeOptions.values[field.id]=field.type==="boolean"?input.checked:field.type==="integer"?Number(input.value):input.value;modeOptionsDirty=true;++modeOptionsGeneration;$("mode-options-note").removeAttribute("data-i18n");$("mode-options-note").textContent="";});
+    row.append(input);const description=pluginLabel(field,"description");if(description) row.append(text("small",description));
+    if(field.type==="integer") row.append(label("small","Range: {min} to {max}",{min:field.minimum,max:field.maximum}));
+    if(field.type==="string") row.append(label("small","Maximum {count} UTF-8 bytes",{count:field.max_length}));
+    fields.append(row);
+  }
+}
+async function loadModeOptions() {
+  const project=selected,generation=++modeOptionsGeneration;if(!project) return;
+  const result=await api("projects/"+project+"/mode-options");
+  if(project!==selected || generation!==modeOptionsGeneration) return;
+  modeOptions=result;modeOptionsProject=project;modeOptionsDirty=false;$("mode-options-panel").hidden=!result.plugin && result.available;renderModeOptions();
+}
+$("mode-options-reload").addEventListener("click",()=>safe(loadModeOptions));
+$("mode-options-defaults").addEventListener("click",()=>{if(!modeOptions) return;modeOptions.values={...modeOptions.defaults};modeOptionsDirty=true;++modeOptionsGeneration;renderModeOptions();});
+$("mode-options-form").addEventListener("submit",event=>{event.preventDefault();safe(async()=>{
+  if(!modeOptions?.available || modeOptionsProject!==selected) return;
+  const project=selected,generation=++modeOptionsGeneration,input={plan:modeOptions.plan,values:{...modeOptions.values}};
+  $("mode-options-save").disabled=true;
+  try {
+    const result=await api("projects/"+project+"/mode-options","PUT",input);
+    if(project!==selected || generation!==modeOptionsGeneration) return;
+    modeOptions=result;modeOptionsDirty=false;renderModeOptions();translated($("mode-options-note"),"Mode options saved");
+  } finally {if(project===selected && modeOptions) $("mode-options-save").disabled=!modeOptions.available || (!modeOptions.fields.length && modeOptions.valid);}
+});});
+$("language").addEventListener("change",()=>{renderPlugins();renderModeChoices();renderModeOptions();});
 let backupFiles=null, backupRestore=null, backupComparison=null, backupGeneration=0, backupCompareGeneration=0, backupFileGeneration=0, backupRestoreGeneration=0;
 function invalidateBackupRestore() {
   ++backupRestoreGeneration;
@@ -331,6 +396,7 @@ $("doctor-inspect").addEventListener("click", () => safe(() => diagnostics(false
 $("doctor-probe").addEventListener("click", () => safe(() => diagnostics(true)));
 async function refresh() {
   const data = await api("overview");
+  availableModes=data.modes;renderModeChoices();
   $("summary").replaceChildren(text("div", String(data.projects.length), "stat"), label("div", "{projects} projects · {backups} with a backup", {projects: data.projects.length, backups: data.projects.filter(p => p.latest_snapshot).length}));
   $("syncthing").href = data.syncthing_url;
   $("projects").replaceChildren();
@@ -348,6 +414,7 @@ async function refresh() {
 }
 async function select(project) {
   if (selected !== project.id) {
+    resetModeOptions();
     resetBackupBrowser();
     backupStorageDirty = false;
     gitSettingsDirty = false;
@@ -407,6 +474,7 @@ async function select(project) {
   const revision = transferLimitsRevision;
   const limits = await api("network/transfer-limits");
   if (selected === project.id && revision === transferLimitsRevision) showTransferLimits(limits);
+  if (selected===project.id && !modeOptionsDirty) await loadModeOptions();
 }
 $("backup-storage-policy").addEventListener("change", () => {
   backupStorageDirty = true;

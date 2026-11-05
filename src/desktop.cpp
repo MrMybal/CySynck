@@ -71,7 +71,23 @@ static void field(const char *label, std::string &value) {
 static void localize() {
     c::registerTranslations(
         "fr",
-        {{"Browse saved files", "Parcourir les fichiers sauvegardés"},
+        {{"Plugins", "Plugins"},
+         {"Refresh plugins", "Actualiser les plugins"},
+         {"No plugins loaded", "Aucun plugin chargé"},
+         {"Plugin details", "Détails du plugin"},
+         {"Native plugins are loaded explicitly when the host starts.",
+          "Les plugins natifs sont chargés explicitement au démarrage de l'application hôte."},
+         {"Mode options", "Paramètres du mode"},
+         {"These settings belong to this project.", "Ces paramètres appartiennent à ce projet."},
+         {"Reload mode options", "Recharger les paramètres du mode"},
+         {"Save mode options", "Enregistrer les paramètres du mode"},
+         {"Use defaults", "Utiliser les valeurs par défaut"},
+         {"Mode options saved", "Paramètres du mode enregistrés"},
+         {"No configurable options", "Aucun paramètre configurable"},
+         {"Load the plugin providing this mode.", "Chargez le plugin qui fournit ce mode."},
+         {"Range", "Plage"},
+         {"Maximum UTF-8 bytes", "Nombre maximal d'octets UTF-8"},
+         {"Browse saved files", "Parcourir les fichiers sauvegardés"},
          {"Folder prefix", "Dossier à parcourir"},
          {"Metadata only; file contents are verified when previewed or restored.",
           "Métadonnées uniquement ; les contenus sont vérifiés lors d'un aperçu ou d'une "
@@ -808,6 +824,9 @@ class App {
         git_merge_state, git_merge_file_state, git_merge_editor, git_materialize_state,
         git_materialization_records, git_materialization_check;
     Json backup_files, snapshot_comparison, snapshot_file_diff;
+    Json plugins_state, mode_options_state;
+    bool plugins_requested = false, mode_options_requested = false, mode_options_saved = false;
+    size_t mode_options_revision = 0;
     std::string backup_prefix, restore_paths, history_left, history_right;
     size_t git_integration_offset = 0;
     size_t git_materialization_offset = 0;
@@ -1045,6 +1064,9 @@ class App {
         snapshots = Json::array();
         restore_id.clear();
         backup_check = restore_preview = nullptr;
+        mode_options_state = nullptr;
+        mode_options_requested = mode_options_saved = false;
+        ++mode_options_revision;
         backup_files = snapshot_comparison = snapshot_file_diff = nullptr;
         backup_prefix.clear();
         restore_paths.clear();
@@ -1195,9 +1217,9 @@ class App {
         if (button("New project"))
             create = true;
         c::space(14);
-        for (auto page :
-             {"Changes", "Conflicts", "Backups", "Git exchange", "Engine", "Network", "Activity",
-              "Storage", "Diagnostics", "Services", "Command line", "Settings", "Application"})
+        for (auto page : {"Changes", "Conflicts", "Backups", "Git exchange", "Engine", "Network",
+                          "Activity", "Storage", "Diagnostics", "Services", "Plugins",
+                          "Command line", "Settings", "Application"})
             if (c::sidebarItem("", c::trLabel(page).c_str(),
                                view == page ||
                                    (std::string(page) == "Conflicts" && view == "Recovery") ||
@@ -1224,7 +1246,8 @@ class App {
         ImGui::BeginChild("workspace", ImVec2(0, 0));
         c::heading(c::tr(view.c_str()).c_str(), 1);
         auto p = project();
-        c::textDim("%s", (view == "Storage" || view == "Diagnostics" || view == "Services")
+        c::textDim("%s", (view == "Storage" || view == "Diagnostics" || view == "Services" ||
+                          view == "Plugins")
                              ? c::tr("All projects").c_str()
                          : !p.is_null() && view != "Overview" ? p["name"].get<std::string>().c_str()
                                                               : c::tr("Projects").c_str());
@@ -1243,6 +1266,8 @@ class App {
             diagnostics_view();
         else if (view == "Services")
             services_view();
+        else if (view == "Plugins")
+            plugins_view();
         else if (view == "Storage")
             storage_view();
         else if (view == "Network")
@@ -1279,6 +1304,149 @@ class App {
         create_view();
         ImGui::End();
         c::renderNotifications();
+    }
+    std::string plugin_label(const Json &value, const char *key) const {
+        auto french = std::string(key) + "_fr";
+        if (language == "fr" && value.contains(french) &&
+            !value.at(french).get<std::string>().empty())
+            return value.at(french).get<std::string>();
+        return value.value(key, std::string{});
+    }
+    void plugins_view() {
+        ImGui::TextWrapped(
+            "%s", c::tr("Native plugins are loaded explicitly when the host starts.").c_str());
+        ImGui::BeginDisabled(busy());
+        bool reload = button("Refresh plugins");
+        ImGui::EndDisabled();
+        if ((reload || !plugins_requested) && !busy()) {
+            plugins_requested = true;
+            submit([this] { return core.request("GET", "/api/plugins"); },
+                   [this](const Json &r) { plugins_state = r; });
+        }
+        if (plugins_state.is_null())
+            return;
+        if (plugins_state.at("plugins").empty())
+            text(c::tr("No plugins loaded"));
+        for (const auto &plugin : plugins_state.at("plugins")) {
+            auto id = plugin.at("id").get<std::string>();
+            auto title = plugin_label(plugin, "name");
+            if (!plugin.at("version").get<std::string>().empty())
+                title += " / " + plugin.at("version").get<std::string>();
+            c::beginCard(id.c_str(), title.c_str());
+            ImGui::TextWrapped("%s", plugin_label(plugin, "description").c_str());
+            for (const auto &mode : plugin.at("modes")) {
+                text(plugin_label(mode, "label"));
+                ImGui::TextWrapped("%s", plugin_label(mode, "description").c_str());
+            }
+            if (ImGui::CollapsingHeader(c::trLabel("Plugin details").c_str())) {
+                text(id + " / ABI " + plugin.at("abi_version").dump());
+                ImGui::TextWrapped("%s", plugin.at("path").get<std::string>().c_str());
+                text("SHA-256: " + plugin.at("sha256").get<std::string>());
+            }
+            c::endCard();
+        }
+    }
+    void load_mode_options() {
+        auto id = selected;
+        auto revision = ++mode_options_revision;
+        mode_options_requested = true;
+        submit([this, id] { return core.request("GET", "/api/projects/" + id + "/mode-options"); },
+               [this, id, revision](const Json &r) {
+                   if (selected == id && mode_options_revision == revision) {
+                       mode_options_state = r;
+                       mode_options_saved = false;
+                   }
+               });
+    }
+    void mode_options_view(const Json &project_value) {
+        for (const auto &mode : overview.at("modes"))
+            if (mode.at("id") == project_value.at("mode") && mode.value("plugin", Json()).is_null())
+                return;
+        c::beginCard("mode-options", c::tr("Mode options").c_str());
+        ImGui::TextWrapped("%s", c::tr("These settings belong to this project.").c_str());
+        ImGui::BeginDisabled(busy());
+        bool reload = button("Reload mode options");
+        ImGui::EndDisabled();
+        if ((reload || !mode_options_requested) && !busy())
+            load_mode_options();
+        if (!mode_options_state.is_null()) {
+            const auto &config = mode_options_state;
+            if (!config.at("available").get<bool>())
+                text(c::tr("Load the plugin providing this mode."));
+            else {
+                if (config.at("fields").empty())
+                    text(c::tr("No configurable options"));
+                for (const auto &issue : config.at("errors"))
+                    ImGui::TextWrapped("%s", issue.get<std::string>().c_str());
+                for (const auto &field : config.at("fields")) {
+                    auto id = field.at("id").get<std::string>();
+                    ImGui::PushID(id.c_str());
+                    text(plugin_label(field, "label"));
+                    bool edited = false;
+                    auto type = field.at("type").get<std::string>();
+                    if (type == "boolean") {
+                        bool value = config.at("values").at(id);
+                        edited = c::toggleSwitch("##value", &value);
+                        if (edited)
+                            mode_options_state["values"][id] = value;
+                    } else if (type == "integer") {
+                        int value = config.at("values").at(id);
+                        edited = ImGui::InputInt("##value", &value);
+                        if (edited)
+                            mode_options_state["values"][id] = value;
+                        c::textDim("%s: %lld / %lld", c::tr("Range").c_str(),
+                                   static_cast<long long>(field.at("minimum").get<int64_t>()),
+                                   static_cast<long long>(field.at("maximum").get<int64_t>()));
+                    } else {
+                        auto value = config.at("values").at(id).get<std::string>();
+                        edited = ImGui::InputText("##value", &value);
+                        if (edited)
+                            mode_options_state["values"][id] = value;
+                        c::textDim("%s: %u", c::tr("Maximum UTF-8 bytes").c_str(),
+                                   field.at("max_length").get<unsigned>());
+                    }
+                    if (edited) {
+                        ++mode_options_revision;
+                        mode_options_saved = false;
+                    }
+                    auto description = plugin_label(field, "description");
+                    if (!description.empty())
+                        ImGui::TextWrapped("%s", description.c_str());
+                    ImGui::PopID();
+                    c::space(6);
+                }
+                ImGui::BeginDisabled(
+                    busy() || (config.at("fields").empty() && config.at("valid").get<bool>()));
+                if (button("Use defaults")) {
+                    mode_options_state["values"] = config.at("defaults");
+                    ++mode_options_revision;
+                    mode_options_saved = false;
+                }
+                ImGui::SameLine();
+                if (button("Save mode options", true)) {
+                    auto id = selected;
+                    auto revision = ++mode_options_revision;
+                    Json input{{"plan", config.at("plan")}, {"values", config.at("values")}};
+                    submit(
+                        [this, id, input] {
+                            return core.request("PUT", "/api/projects/" + id + "/mode-options",
+                                                input);
+                        },
+                        [this, id, revision](const Json &r) {
+                            if (id == selected && revision == mode_options_revision) {
+                                mode_options_state = r;
+                                mode_options_saved = true;
+                                refresh();
+                            }
+                        });
+                }
+                ImGui::EndDisabled();
+                if (mode_options_saved)
+                    c::badge(c::tr("Mode options saved").c_str(), c::Tone::success);
+            }
+        }
+        c::endCard();
+        c::space(12);
     }
     void diagnostics_view() {
         ImGui::BeginDisabled(busy());
@@ -3447,6 +3615,7 @@ class App {
         }
         c::endCard();
         c::space(12);
+        mode_options_view(p);
         c::beginCard("engine", "Syncthing");
         c::textDim(
             "%s", c::tr("Syncthing handles continuous transfers. This requests a rescan.").c_str());
@@ -3844,11 +4013,16 @@ class App {
             field("Project ID", shared_id);
             c::property(c::tr("Mode").c_str());
             auto modes = overview["modes"];
-            auto current = c::tr(modes[mode]["label"].get<std::string>().c_str());
+            auto current = modes[mode].contains("plugin")
+                               ? plugin_label(modes[mode], "label")
+                               : c::tr(modes[mode]["label"].get<std::string>().c_str());
             if (ImGui::BeginCombo("##mode", current.c_str())) {
                 for (size_t i = 0; i < modes.size(); ++i)
                     if (ImGui::Selectable(
-                            c::tr(modes[i]["label"].get<std::string>().c_str()).c_str(),
+                            (modes[i].contains("plugin")
+                                 ? plugin_label(modes[i], "label")
+                                 : c::tr(modes[i]["label"].get<std::string>().c_str()))
+                                .c_str(),
                             i == static_cast<size_t>(mode)))
                         mode = static_cast<int>(i);
                 ImGui::EndCombo();

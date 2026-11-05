@@ -2,6 +2,14 @@
 // English is the source language. Keep API identifiers and user content unchanged.
 globalThis.CySynckI18n = (() => {
   const french = {
+    "Plugins": "Plugins", "Refresh plugins": "Actualiser les plugins", "No plugins loaded": "Aucun plugin chargé",
+    "Native plugins are loaded explicitly when the host starts.": "Les plugins natifs sont chargés explicitement au démarrage de l'application hôte.",
+    "Plugin details": "Détails du plugin", "Mode options": "Paramètres du mode",
+    "These settings belong to this project.": "Ces paramètres appartiennent à ce projet.",
+    "Reload mode options": "Recharger les paramètres du mode", "Save mode options": "Enregistrer les paramètres du mode",
+    "Use defaults": "Utiliser les valeurs par défaut", "Mode options saved": "Paramètres du mode enregistrés",
+    "Load the plugin providing this mode.": "Chargez le plugin qui fournit ce mode.", "No configurable options": "Aucun paramètre configurable",
+    "Range: {min} to {max}": "Plage : de {min} à {max}", "Maximum {count} UTF-8 bytes": "Maximum de {count} octets UTF-8",
     "Snapshot": "Sauvegarde",
     "Added": "Ajouté", "Deleted": "Supprimé", "Modified": "Modifié",
     "Browse saved files": "Parcourir les fichiers sauvegardés", "Folder prefix": "Dossier à parcourir",
