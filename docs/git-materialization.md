@@ -162,6 +162,10 @@ Catalog pages contain at most 100 entries (20 by default), scanning at most 10,0
 Malformed neighboring receipts are reported separately; unindexed names are preserved.
 Receipt reads and saved acknowledgement metadata are limited to 16 MiB.
 
+From 0.39, [restoring committed pointers](git-dehydration.md) offers the inverse reviewed
+operation, preserving expanded assets in recovery storage. Its schema-2 receipts share this
+catalog and checker, with `operation:"dehydrate"` and operation-specific before/after meanings.
+
 ## Resuming verified publication (0.37)
 
 **Check LFS receipt** reports `can_resume:true` when an incomplete, unacknowledged operation

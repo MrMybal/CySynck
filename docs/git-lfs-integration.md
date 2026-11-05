@@ -4,6 +4,8 @@ An explicit pointer-only policy lets an imported Git branch update an unborn or 
 branch containing canonical Git LFS pointers. This is useful for initial imports and server
 checkouts that keep pointers until assets are needed. The default policy still refuses LFS.
 Divergent LFS merging and automatic replacement of materialized working assets remain pending.
+From 0.39, [reviewed pointer restoration](git-dehydration.md) can separately prepare unchanged
+expanded working assets for this integration, preserving their original bytes in recovery.
 
 ```sh
 cysynck git integrate PROJECT PEER main --lfs-policy pointers
@@ -34,7 +36,8 @@ preserved originals. It is not an atomic part of branch integration.
 Tracked working files must match their committed raw bytes. Already materialized assets,
 local changes, staged changes and assume-unchanged/skip-worktree entries block further
 integration. Preserve or reconcile them using an appropriate Git workflow before trying
-again; CySynck does not automatically dehydrate, stash or overwrite those bytes.
+again. The explicit pointer-restoration step handles unchanged expanded assets; CySynck does
+not automatically dehydrate, stash or overwrite them as part of branch integration.
 
 ## Attributes and bounds
 

@@ -9,7 +9,7 @@ A project-based synchronization and backup companion written in **C++20**, power
 One shared core powers the native desktop app, CLI, local Web console and integration SDK.
 Build a headless server without graphical dependencies. No Python or .NET runtime is required.
 
-**Status: 0.38.0, under active development.** Windows x64 is validated locally. The headless
+**Status: 0.39.0, under active development.** Windows x64 is validated locally. The headless
 Linux core, CLI and test binaries also cross-compile from Windows with Zig.
 Native Linux and macOS execution still needs validation on those platforms.
 The Unreal bridge is an integration example and has not yet been compiled inside Unreal.
@@ -19,7 +19,7 @@ those fixes and the new package smoke checks still need another native CI run.
 
 ## Features
 
-| Area | Available in 0.38 |
+| Area | Available in 0.39 |
 | --- | --- |
 | Projects | Separate folders, settings and modes; overlapping project roots are rejected |
 | Sync modes | Two-way, send only, receive only, local backup and Git bundle exchange |
@@ -40,6 +40,11 @@ those fixes and the new package smoke checks still need another native CI run.
 | Resumable transfers | Verified 1 MiB chunks, files up to 4 GiB, configurable profile quotas, frozen source and manual resume |
 | Received files | Durable inbox catalog, integrity verification and export to a separate directory |
 | Integration | C++ library, C ABI with UTF-8 JSON and an Unreal/Blueprint bridge example |
+
+Unchanged expanded LFS assets can now be preserved in recovery while exact committed pointers
+are restored after a checked preview. This prepares the existing pointer-only Git integration
+without invoking a filter or needing a local asset cache. CLI, C/C++ SDK and bilingual CyUI/Web
+share the operation and its receipt checks. See [restoring LFS pointers](docs/git-dehydration.md).
 
 Interrupted LFS operations can resume from mixed pointer/published states and recreate missing
 staging from the verified local cache after a fresh preview. Original pointers remain protected;

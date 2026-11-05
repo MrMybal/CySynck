@@ -506,9 +506,11 @@ file(CONFIGURE OUTPUT "${sdk_git_root}/Unselected.uasset"
   @ONLY NEWLINE_STYLE UNIX)
 sdk_git("${sdk_git_root}" -c filter.lfs.process= -c filter.lfs.clean= -c filter.lfs.required=false add .gitattributes Unselected.uasset)
 sdk_git("${sdk_git_root}" commit -m "Materialization attributes")
-# Git may retain the existing CRLF file when its cached index entry is unchanged.
-file(REMOVE "${sdk_git_root}/Asset.uasset")
-sdk_git("${sdk_git_root}" -c filter.lfs.process= -c filter.lfs.clean= -c filter.lfs.smudge= -c filter.lfs.required=false checkout --force HEAD -- Asset.uasset)
+# Initial host CRLF policy can leave unchanged working files after configuration changes.
+# Prepare raw tracked bytes for later integration; recovery and cache files stay untouched.
+file(REMOVE "${sdk_git_root}/Asset.uasset" "${sdk_git_root}/review.cpp")
+sdk_git("${sdk_git_root}" -c "core.attributesFile=${WORK_DIR}/no-attributes" -c core.eol=lf
+  -c filter.lfs.process= -c filter.lfs.clean= -c filter.lfs.smudge= -c filter.lfs.required=false checkout-index --force --all --index)
 file(SHA256 "${sdk_git_root}/Asset.uasset" materialize_pointer_before)
 file(SHA256 "${sdk_git_root}/Unselected.uasset" materialize_unselected_before)
 file(SHA256 "${sdk_git_root}/.git/index" materialize_index_before)
@@ -641,6 +643,75 @@ if(NOT materialize_restaged_done OR NOT materialize_restaged_asset STREQUAL sdk_
     NOT materialize_restaged_original STREQUAL materialize_pointer_before OR
     NOT materialize_restaged_index STREQUAL materialize_index_before)
   message(FATAL_ERROR "Packaged restaging recovery changed bytes, original pointers or the index")
+endif()
+# First restore committed pointers without a cache, keeping the expanded asset in recovery.
+file(REMOVE "${sdk_git_root}/.git/lfs/objects/${sdk_a}/${sdk_b}/${sdk_oid}")
+run_response("${c_consumer}" dehydrate_preview "${WORK_DIR}/C profil été" POST /api/projects/git-lfs/git-materialize
+  "{\"operation\":\"dehydrate\",\"paths\":[\"Asset.uasset\"]}")
+string(JSON dehydrate_can GET "${dehydrate_preview}" can_dehydrate)
+string(JSON dehydrate_pending GET "${dehydrate_preview}" pending)
+string(JSON dehydrate_plan GET "${dehydrate_preview}" plan)
+file(SHA256 "${sdk_git_root}/Asset.uasset" dehydrate_preview_asset)
+if(NOT dehydrate_can OR NOT dehydrate_pending EQUAL 1 OR NOT dehydrate_preview_asset STREQUAL sdk_oid)
+  message(FATAL_ERROR "Packaged pointer checkout preview changed the working asset or required a cache")
+endif()
+run_response("${c_consumer}" dehydrated "${WORK_DIR}/C profil été" POST /api/projects/git-lfs/git-materialize
+  "{\"operation\":\"dehydrate\",\"paths\":[\"Asset.uasset\"],\"apply\":true,\"plan\":\"${dehydrate_plan}\"}")
+string(JSON dehydrate_applied GET "${dehydrated}" applied)
+string(JSON dehydrate_id GET "${dehydrated}" id)
+string(JSON dehydrate_schema GET "${dehydrated}" schema)
+string(JSON dehydrate_recovery GET "${dehydrated}" recovery_directory)
+file(SHA256 "${sdk_git_root}/Asset.uasset" dehydrated_pointer)
+file(SHA256 "${sdk_git_root}/${dehydrate_recovery}/before/Asset.uasset" dehydrated_asset)
+file(SHA256 "${sdk_git_root}/.git/index" dehydrate_index)
+file(SHA256 "${sdk_git_root}/Unselected.uasset" dehydrate_unselected)
+if(NOT dehydrate_applied OR NOT dehydrate_schema EQUAL 2 OR NOT dehydrated_pointer STREQUAL materialize_pointer_before OR
+    NOT dehydrated_asset STREQUAL sdk_oid OR NOT dehydrate_index STREQUAL materialize_index_before OR
+    NOT dehydrate_unselected STREQUAL materialize_unselected_before OR
+    EXISTS "${sdk_git_root}/.git/lfs/objects/${sdk_a}/${sdk_b}/${sdk_oid}")
+  message(FATAL_ERROR "Packaged pointer checkout changed the index, scope, cache or preserved asset")
+endif()
+run_response("${c_consumer}" dehydrate_checked "${WORK_DIR}/C profil été" POST /api/projects/git-lfs/git-materialization-check
+  "{\"receipt\":\"${dehydrate_id}\"}")
+string(JSON dehydrate_position GET "${dehydrate_checked}" position)
+string(JSON dehydrate_errors LENGTH "${dehydrate_checked}" errors)
+if(NOT dehydrate_position STREQUAL "after" OR NOT dehydrate_errors EQUAL 0)
+  message(FATAL_ERROR "Packaged pointer checkout receipt did not verify preserved asset bytes")
+endif()
+# Follow pointer restoration with a real fast-forward that changes the LFS identity.
+# The old expanded asset must survive the Git update in its independent recovery directory.
+file(READ "${sdk_git_root}/.git/refs/heads/main" dehydrate_base)
+string(STRIP "${dehydrate_base}" dehydrate_base)
+file(CONFIGURE OUTPUT "${sdk_git_root}/Asset.uasset"
+  CONTENT "version https://git-lfs.github.com/spec/v1\noid sha256:1111111111111111111111111111111111111111111111111111111111111111\nsize 7\n"
+  @ONLY NEWLINE_STYLE UNIX)
+file(SHA256 "${sdk_git_root}/Asset.uasset" dehydrate_next_pointer)
+sdk_git("${sdk_git_root}" -c filter.lfs.process= -c filter.lfs.clean= -c filter.lfs.required=false add Asset.uasset)
+sdk_git("${sdk_git_root}" -c filter.lfs.process= -c filter.lfs.clean= -c filter.lfs.required=false commit -m "Next SDK asset pointer")
+file(READ "${sdk_git_root}/.git/refs/heads/main" dehydrate_next_head)
+string(STRIP "${dehydrate_next_head}" dehydrate_next_head)
+sdk_git("${sdk_git_root}" update-ref refs/remotes/cysynck/sdk-next/main "${dehydrate_next_head}")
+sdk_git("${sdk_git_root}" -c filter.lfs.process= -c filter.lfs.clean= -c filter.lfs.smudge= -c filter.lfs.required=false reset --hard "${dehydrate_base}")
+run_response("${c_consumer}" dehydrate_git_preview "${WORK_DIR}/C profil été" POST /api/projects/git-lfs/git-integrate
+  "{\"peer\":\"sdk-next\",\"branch\":\"main\",\"lfs_policy\":\"pointers\"}")
+string(JSON dehydrate_git_can GET "${dehydrate_git_preview}" can_integrate)
+string(JSON dehydrate_git_plan GET "${dehydrate_git_preview}" plan)
+if(NOT dehydrate_git_can)
+  message(FATAL_ERROR "Packaged pointer restoration did not prepare the LFS branch update")
+endif()
+run_response("${c_consumer}" dehydrate_git_applied "${WORK_DIR}/C profil été" POST /api/projects/git-lfs/git-integrate
+  "{\"peer\":\"sdk-next\",\"branch\":\"main\",\"lfs_policy\":\"pointers\",\"apply\":true,\"plan\":\"${dehydrate_git_plan}\"}")
+string(JSON dehydrate_git_done GET "${dehydrate_git_applied}" applied)
+file(READ "${sdk_git_root}/.git/refs/heads/main" dehydrate_git_head)
+string(STRIP "${dehydrate_git_head}" dehydrate_git_head)
+file(SHA256 "${sdk_git_root}/Asset.uasset" dehydrate_git_pointer)
+file(SHA256 "${sdk_git_root}/${dehydrate_recovery}/before/Asset.uasset" dehydrate_git_original)
+file(SHA256 "${sdk_git_root}/Unselected.uasset" dehydrate_git_unselected)
+if(NOT dehydrate_git_done OR NOT dehydrate_git_head STREQUAL dehydrate_next_head OR
+    NOT dehydrate_git_pointer STREQUAL dehydrate_next_pointer OR NOT dehydrate_git_original STREQUAL sdk_oid OR
+    NOT dehydrate_git_unselected STREQUAL materialize_unselected_before OR
+    EXISTS "${sdk_git_root}/.git/lfs/objects/${sdk_a}/${sdk_b}/${sdk_oid}")
+  message(FATAL_ERROR "Packaged LFS branch update lost the original expanded asset or changed unrelated data")
 endif()
 # Pure C ABI first-import integration uses an independent ordinary-file repository.
 # Multi-file merge application performs other bounded Git work beyond working hashes.

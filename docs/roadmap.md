@@ -1,5 +1,17 @@
 # Development milestones
 
+## Delivered in 0.39
+
+- Reviewed restoration of exact committed LFS pointers from unchanged expanded working assets,
+  preserving expanded originals without cache access, filters or Git metadata changes.
+- Selected files/folders, schema-2 receipt checks and reviewed-interruption acknowledgement;
+  a complete pointer-restoration to fast-forward workflow covered in SHA-1/SHA-256 fixtures.
+- CLI, existing C/C++ ABI and bilingual CyUI/Web controls, with an extracted SDK scenario
+  checking pointer bytes, preserved assets, unchanged index and absence of cache writes.
+
+See [restoring committed LFS pointers](git-dehydration.md). Automatic restoration of preserved
+assets, interrupted dehydration resume and native platform/runtime validation remain pending.
+
 ## Delivered in 0.38
 
 - Reviewed LFS recovery from mixed working pointers, interrupted publication and already
