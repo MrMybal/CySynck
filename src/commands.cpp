@@ -27,7 +27,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return core.request("POST", "/api/projects/" + args.at(1) + "/" + name, data);
     };
     if (args.empty() || args[0] == "help")
-        return {{"help", R"(CySynck 0.32 (C++20)
+        return {{"help", R"(CySynck 0.36 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | plugins | events | api-token
   project mode-options ID
@@ -79,7 +79,7 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   git lfs-cache ID [--peer PEER --branch BRANCH] [--verify true] [--offset N --limit N --inventory-hash HASH]
   git lfs-recover ID SOURCE_PEER [--peer PEER --branch BRANCH] [--objects IDS.json] [--apply true --plan TOKEN]
   git lfs-recoveries ID [--offset N --limit N] | git lfs-recovery ID RECEIPT
-  git materialize ID [--apply true --plan PREVIEW_TOKEN]  (verified local LFS cache; preserves modified files)
+  git materialize ID [--paths-file JSON_ARRAY] [--apply true --plan PREVIEW_TOKEN]  (verified local LFS cache; preserves modified files)
   git materializations ID [--offset 0 --limit 20]
   git materialization-check ID RECEIPT_ID
   git materialization-acknowledge ID RECEIPT_ID --plan CHECK_TOKEN  (preserves Git and recovery files)
@@ -440,6 +440,8 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
                     data[flag.substr(2)] = value;
                 else if (flag == "--local-ref")
                     data["local_ref"] = value == "detached" ? Json(nullptr) : Json(value);
+                else if (flag == "--paths-file")
+                    data["paths"] = Json::parse(read_file(fs::u8path(value), 32768));
                 else
                     throw std::runtime_error("Unknown LFS materialization flag: " + flag);
             }

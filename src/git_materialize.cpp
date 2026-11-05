@@ -171,6 +171,49 @@ Json committed_files(const Json &p, const std::string &commit) {
     }
     return pointers;
 }
+Json selection_paths(const Json &data) {
+    if (!data.contains("paths"))
+        return nullptr;
+    const auto &values = data.at("paths");
+    if (!values.is_array() || values.empty() || values.size() > 256)
+        throw std::runtime_error("Select between 1 and 256 LFS files or folders");
+    std::set<std::string> selected;
+    std::map<std::string, std::string, GitPathLess> paths;
+    size_t bytes = 0;
+    for (const auto &value : values) {
+        auto name = value.get<std::string>();
+        if (name.size() > 16384 - bytes)
+            throw std::runtime_error("LFS path selection exceeds 16 KiB");
+        bytes += name.size();
+        validate_git_path(
+            !name.empty() && name.back() == '/' ? name.substr(0, name.size() - 1) : name, paths);
+        selected.insert(name);
+    }
+    return Json(selected);
+}
+Json selected_files(const Json &files, const Json &selection) {
+    if (selection.is_null())
+        return files;
+    Json result = Json::array();
+    std::set<std::string> matched;
+    for (const auto &file : files) {
+        auto path = file.at("path").get<std::string>();
+        bool included = false;
+        for (const auto &value : selection) {
+            auto name = value.get<std::string>();
+            if (name.back() == '/' ? path.starts_with(name) : path == name) {
+                included = true;
+                matched.insert(name);
+            }
+        }
+        if (included)
+            result.push_back(file);
+    }
+    if (matched.size() != selection.size())
+        throw std::runtime_error(
+            "Selected LFS path has no committed pointer; folders need a trailing slash");
+    return result;
+}
 Json fingerprint(const fs::path &path, bool digest = true) {
     if (path_is_link(path))
         throw std::runtime_error("LFS working files cannot be links or junctions");
@@ -229,7 +272,9 @@ Json inspect(const Json &p, const Json &data) {
             throw std::runtime_error("Invalid Git index flags");
         flags[line.substr(2)] = line.substr(0, 1);
     }
-    auto files = committed_files(p, head.at("base"));
+    auto selection = selection_paths(data);
+    auto inventory = committed_files(p, head.at("base"));
+    auto files = selected_files(inventory, selection);
     Json errors = Json::array();
     std::map<std::string, std::string> cache;
     fs::path store;
@@ -323,6 +368,9 @@ Json inspect(const Json &p, const Json &data) {
     result.update({{"schema", 1},
                    {"project", p.at("id")},
                    {"root", p.at("root")},
+                   {"project_hash", sha256(p.dump())},
+                   {"selection", selection},
+                   {"excluded", inventory.size() - files.size()},
                    {"files", files},
                    {"pending", pending},
                    {"materialized", materialized},
@@ -604,6 +652,16 @@ Json read_materialization(const fs::path &state, const Json &p, const std::strin
         bytes += size;
         ++pending;
     }
+    if (record.contains("selection")) {
+        const auto &selection = record.at("selection");
+        const auto &excluded = record.at("excluded");
+        if (!excluded.is_number_integer() ||
+            (!excluded.is_number_unsigned() && excluded.get<int64_t>() < 0) ||
+            excluded.get<uintmax_t>() > 4096 ||
+            (!selection.is_null() && selection_paths({{"paths", selection}}) != selection) ||
+            selected_files(record.at("files"), selection) != record.at("files"))
+            throw std::runtime_error("Invalid LFS receipt path selection");
+    }
     if (!pending || record.at("pending") != pending || record.at("bytes") != bytes ||
         !record.at("files_written").is_number_integer() ||
         record.at("files_written").get<int64_t>() < 0 ||
@@ -620,6 +678,8 @@ Json read_materialization(const fs::path &state, const Json &p, const std::strin
 Json materialization_summary(const Json &record) {
     bool acknowledged = record.contains("acknowledged_at");
     return {{"id", record.at("id")},
+            {"selection", record.value("selection", Json(nullptr))},
+            {"excluded", record.value("excluded", Json(0))},
             {"created", record.at("created")},
             {"status", record.at("status")},
             {"files", record.at("pending")},
@@ -739,9 +799,26 @@ Json check_git_materialization(const fs::path &state, const Json &project, const
         if (!result.at("context_matches").get<bool>())
             result["errors"].push_back(
                 "Git HEAD or index differs from the LFS materialization receipt");
+        auto inventory = committed_files(project, record.at("base"));
+        auto selected = selected_files(inventory, record.value("selection", Json(nullptr)));
         std::map<std::string, Json> committed;
-        for (const auto &file : committed_files(project, record.at("base")))
+        for (const auto &file : selected)
             committed[file.at("path")] = file;
+        if (record.contains("selection")) {
+            if (record.at("files").size() != selected.size() ||
+                record.at("excluded") != inventory.size() - selected.size())
+                throw std::runtime_error(
+                    "LFS receipt selection differs from its committed inventory");
+            for (const auto &file : record.at("files")) {
+                auto found = committed.find(file.at("path").get<std::string>());
+                if (found == committed.end())
+                    throw std::runtime_error("LFS receipt path is outside its committed selection");
+                for (auto key : {"mode", "oid", "pointer_text", "asset"})
+                    if (file.at(key) != found->second.at(key))
+                        throw std::runtime_error(
+                            "LFS receipt selected metadata differs from its committed pointer");
+            }
+        }
         check_recovery_entries(root, record);
         size_t before_count = 0, after_count = 0, interrupted_count = 0, changed_count = 0;
         for (const auto &file : record.at("files")) {
