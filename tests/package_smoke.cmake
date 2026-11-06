@@ -49,12 +49,18 @@ function(run_json executable output_variable)
 endfunction()
 set(cli "${prefix}/bin/cysynck${suffix}")
 run_json("${cli}" overview --state "${WORK_DIR}/cli-state" overview)
-foreach(required IN ITEMS share/cysynck/web/index.html share/cysynck/licenses/TinyXML2.txt
+foreach(required IN ITEMS share/cysynck/LICENSE share/cysynck/licenses/CySynck.txt
+    share/cysynck/web/index.html share/cysynck/licenses/TinyXML2.txt
     lib/cmake/CySynck/CySynckConfig.cmake include/cysynck/core.hpp)
   if(NOT EXISTS "${prefix}/${required}")
     message(FATAL_ERROR "Archive is missing ${required}")
   endif()
 endforeach()
+file(SHA256 "${prefix}/share/cysynck/LICENSE" license_sha)
+file(SHA256 "${prefix}/share/cysynck/licenses/CySynck.txt" notice_sha)
+if(NOT license_sha STREQUAL notice_sha)
+  message(FATAL_ERROR "Installed CySynck license differs from its license notice")
+endif()
 # Build and execute an independent consumer against the extracted SDK.
 execute_process(COMMAND "${CMAKE_COMMAND}" -S "${prefix}/share/cysynck/examples/consumer"
   -B "${WORK_DIR}/sdk" "-DCMAKE_PREFIX_PATH=${prefix}" -DCMAKE_BUILD_TYPE=Release
@@ -1037,7 +1043,7 @@ if(CMAKE_HOST_APPLE AND EXISTS "${prefix}/CySynck.app")
   file(RENAME "${WORK_DIR}/moved/CySynck.app" "${WORK_DIR}/moved/Cy Synck.app")
   set(desktop "${WORK_DIR}/moved/Cy Synck.app/Contents/MacOS/CySynck")
   foreach(required IN ITEMS Frameworks/libcysynck_core.dylib Resources/web/index.html
-      Resources/licenses/CyUI.txt)
+      Resources/LICENSE Resources/licenses/CySynck.txt Resources/licenses/CyUI.txt)
     if(NOT EXISTS "${WORK_DIR}/moved/Cy Synck.app/Contents/${required}")
       message(FATAL_ERROR "Relocated bundle is missing ${required}")
     endif()

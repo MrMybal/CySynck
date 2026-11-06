@@ -518,8 +518,14 @@ sans nlohmann/json côté appelant. Chaque chaîne renvoyée doit être libéré
 - Stockage LFS personnalisé, verrous, protocole signé, compatibilité CyRevision et résolution graphique des conflits Git.
 - Sauvegardes incrémentales par blocs à grande échelle et augmentation de la taille des transferts directs.
 
-Les sources de Syncthing et CyRevision n'ont pas été incorporées. Les dépendances employées,
-leurs versions et leurs licences sont décrites dans [THIRD_PARTY.md](THIRD_PARTY.md).
+## Licence
+
+CySynck est sous [licence MIT](LICENSE), y compris son cœur C++, son CLI, son application
+desktop, ses ressources Web et ses exemples SDK. Cette licence accompagne les paquets installés.
+
+Les dépendances conservent leurs licences et mentions, décrites dans [THIRD_PARTY.md](THIRD_PARTY.md).
+Syncthing, Git et WireGuard sont des programmes externes installés séparément. Les sources
+de Syncthing et CyRevision n'ont pas été incorporées.
 
 ## Essais avec de vrais moteurs
 

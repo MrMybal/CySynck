@@ -1,6 +1,9 @@
 # Dependencies and references
 
-Dependency licenses are installed under dist/share/cysynck/licenses.
+CySynck's own code is licensed under the [MIT License](LICENSE). Dependency licenses
+remain applicable to their respective components. The installed package includes
+`share/cysynck/LICENSE` and the following notices under `share/cysynck/licenses`;
+the macOS application also includes them in its Resources directory.
 
 | Component | CMake reference | License |
 | --- | --- | --- |

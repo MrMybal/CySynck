@@ -463,5 +463,11 @@ Planned work includes native Linux/macOS validation, signed installers and updat
 optional VPN rendezvous/relay support, Git LFS and CyRevision compatibility, larger-scale
 content-defined block backups, larger project trees and larger direct payloads.
 
-Syncthing and CyRevision source code is not incorporated into this project.
-Dependency versions, licenses and external references are listed in [THIRD_PARTY.md](THIRD_PARTY.md).
+## License
+
+CySynck is licensed under the [MIT License](LICENSE), including its C++ core, CLI,
+desktop application, Web assets and SDK examples. Installed packages include this license.
+
+Dependencies retain their own licenses and notices, listed in [THIRD_PARTY.md](THIRD_PARTY.md).
+Syncthing, Git and WireGuard are external programs installed separately; Syncthing and
+CyRevision source code is not incorporated into this project.

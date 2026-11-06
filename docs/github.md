@@ -22,6 +22,10 @@ Publish application source, assets, build definitions, tests, documentation, dep
 scripts, integration examples and GitHub workflows. Third-party source is fetched by CMake
 from the references in [THIRD_PARTY.md](../THIRD_PARTY.md).
 
+CySynck's source and examples are distributed under the [MIT License](../LICENSE).
+Keep `LICENSE` at the repository root and in installed distributions. Dependency
+license notices remain attached to their respective components.
+
 Generated `build*/`, `dist/`, `.local/`, virtual environments, logs, local environment files
 and private key files are ignored. In particular, `.local/` contains development tools,
 audit reports, private test identities and archived prototypes. Those files do not belong
@@ -86,7 +90,7 @@ After auditing the complete source export, review the local candidate list:
 ```sh
 git status --short
 git ls-files --others --exclude-standard
-git add .clang-format .gitattributes .gitignore .github CMakeLists.txt README.md README.fr.md THIRD_PARTY.md assets cmake deploy docs examples include integrations scripts src tests
+git add .clang-format .gitattributes .gitignore .github CMakeLists.txt LICENSE README.md README.fr.md THIRD_PARTY.md assets cmake deploy docs examples include integrations scripts src tests
 git diff --cached --stat
 git diff --cached --check
 git commit -m "Initial C++20 CySynck application"
