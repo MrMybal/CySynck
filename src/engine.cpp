@@ -1,4 +1,5 @@
 #include <cysynck/core.hpp>
+#include "engine_options.hpp"
 #include <httplib.h>
 #include <tinyxml2.h>
 #include <regex>
@@ -198,10 +199,22 @@ Json Core::engine_action(const std::string &action, const Json &data) {
             auto path = home / "config.xml";
             bool first = !fs::exists(path);
             auto executable = config.at("executable").get<std::string>();
+            auto help = [&](const std::string &command) {
+                auto result = process({executable, command, "--help"}, home, {}, 10);
+                if (result.code)
+                    throw std::runtime_error("Cannot inspect Syncthing " + command + " options");
+                return result.out;
+            };
+            auto serve_help = help("serve");
+            auto serve_probing =
+                syncthing_option(serve_help, {"--no-port-probing", "--skip-port-probing"});
+            auto log_file = syncthing_option(serve_help, {"--log-file", "--logfile"});
             if (first) {
-                auto generated = process(
-                    {executable, "generate", "--home", path_string(home), "--no-port-probing"},
-                    home, {}, 30);
+                auto generate_probing = syncthing_option(
+                    help("generate"), {"--no-port-probing", "--skip-port-probing"});
+                auto generated =
+                    process({executable, "generate", "--home", path_string(home), generate_probing},
+                            home, {}, 30);
                 if (generated.code)
                     throw std::runtime_error(
                         "Syncthing could not generate its isolated configuration");
@@ -241,7 +254,7 @@ Json Core::engine_action(const std::string &action, const Json &data) {
             engine_child_ = std::make_unique<ChildProcess>(
                 std::vector<std::string>{executable, "serve", "--home", path_string(home),
                                          "--no-browser", "--no-upgrade", "--no-restart",
-                                         "--no-port-probing", "--log-file",
+                                         serve_probing, log_file,
                                          path_string(directory / "syncthing.log"), "--log-max-size",
                                          "1048576", "--log-max-old-files", "2"},
                 home, std::map<std::string, std::string>{{"STMONITORED", "1"}});

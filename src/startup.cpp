@@ -183,7 +183,9 @@ std::string LoginStartup::contents() const {
     if (backend_ == StartupBackend::freedesktop) {
         if (args[0].find('=') != std::string::npos)
             throw std::runtime_error("Desktop entry executable paths cannot contain '='");
-        std::string command;
+        // GIO checks argv[0] before expanding %% field escapes. Keep a literal
+        // launcher name when the actual executable path contains a percent sign.
+        std::string command = args[0].find('%') != std::string::npos ? "/usr/bin/env --" : "";
         for (const auto &arg : args) {
             if (!command.empty())
                 command += ' ';

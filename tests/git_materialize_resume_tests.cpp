@@ -143,7 +143,9 @@ int main() {
                   "Unexpected recovery entry was removed or ignored");
             fs::remove(recovery / "unknown");
             auto index_bytes = read_file(root / ".git/index");
-            git(p, {"update-index", "--assume-unchanged", "Selected/empty.uasset"});
+            git(p, {"-c", "filter.lfs.process=", "-c", "filter.lfs.clean=", "-c",
+                    "filter.lfs.smudge=", "-c", "filter.lfs.required=false", "update-index",
+                    "--assume-unchanged", "Selected/empty.uasset"});
             check(!preview().at("can_resume").get<bool>(), "Changed index flags accepted");
             atomic_write(root / ".git/index", index_bytes);
             fs::create_directory(root / ".git/cysynck-integration.lock");

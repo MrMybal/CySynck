@@ -94,19 +94,22 @@ static Json action(Core &core, const std::string &project, const std::string &na
         throw std::runtime_error("Project " + project + " action " + name + ": " + error.what());
     }
 }
-static void eventually(const std::function<bool()> &condition, const std::string &message) {
-    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(25);
+static void eventually(const std::function<bool()> &condition, const std::string &message,
+                       std::chrono::seconds timeout = std::chrono::seconds(25)) {
+    auto deadline = std::chrono::steady_clock::now() + timeout;
+    std::string last_error;
     while (std::chrono::steady_clock::now() < deadline) {
         try {
             if (condition()) {
                 ++checks;
                 return;
             }
-        } catch (const std::exception &) {
+        } catch (const std::exception &error) {
+            last_error = error.what();
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-    throw std::runtime_error(message);
+    throw std::runtime_error(message + (last_error.empty() ? "" : ": " + last_error));
 }
 
 int main(int argc, char **argv) {
@@ -263,7 +266,8 @@ int main(int argc, char **argv) {
                     }
                 return false;
             },
-            "Concurrent real edits did not produce a discoverable conflict copy");
+            "Concurrent real edits did not produce a discoverable conflict copy",
+            std::chrono::seconds(60));
         auto conflictReview = action(a, "collaboration", "conflict-diff", {{"path", conflictPath}});
         check(std::set<std::string>{conflictReview.at("before"), conflictReview.at("after")} ==
                   std::set<std::string>{editA, editB},

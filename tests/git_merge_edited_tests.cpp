@@ -207,6 +207,11 @@ int main() {
             atomic_write(root / "conflict.txt", "permission peer\n");
             git(p, {"add", "conflict.txt"});
             git(p, {"update-index", "--chmod=+x", "--", "conflict.txt"});
+#ifndef _WIN32
+            fs::permissions(root / "conflict.txt",
+                            fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec,
+                            fs::perm_options::add);
+#endif
             auto permissions = commit(p, "Executable peer");
             git(p, {"checkout", "main"});
             git(p, {"update-ref", "refs/remotes/cysynck/alice/main", permissions});

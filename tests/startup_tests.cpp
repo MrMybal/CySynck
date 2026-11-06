@@ -120,6 +120,8 @@ static int run(const std::vector<std::string> &args) {
                 check(text.find("%%") != std::string::npos &&
                           text.find("Terminal=false") != std::string::npos,
                       "Desktop entries escape literal percent signs and run without a terminal");
+                check(text.find("Exec=/usr/bin/env -- ") != std::string::npos,
+                      "Percent-containing executable paths use a literal launcher for GIO lookup");
 #ifdef CYSYNCK_TEST_GIO
                 GError *error = nullptr;
                 auto info =

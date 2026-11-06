@@ -236,7 +236,9 @@ int main() {
                   "Receipt pointer identities are checked against the immutable committed tree");
             atomic_write(receipt_file, incomplete.dump(), true);
             auto index_bytes = read_file(root / ".git/index");
-            git(p, {"update-index", "--no-assume-unchanged", "flag.uasset"});
+            git(p, {"-c", "filter.lfs.process=", "-c", "filter.lfs.clean=", "-c",
+                    "filter.lfs.smudge=", "-c", "filter.lfs.required=false", "update-index",
+                    "--no-assume-unchanged", "flag.uasset"});
             check(!check_receipt().at("context_matches").get<bool>(),
                   "Raw index flag changes are detected even when stage-zero entries match");
             atomic_write(root / ".git/index", index_bytes);
@@ -244,7 +246,9 @@ int main() {
             for (const auto &file : result.at("files"))
                 if (file.at("path") == "a.uasset")
                     pointer_id = file.at("oid");
-            git(p, {"update-index", "--cacheinfo", "100644," + pointer_id + ",a.uasset"});
+            git(p, {"-c", "filter.lfs.process=", "-c", "filter.lfs.clean=", "-c",
+                    "filter.lfs.smudge=", "-c", "filter.lfs.required=false", "update-index",
+                    "--cacheinfo", "100644," + pointer_id + ",a.uasset"});
             auto refreshed = check_receipt();
             check(refreshed.at("context_matches") && refreshed.at("can_acknowledge") &&
                       !refreshed.at("index_metadata_matches").get<bool>(),
