@@ -1,7 +1,7 @@
 # GitHub preparation and publishing
 
-The intended remote is **https://github.com/MrMybal/CySynck**. Keep its current private
-visibility unless the owner explicitly decides to change it.
+The intended remote is **https://github.com/MrMybal/CySynck**. Preserve the owner's
+configured repository visibility when publishing updates.
 
 ## Repository page
 

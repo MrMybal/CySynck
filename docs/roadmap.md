@@ -1,5 +1,24 @@
 # Development milestones
 
+## Delivered in 0.40
+
+- Reviewed export of preserved expanded LFS assets into an exclusive separate directory,
+  including after HEAD advances to a different asset identity, anchored to the original commit.
+- Selected copies, streamed SHA-256 checks, source metadata preservation and a progress manifest;
+  source receipts, Git context, working files and cache remain unchanged.
+- CLI, C/C++ JSON API and English/French CyUI/Web controls, with SHA-1/SHA-256 fixtures
+  and an extracted C SDK export after a real pointer-only fast-forward.
+- MIT license for CySynck, installed in CLI/SDK packages and the macOS application;
+  dependency notices retain their respective licenses.
+- Syncthing startup selects port-probing and log options from the executable's help,
+  supporting the distinct 1.x/2.x spellings used by Linux distributions and newer installations.
+  Linux CI also identified Git fixture filter and executable-bit assumptions corrected locally.
+- Linux autostart uses a literal launcher for executable paths containing percent signs,
+  avoiding GIO's pre-expansion executable lookup; native revalidation remains pending.
+
+See [preserved asset export](git-asset-export.md). Working-tree restoration, interrupted
+export resume, native platform runtime and new GUI interaction tests remain pending.
+
 ## Delivered in 0.39
 
 - Reviewed restoration of exact committed LFS pointers from unchanged expanded working assets,

@@ -719,6 +719,32 @@ if(NOT dehydrate_git_done OR NOT dehydrate_git_head STREQUAL dehydrate_next_head
     EXISTS "${sdk_git_root}/.git/lfs/objects/${sdk_a}/${sdk_b}/${sdk_oid}")
   message(FATAL_ERROR "Packaged LFS branch update lost the original expanded asset or changed unrelated data")
 endif()
+# Export the old expanded asset through the installed C ABI after HEAD changed its identity.
+file(TO_CMAKE_PATH "${WORK_DIR}/Preserved assets été" asset_export_root)
+file(SHA256 "${sdk_git_root}/.git/index" asset_export_index_before)
+run_response("${c_consumer}" asset_export_preview "${WORK_DIR}/C profil été" POST /api/projects/git-lfs/git-materialization-export
+  "{\"receipt\":\"${dehydrate_id}\",\"destination\":\"${asset_export_root}\",\"paths\":[\"Asset.uasset\"]}")
+string(JSON asset_export_can GET "${asset_export_preview}" can_export)
+string(JSON asset_export_plan GET "${asset_export_preview}" plan)
+if(NOT asset_export_can OR EXISTS "${asset_export_root}")
+  message(FATAL_ERROR "Packaged preserved-asset export preview was blocked or wrote its destination")
+endif()
+run_response("${c_consumer}" asset_export_done "${WORK_DIR}/C profil été" POST /api/projects/git-lfs/git-materialization-export
+  "{\"receipt\":\"${dehydrate_id}\",\"destination\":\"${asset_export_root}\",\"paths\":[\"Asset.uasset\"],\"apply\":true,\"plan\":\"${asset_export_plan}\"}")
+string(JSON asset_export_applied GET "${asset_export_done}" exported)
+file(READ "${asset_export_root}/manifest.json" asset_export_manifest)
+string(JSON asset_export_status GET "${asset_export_manifest}" status)
+file(SHA256 "${asset_export_root}/files/Asset.uasset" asset_export_sha)
+file(SHA256 "${sdk_git_root}/${dehydrate_recovery}/before/Asset.uasset" asset_export_original)
+file(SHA256 "${sdk_git_root}/Asset.uasset" asset_export_pointer)
+file(SHA256 "${sdk_git_root}/.git/index" asset_export_index_after)
+if(NOT asset_export_applied OR NOT asset_export_status STREQUAL "complete" OR
+    NOT asset_export_sha STREQUAL sdk_oid OR NOT asset_export_original STREQUAL sdk_oid OR
+    NOT asset_export_pointer STREQUAL dehydrate_next_pointer OR
+    NOT asset_export_index_before STREQUAL asset_export_index_after OR
+    EXISTS "${sdk_git_root}/.git/lfs/objects/${sdk_a}/${sdk_b}/${sdk_oid}")
+  message(FATAL_ERROR "Packaged preserved-asset export changed its source, working pointer, index or cache")
+endif()
 # Pure C ABI first-import integration uses an independent ordinary-file repository.
 # Multi-file merge application performs other bounded Git work beyond working hashes.
 set(sdk_response_timeout 120)

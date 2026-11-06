@@ -62,8 +62,10 @@ their original status and error remain intact. Dehydration does not use publicat
 There is no automatic restore, rollback, retry, deletion of preserved assets or lock removal.
 Inspect an incomplete receipt and retained files before manual recovery. Advancing HEAD later
 changes the receipt's original context; it does not remove its preserved assets. Retain these
-files until their saved versions are no longer needed. Restoring an asset from recovery to the
-working tree is currently a manual copy after checking its identity and destination.
+files until their saved versions are no longer needed. From 0.40, a reviewed
+[preserved-asset export](git-asset-export.md) can copy those versions into a new separate
+directory after verification, including after HEAD advances. Replacing working files with
+a saved version remains a manual decision after checking the current committed identity.
 
 CyUI and Web expose the same selection, explicit preview/apply controls and operation-specific
 receipt results in English and French. Pause external writers during working-file operations;

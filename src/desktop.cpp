@@ -225,6 +225,13 @@ static void localize() {
           "après."},
          {"Preview LFS materialization", "Prévisualiser la matérialisation LFS"},
          {"Preview LFS resume", "Prévisualiser la reprise LFS"},
+         {"LFS asset export directory", "Dossier d'export des assets LFS"},
+         {"Choose a new absolute directory outside all projects and the profile.",
+          "Choisissez un nouveau dossier absolu hors des projets et du profil."},
+         {"Preview preserved asset export", "Prévisualiser l'export des assets conservés"},
+         {"Export verified preserved assets", "Exporter les assets conservés vérifiés"},
+         {"Preserved asset export complete", "Export des assets conservés terminé"},
+         {"Assets to export", "Assets à exporter"},
          {"Resume verified publication", "Reprendre la publication vérifiée"},
          {"LFS recovery can be resumed", "La récupération LFS peut être reprise"},
          {"Already published assets", "Assets déjà publiés"},
@@ -942,7 +949,8 @@ class App {
         git_commit_state, git_setup_state, git_extract_state, git_extract_input,
         git_integrate_state, git_integrate_input, git_integration_records, git_integration_check,
         git_merge_state, git_merge_file_state, git_merge_editor, git_materialize_state,
-        git_materialization_records, git_materialization_check, git_materialization_resume;
+        git_materialization_records, git_materialization_check, git_materialization_resume,
+        git_asset_export_state;
     Json lfs_cache_state, lfs_cache_plan, lfs_cache_records;
     Json lfs_recovery_receipt, lfs_recovery_check;
     std::string lfs_revision_peer, lfs_revision_branch, lfs_source_peer;
@@ -959,7 +967,7 @@ class App {
     std::string backup_prefix, restore_paths, history_left, history_right;
     size_t git_integration_offset = 0;
     size_t git_materialization_offset = 0;
-    std::string git_materialization_paths;
+    std::string git_materialization_paths, git_asset_export_destination;
     bool git_dehydrate = false;
     std::string git_extract_destination;
     bool git_extract_lfs = true;
@@ -1230,6 +1238,8 @@ class App {
         git_dehydrate = false;
         git_materialization_records = git_materialization_check = nullptr;
         git_materialization_resume = nullptr;
+        git_asset_export_state = nullptr;
+        git_asset_export_destination.clear();
         git_materialization_offset = 0;
         git_integration_offset = 0;
         git_extract_destination.clear();
@@ -3346,6 +3356,7 @@ class App {
             auto project = selected;
             git_materialization_check = nullptr;
             git_materialization_resume = nullptr;
+            git_asset_export_state = nullptr;
             action("git-materializations", {{"offset", offset}},
                    [this, project, offset](const Json &r) {
                        if (selected == project) {
@@ -3356,6 +3367,14 @@ class App {
         };
         if (button("Load LFS receipts"))
             load(0);
+        ImGui::TextWrapped("%s", c::tr("Choose a new absolute directory outside all projects and "
+                                       "the profile.")
+                                     .c_str());
+        ImGui::BeginDisabled(busy());
+        if (ImGui::InputText(c::tr("LFS asset export directory").c_str(),
+                             &git_asset_export_destination))
+            git_asset_export_state = nullptr;
+        ImGui::EndDisabled();
         if (!git_materialization_records.is_null()) {
             ImGui::BeginChild("lfs-receipts-list", c::dp(0, 220), ImGuiChildFlags_Borders);
             if (git_materialization_records.at("records").empty())
@@ -3488,6 +3507,53 @@ class App {
                                                row["resume"] = r.at("resume");
                                                row["needs_attention"] = false;
                                            }
+                               });
+                    }
+                    ImGui::EndDisabled();
+                }
+                if (inverse && button("Preview preserved asset export")) {
+                    auto project = selected;
+                    auto destination = git_asset_export_destination;
+                    git_asset_export_state = nullptr;
+                    action("git-materialization-export",
+                           {{"receipt", id}, {"destination", destination}},
+                           [this, project, destination](const Json &r) {
+                               if (selected == project &&
+                                   git_asset_export_destination == destination)
+                                   git_asset_export_state = r;
+                           });
+                }
+                if (!git_asset_export_state.is_null() &&
+                    git_asset_export_state.at("receipt") == id) {
+                    const auto &exported = git_asset_export_state;
+                    text(c::tr("Assets to export") + ": " +
+                         std::to_string(exported.at("files").size()));
+                    text(c::tr("Asset bytes") + ": " + exported.at("bytes").dump());
+                    if (ImGui::TreeNode(c::tr("Assets to export").c_str())) {
+                        for (const auto &file : exported.at("files"))
+                            text(file.at("path").get<std::string>());
+                        ImGui::TreePop();
+                    }
+                    for (const auto &issue : exported.at("errors"))
+                        text(issue.at("path").get<std::string>() + ": " +
+                             issue.at("error").get<std::string>());
+                    if (exported.at("exported").get<bool>())
+                        text(c::tr("Preserved asset export complete") + ": " +
+                             exported.at("destination").get<std::string>());
+                    ImGui::BeginDisabled(busy() || !exported.at("can_export").get<bool>());
+                    if (button("Export verified preserved assets", true)) {
+                        auto project = selected;
+                        auto destination = git_asset_export_destination;
+                        Json input{{"receipt", id},
+                                   {"destination", destination},
+                                   {"apply", true},
+                                   {"plan", exported.at("plan")}};
+                        git_asset_export_state = nullptr;
+                        action("git-materialization-export", input,
+                               [this, project, destination](const Json &r) {
+                                   if (selected == project &&
+                                       git_asset_export_destination == destination)
+                                       git_asset_export_state = r;
                                });
                     }
                     ImGui::EndDisabled();

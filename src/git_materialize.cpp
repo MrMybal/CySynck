@@ -608,7 +608,8 @@ Json materialize_git_lfs(const fs::path &state, const Json &project, const Json 
             permissions(before, staged);
             publish(staged, project_child(root, name));
             if (!matches(fingerprint(project_child(root, name)), destination_asset(record, file)))
-                throw std::runtime_error("Published LFS bytes differ from the verified destination");
+                throw std::runtime_error(
+                    "Published LFS bytes differ from the verified destination");
             if (fingerprint(before) != file.at("before"))
                 throw std::runtime_error(
                     "LFS recovery source changed during publication; preserve the recovery file");
@@ -1249,6 +1250,170 @@ Json acknowledge_git_materialization(const fs::path &state, const Json &project,
         throw std::runtime_error("LFS acknowledgement metadata exceeds 16 MiB");
     atomic_write(materialization_receipt(state, project, id), bytes, true);
     return materialization_summary(record);
+}
+
+namespace {
+Json export_inspection(const fs::path &state, const Json &project, const Json &projects,
+                       const Json &data) {
+    auto selection = selection_paths(data);
+    auto requested = fs::u8path(data.at("destination").get<std::string>());
+    if (!requested.is_absolute())
+        throw std::runtime_error("Choose an absolute new LFS export directory");
+    auto target = restore_target(state, projects, data);
+    plain_directory(target.parent_path());
+    if (!fs::is_directory(target.parent_path()))
+        throw std::runtime_error("LFS export parent directory must already exist");
+    layout(project);
+    auto id = data.at("receipt").get<std::string>();
+    auto record = read_materialization(state, project, id);
+    if (!dehydrating(record))
+        throw std::runtime_error("Asset export requires a pointer-restoration receipt");
+    auto receipt = materialization_receipt(state, project, id);
+    auto receipt_hash = sha256_file(receipt);
+    auto inventory = committed_files(project, record.at("base"));
+    auto original = selected_files(inventory, record.value("selection", Json(nullptr)));
+    if (record.at("files").size() != original.size() ||
+        record.at("excluded") != inventory.size() - original.size())
+        throw std::runtime_error("LFS export receipt differs from its committed inventory");
+    std::map<std::string, Json> committed;
+    for (const auto &file : original)
+        committed[file.at("path")] = file;
+    Json candidates = Json::array();
+    for (const auto &file : record.at("files")) {
+        auto found = committed.find(file.at("path").get<std::string>());
+        if (found == committed.end())
+            throw std::runtime_error("LFS export receipt path is outside its committed selection");
+        for (auto key : {"mode", "oid", "pointer_text", "asset"})
+            if (file.at(key) != found->second.at(key))
+                throw std::runtime_error("LFS export receipt differs from its committed pointer");
+        if (pending_file(record, file))
+            candidates.push_back(file);
+    }
+    auto selected = selected_files(candidates, selection);
+    auto root = fs::u8path(project.at("root").get<std::string>());
+    check_recovery_entries(root, record);
+    Json files = Json::array(), errors = Json::array();
+    uintmax_t bytes = 0;
+    for (const auto &file : selected) {
+        auto name = file.at("path").get<std::string>();
+        try {
+            auto source = project_child(root, record.at("recovery_directory").get<std::string>() +
+                                                  "/before/" + name);
+            bool digest = fs::is_regular_file(source) &&
+                          Json(fs::file_size(source)) == file.at("asset").at("size");
+            auto info = fingerprint(source, digest);
+            if (info != file.at("before") || !matches(info, file.at("asset")))
+                throw std::runtime_error("Preserved LFS asset is missing or changed");
+            files.push_back({{"path", name},
+                             {"source", path_string(source)},
+                             {"fingerprint", info},
+                             {"asset", file.at("asset")}});
+            bytes += file.at("asset").at("size").get<uintmax_t>();
+        } catch (const std::exception &error) {
+            errors.push_back({{"path", name}, {"error", error.what()}});
+        }
+    }
+    if (read_materialization(state, project, id) != record || sha256_file(receipt) != receipt_hash)
+        throw std::runtime_error("LFS export receipt changed during inspection; preview again");
+    Json result{{"schema", 1},
+                {"project", project.at("id")},
+                {"state", path_string(fs::absolute(state))},
+                {"project_hash", sha256(project.dump())},
+                {"projects_hash", sha256(projects.dump())},
+                {"receipt", id},
+                {"receipt_hash", receipt_hash},
+                {"base", record.at("base")},
+                {"destination", path_string(target)},
+                {"selection", selection},
+                {"excluded", candidates.size() - selected.size()},
+                {"files", files},
+                {"bytes", bytes},
+                {"errors", errors},
+                {"can_export", !files.empty() && errors.empty()},
+                {"exported", false},
+                {"plan", nullptr}};
+    if (result.dump().size() > 8 * 1024 * 1024)
+        throw std::runtime_error("LFS export inspection exceeds 8 MiB");
+    if (result.at("can_export").get<bool>())
+        result["plan"] = sha256(result.dump());
+    return result;
+}
+} // namespace
+
+Json export_git_materialization(const fs::path &state, const Json &project, const Json &projects,
+                                const Json &data) {
+    auto result = export_inspection(state, project, projects, data);
+    if (!data.value("apply", false))
+        return result;
+    if (!result.at("can_export").get<bool>() || !data.contains("plan") ||
+        data.at("plan") != result.at("plan"))
+        throw std::runtime_error("LFS export is blocked or its plan changed; preview again");
+    auto root = fs::u8path(project.at("root").get<std::string>());
+    auto lock = project_child(root, ".git/cysynck-integration.lock");
+    if (!fs::create_directory(lock))
+        throw std::runtime_error("Another Git operation is active; inspect the existing lock");
+    struct Unlock {
+        fs::path path;
+        ~Unlock() {
+            std::error_code error;
+            fs::remove(path, error);
+        }
+    } unlock{lock};
+    if (export_inspection(state, project, projects, data).at("plan") != result.at("plan"))
+        throw std::runtime_error("LFS export changed while acquiring its lock; preview again");
+    auto target = fs::u8path(result.at("destination").get<std::string>());
+    if (!fs::create_directory(target))
+        throw std::runtime_error("LFS export destination already exists");
+    secure_state_path(target, true);
+    auto manifest_path = project_child(target, "manifest.json");
+    Json manifest = result;
+    manifest.update({{"created", timestamp()}, {"status", "incomplete"}, {"files_written", 0}});
+    stage_pointer(manifest_path, manifest.dump(2));
+    try {
+        size_t written = 0;
+        for (const auto &file : result.at("files")) {
+            auto source =
+                project_child(root, recovery_name + "/" + data.at("receipt").get<std::string>() +
+                                        "/before/" + file.at("path").get<std::string>());
+            if (fingerprint(source) != file.at("fingerprint"))
+                throw std::runtime_error("Preserved LFS source changed before export");
+            auto output = project_child(target, "files/" + file.at("path").get<std::string>());
+            fs::create_directories(output.parent_path());
+            stream_asset(source, output, file.at("asset"));
+            permissions(source, output);
+            fs::last_write_time(output, fs::last_write_time(source));
+            if (fingerprint(source) != file.at("fingerprint") ||
+                !matches(fingerprint(output), file.at("asset")))
+                throw std::runtime_error("LFS source or exported bytes changed during export");
+            manifest["files_written"] = ++written;
+            atomic_write(project_child(target, "manifest.json"), manifest.dump(2), true);
+        }
+        for (const auto &file : result.at("files")) {
+            auto source =
+                project_child(root, recovery_name + "/" + data.at("receipt").get<std::string>() +
+                                        "/before/" + file.at("path").get<std::string>());
+            auto output = project_child(target, "files/" + file.at("path").get<std::string>());
+            if (fingerprint(source) != file.at("fingerprint") ||
+                !matches(fingerprint(output), file.at("asset")))
+                throw std::runtime_error("LFS source or exported bytes changed before completion");
+        }
+        if (sha256_file(materialization_receipt(state, project, data.at("receipt"))) !=
+            result.at("receipt_hash").get<std::string>())
+            throw std::runtime_error("LFS receipt changed during export; inspect the export");
+        manifest["status"] = "complete";
+        manifest["exported"] = true;
+        manifest["can_export"] = false;
+        manifest["completed"] = timestamp();
+        atomic_write(project_child(target, "manifest.json"), manifest.dump(2), true);
+    } catch (const std::exception &error) {
+        manifest["status"] = "incomplete";
+        manifest["exported"] = false;
+        manifest["error"] = std::string(error.what()).substr(0, 2048);
+        atomic_write(project_child(target, "manifest.json"), manifest.dump(2), true);
+        throw std::runtime_error("LFS export incomplete; inspect " + path_string(manifest_path) +
+                                 ": " + error.what());
+    }
+    return manifest;
 }
 
 } // namespace cysynck

@@ -798,6 +798,43 @@ async function loadReceived() {
 $("received-load").addEventListener("click", () => safe(loadReceived));
 let materializationPlan=null,materializationGeneration=0,materializationReceiptsGeneration=0;
 function resetMaterialization(){materializationPlan=null;++materializationGeneration;++materializationReceiptsGeneration;$("git-materialize-paths").value="";$("git-materialize-paths").disabled=false;$("git-lfs-dehydrate").checked=false;$("git-lfs-dehydrate").disabled=false;materializationLabels();$("git-materialization-receipts").replaceChildren();$("git-materialize-result").replaceChildren();$("git-materialize-apply").disabled=true;$("git-materialize-preview").disabled=false;}
+function appendPreservedAssetExport(card,record,current){
+  const destination=document.createElement("input"),field=text("label","");
+  destination.type="text";
+  destination.setAttribute("data-i18n-aria","LFS asset export directory");
+  destination.setAttribute("aria-label",t("LFS asset export directory"));
+  destination.setAttribute("data-i18n-placeholder","New separate folder on the server");
+  destination.placeholder=t("New separate folder on the server");
+  field.append(label("span","LFS asset export directory"),destination);
+  const preview=label("button","Preview preserved asset export"),output=text("div","");
+  card.append(label("p","Choose a new absolute directory outside all projects and the profile."),field,preview,output);
+  let revision=0;
+  destination.addEventListener("input",()=>{++revision;output.replaceChildren();});
+  preview.addEventListener("click",()=>safe(async()=>{
+    const request=++revision,project=selected,path=destination.value;
+    if(!current())return;
+    preview.disabled=true;destination.disabled=true;output.replaceChildren();
+    try{
+      const query={receipt:record.id,destination:path};
+      const planned=await api("projects/"+project+"/git-materialization-export","POST",query);
+      if(!current() || request!==revision)return;
+      output.append(text("p",t("Assets to export")+": "+planned.files.length),text("p",t("Asset bytes")+": "+planned.bytes));
+      for(const file of planned.files)output.append(text("p",file.path));
+      for(const issue of planned.errors)output.append(text("p",issue.path+": "+issue.error));
+      if(planned.can_export){
+        const apply=label("button","Export verified preserved assets");output.append(apply);
+        apply.addEventListener("click",()=>safe(async()=>{
+          if(!current() || request!==revision || destination.value!==path)return;
+          ++revision;preview.disabled=true;destination.disabled=true;apply.disabled=true;
+          try{
+            const done=await api("projects/"+project+"/git-materialization-export","POST",{...query,apply:true,plan:planned.plan});
+            if(current())output.append(label("p","Preserved asset export complete"),text("p",done.destination));
+          }finally{if(current()){preview.disabled=false;destination.disabled=false;}}
+        }));
+      }
+    }finally{if(current()){preview.disabled=false;destination.disabled=false;}}
+  }));
+}
 async function loadMaterializationReceipts(offset=0){
   const project=selected,generation=++materializationReceiptsGeneration;if(!project)return;
   const result=await api("projects/"+project+"/git-materializations","POST",{offset});
@@ -813,6 +850,7 @@ async function loadMaterializationReceipts(offset=0){
     if(record.acknowledged)card.append(label("p","Recovery reviewed"));
     if(record.resume)card.append(label("p",record.resume.status==="complete"?"LFS publication resumed":"LFS publication resume incomplete"));
     let revision=0;const current=()=>selected===project && generation===materializationReceiptsGeneration && card.isConnected;
+    if(inverse)appendPreservedAssetExport(card,record,current);
     check.addEventListener("click",()=>safe(async()=>{
       output.replaceChildren();const request=++revision;
       const checked=await api("projects/"+project+"/git-materialization-check","POST",{receipt:record.id});

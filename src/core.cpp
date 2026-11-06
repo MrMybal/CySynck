@@ -1034,6 +1034,10 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
             event(p.at("id"), "git",
                   "Interrupted LFS publication completed from verified staging; original pointers "
                   "preserved");
+    } else if (action == "git-materialization-export") {
+        result = export_git_materialization(state_, p, registry_.at("projects"), data);
+        if (result.value("exported", false))
+            event(p.at("id"), "git", "Preserved LFS assets exported to a separate verified copy");
     } else if (action == "git-materialization-acknowledge") {
         result = acknowledge_git_materialization(state_, p, data);
         event(p.at("id"), "git",

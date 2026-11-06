@@ -1,10 +1,26 @@
-# Platform packages (0.39)
+# Platform packages (0.40)
 
 The same C++20 core powers the desktop, CLI and SDK. Syncthing, Git and WireGuard remain
 external tools. Native builds are preferred for distribution; the optional Zig toolchain
 also compiles the headless Linux core and CLI from Windows.
 
+Packages include CySynck's MIT `LICENSE` and dependency notices. Supervised Syncthing
+startup inspects `generate --help` and `serve --help` to select supported port-probing
+and log-file options, accommodating both 1.x distribution packages and 2.x engines.
+The spellings differ between the [1.x CLI](https://docs.syncthing.net/v1.27.2/users/syncthing.html)
+and [current CLI](https://docs.syncthing.net/users/syncthing.html); CySynck probes capabilities
+instead of parsing a version string.
+
+Linux autostart uses `/usr/bin/env --` when the executable path contains a literal `%`:
+[GIO checks the launcher](https://github.com/GNOME/glib/blob/main/gio/gdesktopappinfo.c)
+before expanding desktop-entry field escapes. The original
+executable and arguments remain escaped as separate arguments, without a shell.
+This correction follows the first native CI failure and still needs a native rerun.
+
 ## Build a native package
+
+CMake refuses a public SDK version that differs from the project/package version.
+The extracted-package checks also compare CLI, C++ and C ABI versions with the manifest.
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release

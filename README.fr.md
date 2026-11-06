@@ -10,6 +10,12 @@ Le cœur, le CLI et les identifiants d'API sont en anglais. Les interfaces deskt
 démarrent en anglais et proposent le français comme deuxième langue. Le choix est mémorisé
 par profil pour le desktop et dans le navigateur pour le Web.
 
+La version 0.40 permet d'exporter les assets LFS conservés dans un nouveau dossier séparé,
+après aperçu et vérification SHA-256, même si la branche a ensuite changé de version d'asset.
+Les copies conservent les métadonnées et un manifeste de progression, sans modifier les originaux.
+Le CLI, le SDK C/C++ et CyUI/Web anglais-français partagent ce parcours.
+Voir [l'export des assets conservés](docs/git-asset-export.md) (anglais).
+
 La version 0.39 permet de préparer une mise à jour Git en rétablissant les pointeurs LFS du commit,
 après aperçu, tout en conservant les assets inchangés dans le dossier de récupération.
 Le parcours ne nécessite aucun cache LFS et préserve HEAD, l’index et la configuration Git.

@@ -6,4 +6,6 @@ Json git_materializations(const fs::path &state, const Json &project, const Json
 Json check_git_materialization(const fs::path &state, const Json &project, const Json &data);
 Json resume_git_materialization(const fs::path &state, const Json &project, const Json &data);
 Json acknowledge_git_materialization(const fs::path &state, const Json &project, const Json &data);
+Json export_git_materialization(const fs::path &state, const Json &project, const Json &projects,
+                                const Json &data);
 } // namespace cysynck
