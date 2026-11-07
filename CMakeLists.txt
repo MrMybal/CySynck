@@ -18,6 +18,32 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 option(CYSYNCK_DESKTOP "Build the native CyUI desktop" ON)
 option(CYSYNCK_TESTS "Build integration tests" ON)
+find_program(CYSYNCK_NODE_EXECUTABLE NAMES node REQUIRED)
+execute_process(COMMAND "${CYSYNCK_NODE_EXECUTABLE}" -p "Number(process.versions.node.split('.')[0]) >= 22"
+  OUTPUT_VARIABLE cysynck_node_supported OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(NOT cysynck_node_supported STREQUAL "true")
+  message(FATAL_ERROR "Node.js 22 or later is required to build the offline manual")
+endif()
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.CyDocBuild/node_modules/cydoc/package.json")
+  message(FATAL_ERROR "Prepare documentation tooling first: npm ci --prefix .CyDocBuild")
+endif()
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/assets/web/help-contexts.json" cysynck_help_contexts)
+configure_file(cmake/help_contexts.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/help_contexts.hpp" @ONLY)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/assets/web/help-contexts.json")
+file(GLOB_RECURSE cysynck_manual_inputs CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/.CyDocBuild/manual/*.md"
+  "${CMAKE_CURRENT_SOURCE_DIR}/.CyDocBuild/distribution/*.md"
+  "${CMAKE_CURRENT_SOURCE_DIR}/.CyDocBuild/assets/*"
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/cysynck/*")
+set(cysynck_documentation "${CMAKE_CURRENT_SOURCE_DIR}/Documentation")
+set(cysynck_documentation_archive "${CMAKE_CURRENT_SOURCE_DIR}/.CyDocBuild/.cache/CySynck-Documentation.zip")
+add_custom_command(OUTPUT "${cysynck_documentation}/.cysynck-generated" "${cysynck_documentation_archive}"
+  COMMAND "${CYSYNCK_NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/.CyDocBuild/build.mjs"
+  DEPENDS ${cysynck_manual_inputs} .CyDocBuild/build.mjs .CyDocBuild/validate.mjs .CyDocBuild/zip.mjs
+    .CyDocBuild/reader.mjs .CyDocBuild/reader.html .CyDocBuild/cydoc.config.json
+    .CyDocBuild/package-lock.json .CyDocBuild/api-translations.json .CyDocBuild/internal/migration.json assets/web/help-contexts.json LICENSE CMakeLists.txt
+  COMMENT "Generating the validated English/French offline CyDoc manual" VERBATIM)
+add_custom_target(cysynck-documentation DEPENDS "${cysynck_documentation}/.cysynck-generated" "${cysynck_documentation_archive}")
 if(APPLE AND CYSYNCK_DESKTOP)
   # Enable Cocoa languages in the common directory before GLFW creates its targets.
   enable_language(OBJC OBJCXX)
@@ -48,6 +74,8 @@ target_include_directories(cysynck_plugin_sdk INTERFACE
   $<INSTALL_INTERFACE:include>)
 add_library(cysynck_core SHARED src/core.cpp src/plugin_metadata.cpp src/backup.cpp src/backup_plan.cpp src/snapshot.cpp src/diff.cpp src/resolution.cpp src/inbox.cpp src/process.cpp src/child_process.cpp src/engine.cpp src/network.cpp src/http.cpp src/c_api.cpp src/commands.cpp)
 set_target_properties(cysynck_core PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+target_sources(cysynck_core PRIVATE src/help.cpp)
+target_include_directories(cysynck_core PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_sources(cysynck_core PRIVATE src/diagnostics.cpp)
 target_sources(cysynck_core PRIVATE src/service.cpp)
 target_sources(cysynck_core PRIVATE src/transfers.cpp)
@@ -65,7 +93,7 @@ target_link_libraries(cysynck_core PUBLIC $<BUILD_INTERFACE:nlohmann_json::nlohm
 set_target_properties(cysynck_core PROPERTIES EXPORT_NAME Core)
 add_library(CySynck::Core ALIAS cysynck_core)
 if(WIN32)
-  target_link_libraries(cysynck_core PRIVATE bcrypt ws2_32 advapi32)
+  target_link_libraries(cysynck_core PRIVATE bcrypt ws2_32 advapi32 shell32)
 endif()
 add_library(cysynck_startup STATIC src/startup.cpp)
 target_include_directories(cysynck_startup PUBLIC src)
@@ -78,6 +106,11 @@ target_link_libraries(cysynck PRIVATE cysynck_startup)
 add_custom_target(cysynck-web-assets ALL COMMAND ${CMAKE_COMMAND} -E copy_directory
   "${CMAKE_CURRENT_SOURCE_DIR}/assets/web" "$<TARGET_FILE_DIR:cysynck>/web")
 add_dependencies(cysynck cysynck-web-assets)
+add_custom_target(cysynck-help-assets ALL
+  COMMAND ${CMAKE_COMMAND} -E copy_directory "${cysynck_documentation}" "$<TARGET_FILE_DIR:cysynck>/Documentation"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${cysynck_documentation_archive}" "$<TARGET_FILE_DIR:cysynck>/CySynck-Documentation.zip"
+  DEPENDS cysynck-documentation)
+add_dependencies(cysynck cysynck-help-assets)
 if(CYSYNCK_DESKTOP)
   FetchContent_Declare(glfw GIT_REPOSITORY https://github.com/glfw/glfw.git GIT_TAG 3.4 GIT_SHALLOW TRUE)
   set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -125,6 +158,7 @@ if(CYSYNCK_DESKTOP)
   endif()
   add_executable(cysynck-desktop src/desktop.cpp)
   target_link_libraries(cysynck-desktop PRIVATE cysynck_desktop_support CyUI::Diff CyUI::Inspector)
+  add_dependencies(cysynck-desktop cysynck-help-assets)
   if(WIN32)
     target_link_libraries(cysynck-desktop PRIVATE shell32)
     set_target_properties(cysynck-desktop PROPERTIES WIN32_EXECUTABLE TRUE)
@@ -141,6 +175,10 @@ if(CYSYNCK_DESKTOP)
       COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/assets/web"
       "$<TARGET_BUNDLE_CONTENT_DIR:cysynck-desktop>/Resources/web")
     add_dependencies(cysynck-desktop cysynck-bundle-assets)
+    add_custom_command(TARGET cysynck-bundle-assets POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_directory "${cysynck_documentation}" "$<TARGET_BUNDLE_CONTENT_DIR:cysynck-desktop>/Resources/Documentation"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${cysynck_documentation_archive}" "$<TARGET_BUNDLE_CONTENT_DIR:cysynck-desktop>/Resources/CySynck-Documentation.zip")
+    add_dependencies(cysynck-bundle-assets cysynck-documentation)
   endif()
 endif()
 if(MSVC)
@@ -155,6 +193,16 @@ if(MSVC)
 endif()
 if(CYSYNCK_TESTS)
   enable_testing()
+  add_executable(cysynck-help-tests tests/help_tests.cpp)
+  target_include_directories(cysynck-help-tests PRIVATE src)
+  target_link_libraries(cysynck-help-tests PRIVATE cysynck_core)
+  add_dependencies(cysynck-help-tests cysynck-documentation)
+  add_test(NAME cysynck-offline-help COMMAND cysynck-help-tests "${cysynck_documentation}")
+  add_executable(cysynck-help-http-tests tests/help_http_tests.cpp)
+  target_include_directories(cysynck-help-http-tests PRIVATE src)
+  target_link_libraries(cysynck-help-http-tests PRIVATE cysynck_core httplib::httplib)
+  add_dependencies(cysynck-help-http-tests cysynck-help-assets cysynck-web-assets)
+  add_test(NAME cysynck-help-http COMMAND cysynck-help-http-tests "$<TARGET_FILE_DIR:cysynck>/Documentation")
   add_executable(cysynck-git-cache-tests tests/git_cache_tests.cpp)
   target_include_directories(cysynck-git-cache-tests PRIVATE src)
   target_link_libraries(cysynck-git-cache-tests PRIVATE cysynck_core)
@@ -390,8 +438,10 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cysynck-version.json" DESTINATION sha
 if(WIN32 AND CYSYNCK_DESKTOP)
   install(FILES deploy/Install-CySynck.ps1 DESTINATION .)
 endif()
-install(FILES LICENSE README.md README.fr.md THIRD_PARTY.md DESTINATION share/cysynck)
-install(DIRECTORY docs/ DESTINATION share/cysynck/docs)
+install(FILES LICENSE THIRD_PARTY.md DESTINATION share/cysynck)
+install(FILES .CyDocBuild/distribution/README.md .CyDocBuild/distribution/README.fr.md DESTINATION .)
+install(DIRECTORY "${cysynck_documentation}/" DESTINATION Documentation PATTERN ".cysynck-generated" EXCLUDE)
+install(FILES "${cysynck_documentation_archive}" DESTINATION .)
 install(FILES examples/consumer/CMakeLists.txt examples/consumer/main.cpp
   DESTINATION share/cysynck/examples/consumer)
 install(FILES examples/c-consumer/CMakeLists.txt examples/c-consumer/main.c
@@ -404,7 +454,9 @@ endif()
 set(cysynck_license_destinations share/cysynck/licenses)
 if(APPLE AND CYSYNCK_DESKTOP)
   install(DIRECTORY assets/web DESTINATION CySynck.app/Contents/Resources)
-  install(FILES LICENSE README.md README.fr.md THIRD_PARTY.md "${CMAKE_CURRENT_BINARY_DIR}/cysynck-version.json"
+  install(DIRECTORY "${cysynck_documentation}/" DESTINATION CySynck.app/Contents/Resources/Documentation PATTERN ".cysynck-generated" EXCLUDE)
+  install(FILES "${cysynck_documentation_archive}" DESTINATION CySynck.app/Contents/Resources)
+  install(FILES LICENSE .CyDocBuild/distribution/README.md .CyDocBuild/distribution/README.fr.md THIRD_PARTY.md "${CMAKE_CURRENT_BINARY_DIR}/cysynck-version.json"
     DESTINATION CySynck.app/Contents/Resources)
   list(APPEND cysynck_license_destinations CySynck.app/Contents/Resources/licenses)
 endif()

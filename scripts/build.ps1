@@ -10,6 +10,8 @@ else {
     $cmakeExecutable = Join-Path $installationDirectory 'Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe'
 }
 $desktopOption = if ($ServerOnly) { 'OFF' } else { 'ON' }
+& npm.cmd ci --prefix (Join-Path $projectDirectory '.CyDocBuild')
+if ($LASTEXITCODE) { throw 'Documentation dependencies failed.' }
 & $cmakeExecutable -S $projectDirectory -B (Join-Path $projectDirectory 'build') "-DCYSYNCK_DESKTOP=$desktopOption"
 if ($LASTEXITCODE) { throw 'CMake configuration failed.' }
 & $cmakeExecutable --build (Join-Path $projectDirectory 'build') --config $Configuration --parallel

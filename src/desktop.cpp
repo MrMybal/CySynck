@@ -23,6 +23,7 @@
 #include <utility>
 #include "desktop_support.hpp"
 #include "startup.hpp"
+#include "help.hpp"
 using cysynck::Json;
 namespace fs = std::filesystem;
 namespace c = cyui;
@@ -938,6 +939,7 @@ class App {
     cysynck::Core &core;
     cysynck::desktop::LoginStartup &startup;
     std::future<Json> pending;
+    std::future<Json> help_pending;
     std::function<void(const Json &)> callback;
     Json overview, events,
         snapshots = Json::array(), changed = Json::array(), diff, git_state, network_state,
@@ -1331,6 +1333,15 @@ class App {
             });
     }
     void poll() {
+        if (help_pending.valid() &&
+            help_pending.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+            try {
+                (void)help_pending.get();
+            } catch (const std::exception &e) {
+                error = e.what();
+                c::notify(error.c_str(), c::Tone::error, 8);
+            }
+        }
         if (pending.valid() &&
             pending.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
             auto done = std::move(callback);
@@ -1357,6 +1368,8 @@ class App {
         ImGui::BeginChild("navigation", c::dp(245, 0));
         c::heading("CySynck", 1);
         c::textDim("%s / C++20", cysynck::version);
+        if (ImGui::Button(language == "fr" ? "Aide (F1)" : "Help (F1)"))
+            open_help();
         c::space(12);
         if (c::sidebarItem("", c::trLabel("Overview").c_str(), view == "Overview"))
             view = "Overview";
@@ -2283,6 +2296,17 @@ class App {
             return Json::object();
         });
 #endif
+    }
+    void open_help() {
+        if (help_pending.valid())
+            return;
+        auto topic = view;
+        auto locale = language;
+        help_pending = std::async(std::launch::async, [topic, locale] {
+            auto target = cysynck::help::context(topic, locale);
+            cysynck::help::open(target);
+            return target;
+        });
     }
     void engine_call(const std::string &action, Json data = Json::object()) {
         submit(
@@ -4755,6 +4779,8 @@ class App {
                     auto args = split(input);
                     if (!args.empty() && args[0] == "desktop")
                         return cysynck::desktop::startup_command(startup, args);
+                    if (!args.empty() && (args[0] == "docs" || args[0] == "documentation"))
+                        return cysynck::help::command(args);
                     return cysynck::cli(core, args);
                 },
                 [this](const Json &r) {
@@ -5054,6 +5080,8 @@ static int run(std::vector<std::string> args) {
                 ImGui_ImplGlfw_NewFrame();
                 ImGui::NewFrame();
                 app.draw();
+                if (ImGui::IsKeyPressed(ImGuiKey_F1, false))
+                    app.open_help();
                 if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_Q))
                     quit = true;
 #ifdef __APPLE__

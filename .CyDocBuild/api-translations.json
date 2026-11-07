@@ -1,0 +1,26 @@
+{
+  "c-api": {
+    "en": "4816f1919771",
+    "fr": "3f49bf4c0039"
+  },
+  "cpp-api": {
+    "en": "d3e9c0f8cc28",
+    "fr": "abb82d377a89"
+  },
+  "plugin-api": {
+    "en": "0ef80d49ebf3",
+    "fr": "dbddd3704e3c"
+  },
+  "source-include-cysynck-c-api-h": {
+    "en": "8a6063ab3c14",
+    "fr": "2596d56a4b30"
+  },
+  "source-include-cysynck-core-hpp": {
+    "en": "cae2974fad35",
+    "fr": "3d2646f266b2"
+  },
+  "source-include-cysynck-plugin-h": {
+    "en": "e2190c89a832",
+    "fr": "e4d46225bbed"
+  }
+}

@@ -1,0 +1,15 @@
+# Documentation migration record
+
+Baseline: `d52b9e3a4bb513fb67d80eb8ef4510a355a7f1aa`. `migration.json` records every original document, its SHA-256 and disposition. `legacy/` preserves full original guides and README files; it is outside content roots and never distributed. No preexisting screenshots, videos, animated GIFs, meshes or galleries were found. Public SDK examples remain in their original distribution locations and their usage examples are retained in the manual.
+
+User guides became stable topics in English and French. The README's useful workflows are covered by quickstart, project/profile/CLI references, the Syncthing engine guide and dedicated workflow topics. Roadmap milestones, publishing instructions, package/cross-compilation maintenance, native-CI compatibility reports, subprocess implementation notes, benchmark numbers and verification histories remain contributor archives. Installation behavior from packaging is covered in the installation/service guides; future/unimplemented scope is stated in availability without promising delivery.
+
+Corrected obsolete material: 0.8 desktop/install titles, mixed-language tails in architecture, English-only guide labels in French, claims that all divergent merges must be manual, and outdated blanket LFS refusal statements. Preserved the actual refusal limits and explicit-operation/recovery requirements. The app's original help was CLI syntax rather than a separate reader; it remains available. Native Help/F1, CLI docs and Web contextual help now share validated stable destinations. Markdown files under docs/ are compatibility pointers only and are no longer installed.
+
+CyDoc commit: `e038c474577e1f305df3eba421f2b9c03b0f1d8d`, MIT. The four requested AI guides and UPDATE were read through the authenticated Git checkout; CyDoc itself was not edited. The pinned archive removes private-repository authentication from downstream application builds.
+
+Modules: none. The base compiler renders the static architecture diagram as SVG. Public API extraction is limited to distributed headers. English is complete/default and French complete/second; explicit anchors are common. Six generated/extracted API topics use independently reviewed EN/FR revision pins because the upstream extractor cannot carry sourceRevision; the application gate treats any change as requiring review.
+
+Missing capabilities disclosed to users: no WireGuard hole punching or packet relay, no offline chat delivery/read receipts, no transactional multi-file/power-loss guarantee, no general metadata restoration, no validated Unreal runtime, no signed installer/updater. Native target behavior remains distinct from Windows/local and cross-compilation checks. This record is not human-reader content.
+
+Package entry points now use short EN/FR user READMEs linking to the installed local reader. Contributor READMEs stay in the repository; their private-tooling links are not shipped as broken package links. Original MIT and dependency notice sources are preserved alongside the guide inventory.

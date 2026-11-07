@@ -110,12 +110,16 @@ if ($Action -eq 'Uninstall') {
 if ((Within $sourceRoot $root) -or (Within $root $sourceRoot)) { throw 'Source and destination must be separate directories.' }
 if ($Portable) { $NoShortcuts=$true }
 if ($old -and [bool]$old.portable -ne [bool]$Portable) { throw 'Keep the same Portable mode when updating this installation.' }
-foreach ($required in @('bin\cysynck.exe','bin\cysynck-desktop.exe','bin\cysynck_core.dll','share\cysynck\version.json','Install-CySynck.ps1')) {
+foreach ($required in @('bin\cysynck.exe','bin\cysynck-desktop.exe','bin\cysynck_core.dll','share\cysynck\version.json','Install-CySynck.ps1',
+        'README.md','README.fr.md','CySynck-Documentation.zip','Documentation\Documentation.html','Documentation\DocAI.md',
+        'Documentation\DocData\data.js','Documentation\DocData\viewer.js','Documentation\DocData\viewer.css',
+        'Documentation\DocData\manifest.json','Documentation\DocData\translation-report.json',
+        'Documentation\DocData\application-translation-report.json','Documentation\DocData\licenses\CyDoc-MIT.txt')) {
     if (!(Test-Path -LiteralPath (Join-Path $sourceRoot $required) -PathType Leaf)) { throw "Missing package file: $required" }
 }
 if (!$old -and (Test-Path -LiteralPath $root) -and @(Get-ChildItem -LiteralPath $root -Force).Count -ne 0) { throw 'The initial installation directory must be empty.' }
 $incoming = New-Object 'System.Collections.Generic.List[object]'
-foreach ($folder in @('bin','lib','include','share')) {
+foreach ($folder in @('bin','lib','include','share','Documentation')) {
     $directory = Join-Path $sourceRoot $folder
     if (!(Test-Path -LiteralPath $directory)) { continue }
     foreach ($file in (Get-ChildItem -LiteralPath $directory -File -Recurse)) {
@@ -124,8 +128,11 @@ foreach ($folder in @('bin','lib','include','share')) {
         $incoming.Add([pscustomobject]@{ path=$relative; sha256=(Hash $file.FullName); source=$file.FullName })
     }
 }
-$scriptPath = Join-Path $sourceRoot 'Install-CySynck.ps1'
-$incoming.Add([pscustomobject]@{ path='Install-CySynck.ps1'; sha256=(Hash $scriptPath); source=$scriptPath })
+foreach ($name in @('Install-CySynck.ps1','README.md','README.fr.md','CySynck-Documentation.zip')) {
+    $file = Get-Item -LiteralPath (Join-Path $sourceRoot $name)
+    if (($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Linked package files are unsupported.' }
+    $incoming.Add([pscustomobject]@{ path=$name; sha256=(Hash $file.FullName); source=$file.FullName })
+}
 $incomingNames = @{}
 foreach ($file in $incoming) {
     $incomingNames[$file.path] = $true

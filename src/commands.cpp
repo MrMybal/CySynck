@@ -30,6 +30,7 @@ Json cli(Core &core, const std::vector<std::string> &arguments) {
         return {{"help", R"(CySynck 0.40 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | plugins | events | api-token
+  docs [PAGE] [--language en|fr] [--section ID] [--print]  (local offline manual)
   project mode-options ID
   project mode-options-set ID OPTIONS.json --plan TOKEN
   doctor [--probe true]  (test tool versions and engine connection only with --probe)

@@ -1,0 +1,23 @@
+{
+  "name": "CySynck",
+  "version": "0.40.0",
+  "defaultLocale": "en",
+  "locales": [{ "code": "en", "label": "English" }, { "code": "fr", "label": "Français" }],
+  "homePage": "overview",
+  "content": "manual",
+  "assets": "assets",
+  "out": "../Documentation",
+  "sources": ["../include/cysynck"],
+  "apiIndex": { "enabled": true, "includeDirs": ["../include"] },
+  "modules": [],
+  "aliases": {
+    "index": "overview",
+    "README": "overview",
+    "README.fr": "overview",
+    "roadmap": "availability",
+    "github": "overview",
+    "platform-compatibility": "availability",
+    "packaging": "install",
+    "source-index": "integration"
+  }
+}

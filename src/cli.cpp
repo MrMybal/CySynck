@@ -4,6 +4,7 @@
 #include <iostream>
 #include <thread>
 #include "startup.hpp"
+#include "help.hpp"
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
@@ -28,6 +29,10 @@ static int run(std::vector<std::string> args) {
                     plugins.push_back(args[i]);
             } else
                 commands.push_back(args[i]);
+        }
+        if (!commands.empty() && (commands[0] == "docs" || commands[0] == "documentation")) {
+            std::cout << cysynck::help::command(commands).dump(2) << '\n';
+            return 0;
         }
         if (!server.empty()) {
             std::cout << cysynck::remote_cli(server, commands).dump(2) << '\n';

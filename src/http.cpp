@@ -1,4 +1,5 @@
 #include <cysynck/core.hpp>
+#include "help.hpp"
 #include <httplib.h>
 #include <regex>
 #include <stdexcept>
@@ -155,6 +156,7 @@ struct HttpServer::Impl {
     bool direct;
     httplib::Server server;
     std::string token;
+    bool loopback = false;
     Impl(Core &value, bool mesh) : core(value), direct(mesh) {
         token = direct ? env("CYSYNCK_MESH_TOKEN") : core.api_token();
         if (token.size() < 24)
@@ -214,6 +216,32 @@ struct HttpServer::Impl {
                                                  req.path == "/file" || chunk ? req.body
                                                                               : std::string{});
                 } else {
+                    if (req.path == "/api/help" && req.method == "POST") {
+                        auto data = Json::parse(req.body);
+                        result = help::context(data.value("context", "Overview"), data.value("language", "en"));
+                        result["can_open"] = loopback && (req.remote_addr == "127.0.0.1" || req.remote_addr == "::1");
+                        res.set_content(result.dump(), "application/json; charset=utf-8");
+                        return;
+                    }
+                    if (req.path == "/api/help/open" && req.method == "POST") {
+                        if (!loopback || (req.remote_addr != "127.0.0.1" && req.remote_addr != "::1")) {
+                            res.status = 403;
+                            res.set_content("{\"error\":\"Open the offline archive on your workstation\"}", "application/json");
+                            return;
+                        }
+                        auto data = Json::parse(req.body);
+                        result = help::context(data.value("context", "Overview"), data.value("language", "en"));
+                        help::open(result);
+                        result["opened"] = true;
+                        res.set_content(result.dump(), "application/json; charset=utf-8");
+                        return;
+                    }
+                    if (req.path == "/api/help/archive" && req.method == "GET") {
+                        auto archive = help::directory().parent_path() / "CySynck-Documentation.zip";
+                        res.set_header("Content-Disposition", "attachment; filename=CySynck-Documentation.zip");
+                        res.set_content(read_file(archive, 32 * 1024 * 1024), "application/zip");
+                        return;
+                    }
                     if (req.path == "/api/network/up" || req.path == "/api/network/down" ||
                         req.path == "/api/engine/configure" || req.path == "/api/engine/connect") {
                         res.status = 403;
@@ -261,12 +289,13 @@ struct HttpServer::Impl {
             server.Get("/api/.*", handler);
             server.Post("/api/.*", handler);
             server.Put("/api/.*", handler);
-            server.Get("/|/app.js|/i18n.js|/style.css", [](const httplib::Request &req,
+            server.Get("/|/app.js|/i18n.js|/style.css|/help-contexts.json", [](const httplib::Request &req,
                                                            httplib::Response &res) {
                 try {
                     auto file = req.path == "/" ? "index.html" : req.path.substr(1);
                     res.set_content(read_file(assets() / file, 1024 * 1024),
                                     file == "index.html"    ? "text/html; charset=utf-8"
+                                    : file.ends_with(".json") ? "application/json; charset=utf-8"
                                     : file.ends_with(".js") ? "text/javascript; charset=utf-8"
                                                             : "text/css; charset=utf-8");
                 } catch (const std::exception &e) {
@@ -280,6 +309,7 @@ struct HttpServer::Impl {
 HttpServer::HttpServer(Core &core, bool direct) : impl_(std::make_unique<Impl>(core, direct)) {}
 HttpServer::~HttpServer() { stop(); }
 int HttpServer::bind(const std::string &host, int port) {
+    impl_->loopback = host == "127.0.0.1" || host == "::1" || host == "localhost";
     if (impl_->direct) {
         // Binding only needs the configured identity, not a WireGuard status process or config
         // render.

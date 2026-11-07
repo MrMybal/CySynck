@@ -14,6 +14,13 @@ the macOS application also includes them in its Resources directory.
 | cpp-httplib | `5814e121dfb5049f72a5c3956c3c8961b40da78b` | MIT |
 | PicoSHA2 | `161cb3fc4170fa7a3eca9e582cebd27cc4d1fe29` | MIT |
 | TinyXML2 | `321ea883b7190d4e85cae5512a12e5eaa8f8731f` (10.0.0) | zlib |
+| CyDoc (offline manual) | `e038c474577e1f305df3eba421f2b9c03b0f1d8d` (0.1.0) | MIT |
+
+The complete offline manual contains its notices under `Documentation/DocData/licenses`,
+including CyDoc and Prism (MIT). Its compiler uses marked (MIT), Prism (MIT) and esbuild (MIT);
+these are build dependencies pinned by `.CyDocBuild/package-lock.json`. Happy DOM (MIT) is used
+only for documentation tests. No optional CyDoc media modules or Three.js are distributed.
+The pinned CyDoc npm archive and its provenance are maintained under `.CyDocBuild/vendor`.
 
 CyUI also uses Lexilla/Scintilla in its Code module; their licenses accompany the desktop distribution. Redistributed MSVC runtime files are subject to the Microsoft redistribution terms associated with the compiler installation.
 

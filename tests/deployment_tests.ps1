@@ -18,11 +18,32 @@ $overview=(& $cli --state $state overview) | ConvertFrom-Json
 Check ($LASTEXITCODE -eq 0 -and $overview.version -eq $result.version) 'The installed CLI and core run together.'
 $registry=Join-Path $state 'registry.json'
 $stateBefore=[Convert]::ToBase64String([IO.File]::ReadAllBytes($registry))
+$help=(& $cli docs backups --language fr --section verifier-et-restaurer --print) | ConvertFrom-Json
+Check ($LASTEXITCODE -eq 0 -and !$help.opened -and $help.url -match '^file:///.*#/fr/backups/verifier-et-restaurer$') 'Installed contextual help resolves without launching a browser.'
+Check (Test-Path -LiteralPath (Join-Path $destination 'Documentation\DocData\data.js')) 'The installed reader includes its local content provider.'
+Check (Test-Path -LiteralPath (Join-Path $destination 'CySynck-Documentation.zip')) 'The complete offline help archive is installed.'
 $sentinel=Join-Path $destination 'personal-note.txt'
 [IO.File]::WriteAllText($sentinel,'Unmanaged data must survive.')
+# Model an owned help file from the previous Markdown-based distribution.
+$legacyHelp=Join-Path $destination 'share\cysynck\docs\legacy-help.md'
+$null=[IO.Directory]::CreateDirectory((Split-Path -Parent $legacyHelp))
+[IO.File]::WriteAllText($legacyHelp,'Previous packaged documentation.')
+$legacyOriginal=[IO.File]::ReadAllBytes($legacyHelp)
+$installedManifest=Join-Path $destination '.cysynck-install.json'
+$legacyManifest=Get-Content -LiteralPath $installedManifest -Raw | ConvertFrom-Json
+$legacyAlgorithm=[Security.Cryptography.SHA256]::Create()
+try { $legacyHash=[BitConverter]::ToString($legacyAlgorithm.ComputeHash($legacyOriginal)).Replace('-','').ToLowerInvariant() }
+finally { $legacyAlgorithm.Dispose() }
+$legacyManifest.files=@($legacyManifest.files)+@{path='share/cysynck/docs/legacy-help.md';sha256=$legacyHash}
+[IO.File]::WriteAllText($installedManifest,($legacyManifest | ConvertTo-Json -Depth 8))
+[IO.File]::AppendAllText($legacyHelp,"`nUser change.`n")
+Rejects { & $installer -Source $packageRoot -Destination $destination -Portable | Out-Null } 'Migration must preserve a modified legacy help file by refusing its removal.'
+Check ([IO.File]::ReadAllText($legacyHelp).Contains('User change.')) 'A rejected migration preserves the user change.'
+[IO.File]::WriteAllBytes($legacyHelp,$legacyOriginal)
 $updated=(& $installer -Source $packageRoot -Destination $destination -Portable) | ConvertFrom-Json
 Check $updated.installed 'A managed package can update in place without deleting user files.'
-$readme=Join-Path $destination 'share\cysynck\README.md'
+Check (!(Test-Path -LiteralPath $legacyHelp)) 'Migration removes an unchanged legacy help file after its replacement is installed.'
+$readme=Join-Path $destination 'README.md'
 $original=[IO.File]::ReadAllBytes($readme)
 [IO.File]::AppendAllText($readme,"`nUser note.`n")
 Rejects { & $installer -Source $packageRoot -Destination $destination -Portable | Out-Null } 'Updates must preserve modified managed files.'

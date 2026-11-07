@@ -1,0 +1,13 @@
+{
+  "repository": "https://github.com/MrMybal/CyDoc",
+  "commit": "e038c474577e1f305df3eba421f2b9c03b0f1d8d",
+  "version": "0.1.0",
+  "license": "MIT",
+  "archive": "cydoc-0.1.0.tgz",
+  "sha256": "f0eea45fbdfcfabd258ff0547071c6959d7b3c065398a59e62eade37af2cb2d0",
+  "builtWith": {
+    "node": "22.17.1",
+    "npm": "11.4.2"
+  },
+  "command": "npm ci && npm pack"
+}

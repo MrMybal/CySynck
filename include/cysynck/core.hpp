@@ -57,6 +57,55 @@ class ChildProcess {
     uint64_t pid() const;
 };
 
+/**
+ * @doc cpp-api
+ * @locale en
+ * @title C++ request API
+ * @section API
+ * @symbol cysynck::Core::request
+ * Use `#include <cysynck/core.hpp>` and link `CySynck::Core` with a compatible C++20 ABI.
+ *
+ * ## Contract {#contract}
+ * `Core(fs::path state = default_state())` opens a private persistent profile.
+ * `Json request(const std::string &method, const std::string &path, const Json &data =
+ * Json::object())` dispatches the documented JSON operations. `method` is an uppercase HTTP verb;
+ * `path` uses `/api/...` routes; `data` is the operation's JSON object. Returns its JSON result.
+ * Invalid input, I/O errors and refused operations throw exceptions. Inspect result fields such
+ * as `ok` or `can_integrate` as well: a valid report can describe a failed integrity check.
+ *
+ * ## Lifetime and scheduling {#lifetime}
+ * Keep Core alive until calls finish. Run blocking work off the rendering thread.
+ * `tick()` maintains the configured engine and scheduled backups; a host must call it regularly
+ * if it wants those background behaviors. `load_plugin(path)` executes trusted native code.
+ * `api_token()` returns a private credential; do not log it or synchronize the state directory.
+ * See [integration and examples](doc:integration), [routes](doc:architecture) and
+ * [plugins](doc:plugins).
+ */
+/**
+ * @doc cpp-api
+ * @locale fr
+ * @title API de requêtes C++
+ * @section API
+ * @symbol cysynck::Core::request
+ * Inclure `#include <cysynck/core.hpp>` et lier `CySynck::Core` avec une ABI C++20 compatible.
+ *
+ * ## Contrat {#contract}
+ * `Core(fs::path state = default_state())` ouvre un profil privé persistant.
+ * `Json request(const std::string &method, const std::string &path, const Json &data =
+ * Json::object())` distribue les opérations JSON documentées. `method` est un verbe HTTP en
+ * majuscules ; `path` désigne une route `/api/...` ; `data` contient l'objet JSON de l'opération.
+ * Le résultat est en JSON. Les arguments invalides, erreurs d'E/S et opérations refusées lèvent une
+ * exception. Examiner aussi les champs comme `ok` ou `can_integrate` : un rapport valide peut
+ * signaler un contrôle d'intégrité négatif.
+ *
+ * ## Durée de vie et planification {#lifetime}
+ * Garder Core vivant jusqu'à la fin des appels. Exécuter les tâches bloquantes hors du thread de
+ * rendu. `tick()` entretient le moteur configuré et les sauvegardes planifiées ; l'hôte doit
+ * l'appeler régulièrement pour bénéficier de ces traitements. `load_plugin(path)` exécute du code
+ * natif de confiance. `api_token()` renvoie un secret privé ; ne pas le journaliser ni synchroniser
+ * le dossier d'état. Voir [l'intégration et ses exemples](doc:integration), [les
+ * routes](doc:architecture) et [les extensions](doc:plugins).
+ */
 class Core {
     fs::path state_;
     std::mutex mutex_;

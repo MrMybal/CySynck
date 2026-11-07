@@ -1,0 +1,285 @@
+{
+  "baseline": "d52b9e3a4bb513fb67d80eb8ef4510a355a7f1aa",
+  "documents": [
+    {
+      "source": "docs/architecture.md",
+      "sha256": "8838a7afe4c2f726e8e655bb85c20828761ef022c092dc42dbeffad76e2492e2",
+      "destination": "architecture",
+      "disposition": "manual",
+      "archiveSha256Lf": "ccfc3f232252d7c2d5efd6a4db74d485161229889543147e965378f502983162"
+    },
+    {
+      "source": "docs/backup-scope.md",
+      "sha256": "7e48c154e4ef7c81d027a670439bac7776bca0c4a5e2fd489203300e0dab5feb",
+      "destination": "backup-scope",
+      "disposition": "manual",
+      "archiveSha256Lf": "7e48c154e4ef7c81d027a670439bac7776bca0c4a5e2fd489203300e0dab5feb"
+    },
+    {
+      "source": "docs/backups.md",
+      "sha256": "047cd067af5f346c0e5c2447d145bb56d677733099a6a71e29cda7a5f1f001dc",
+      "destination": "backups",
+      "disposition": "manual",
+      "archiveSha256Lf": "047cd067af5f346c0e5c2447d145bb56d677733099a6a71e29cda7a5f1f001dc"
+    },
+    {
+      "source": "docs/block-backups.md",
+      "sha256": "e54053cdab8c3b4c4cfc25ffb24cb631051174294ecc9474ed655f411983fe85",
+      "destination": "block-backups",
+      "disposition": "manual",
+      "archiveSha256Lf": "e54053cdab8c3b4c4cfc25ffb24cb631051174294ecc9474ed655f411983fe85"
+    },
+    {
+      "source": "docs/desktop.md",
+      "sha256": "ab48a66cd0e235370c08100e77af48b7fc0ae7ea2f30d348afe93a5c7f392085",
+      "destination": "desktop",
+      "disposition": "manual",
+      "archiveSha256Lf": "ab48a66cd0e235370c08100e77af48b7fc0ae7ea2f30d348afe93a5c7f392085"
+    },
+    {
+      "source": "docs/diagnostics.md",
+      "sha256": "3ea23137e232163b9e9211c0ce785232aeb8f4bad5fe314259c29468a75f5612",
+      "destination": "diagnostics",
+      "disposition": "manual",
+      "archiveSha256Lf": "3ea23137e232163b9e9211c0ce785232aeb8f4bad5fe314259c29468a75f5612"
+    },
+    {
+      "source": "docs/diffs.md",
+      "sha256": "5792a02f4718bd708253896aaf5ca3407d02860c29828a72a695bb628d8f4724",
+      "destination": "diffs",
+      "disposition": "manual",
+      "archiveSha256Lf": "5792a02f4718bd708253896aaf5ca3407d02860c29828a72a695bb628d8f4724"
+    },
+    {
+      "source": "docs/git-asset-export.md",
+      "sha256": "3dbf0fe99b07934a5fe6981cc18fca477796823d0dc1b1c4b303ff28e9976b5c",
+      "destination": "git-asset-export",
+      "disposition": "manual",
+      "archiveSha256Lf": "3dbf0fe99b07934a5fe6981cc18fca477796823d0dc1b1c4b303ff28e9976b5c"
+    },
+    {
+      "source": "docs/git-cache.md",
+      "sha256": "6fb866812c8efbad1dbe7d92e0e50038fc59e6f4233ea2c3df66ea2e87ba1898",
+      "destination": "git-cache",
+      "disposition": "manual",
+      "archiveSha256Lf": "6ad41ddecf35866f2d224b4e25088053e52f3d188429e16e973fa43dd64c4af3"
+    },
+    {
+      "source": "docs/git-dehydration.md",
+      "sha256": "4314309187b6432c12c043df0c39bbdfc493f4b8474f240b686219c2c12fc8c4",
+      "destination": "git-dehydration",
+      "disposition": "manual",
+      "archiveSha256Lf": "4314309187b6432c12c043df0c39bbdfc493f4b8474f240b686219c2c12fc8c4"
+    },
+    {
+      "source": "docs/git-divergent-merge.md",
+      "sha256": "a0e3ce0d5119072924fe4c340f9cb1a02abe02b3f6b3a146265fbb1b4f1168b8",
+      "destination": "git-divergent-merge",
+      "disposition": "manual",
+      "archiveSha256Lf": "d32c22bcb1f4d90a75dc5b442f790baf3bf8146c2fc1bcba365a695aa104c2b2"
+    },
+    {
+      "source": "docs/git-extraction.md",
+      "sha256": "df6aef525fed20407edd1e2cf01628188d4eff34efaf4ce1a930d81e0686ba2e",
+      "destination": "git-extraction",
+      "disposition": "manual",
+      "archiveSha256Lf": "cddc1d71719a0312f3913161018b7676d6c33b39af5e371272413cd77858482a"
+    },
+    {
+      "source": "docs/git-history.md",
+      "sha256": "18629d5b176dffe8bed613d1950bbb0299cc956e6f19d2f872557f0edfb7ae5e",
+      "destination": "git-history",
+      "disposition": "manual",
+      "archiveSha256Lf": "18629d5b176dffe8bed613d1950bbb0299cc956e6f19d2f872557f0edfb7ae5e"
+    },
+    {
+      "source": "docs/git-integration.md",
+      "sha256": "d571dbbc8d1c12d45d750e2269a33dcf0e57dbe2f4673f7496e615ef8860350a",
+      "destination": "git-integration",
+      "disposition": "manual",
+      "archiveSha256Lf": "7b015236cb1b6f71a37ce8cc07657dbc5af4cc44ce4f82f110abd7dc85416c3d"
+    },
+    {
+      "source": "docs/git-lfs-integration.md",
+      "sha256": "7f2af0f2f3ed0d9997b0889723f38d9c66a596497f0e15b73bf72a3abd43bbaf",
+      "destination": "git-lfs-integration",
+      "disposition": "manual",
+      "archiveSha256Lf": "7f2af0f2f3ed0d9997b0889723f38d9c66a596497f0e15b73bf72a3abd43bbaf"
+    },
+    {
+      "source": "docs/git-lfs.md",
+      "sha256": "d16a207cb691cfca9bffdad471f8473bfae06bc12f3af3bd6f850004bbbd5475",
+      "destination": "git-lfs",
+      "disposition": "manual",
+      "archiveSha256Lf": "0f0c274c907b175c42dc1a25c5802a1cb391735d0910ead06dafc3ea410a0a16"
+    },
+    {
+      "source": "docs/git-materialization.md",
+      "sha256": "89e8fe09f98d0980e3afac8e27c1df085857cfe2459418a34cbd0fc1fae11ba6",
+      "destination": "git-materialization",
+      "disposition": "manual",
+      "archiveSha256Lf": "89e8fe09f98d0980e3afac8e27c1df085857cfe2459418a34cbd0fc1fae11ba6"
+    },
+    {
+      "source": "docs/git-merge-review.md",
+      "sha256": "44cfe3211307fde3e7a8a632cdce391f64d4a1efb5529150119f372a7b2930f8",
+      "destination": "git-merge-review",
+      "disposition": "manual",
+      "archiveSha256Lf": "44cfe3211307fde3e7a8a632cdce391f64d4a1efb5529150119f372a7b2930f8"
+    },
+    {
+      "source": "docs/git-object-inspection.md",
+      "sha256": "07d1f6f07a8502fe6a3fb1a8580099df7c7a95f7f60c9b56b8fe25670bad658b",
+      "destination": "git-object-inspection",
+      "disposition": "manual",
+      "archiveSha256Lf": "07d1f6f07a8502fe6a3fb1a8580099df7c7a95f7f60c9b56b8fe25670bad658b"
+    },
+    {
+      "source": "docs/git-review.md",
+      "sha256": "d86b1b300510cbabffbf86d680033cee3fd7cf5157acc6e3c7011f25d8abe884",
+      "destination": "git-review",
+      "disposition": "manual",
+      "archiveSha256Lf": "a673f3ab09660bea29e41f5bc2a1474a47d439ccff53167c57dae91fa71aa880"
+    },
+    {
+      "source": "docs/git-setup.md",
+      "sha256": "8c3952eeea3dc6afdf65b5e6c41ea645cab67c51f87d0aca47acb9f25d2bbb2a",
+      "destination": "git-setup",
+      "disposition": "manual",
+      "archiveSha256Lf": "5b60c44a439b2d94ac5a4974596363868f92498cb0aa6c54b73e4109253f750a"
+    },
+    {
+      "source": "docs/git-storage.md",
+      "sha256": "cdec7a9f14e74f0ed603edfe17bb25b2a5754e328f0b62414d9340b537357ca7",
+      "destination": "git-storage",
+      "disposition": "manual",
+      "archiveSha256Lf": "cdec7a9f14e74f0ed603edfe17bb25b2a5754e328f0b62414d9340b537357ca7"
+    },
+    {
+      "source": "docs/github.md",
+      "sha256": "e828bd1854058803a4bf619eb3a2aba4f1523522c6ef4e82918ad441ca3f6058",
+      "destination": "internal/legacy/github.md",
+      "disposition": "contributor-archive",
+      "archiveSha256Lf": "e828bd1854058803a4bf619eb3a2aba4f1523522c6ef4e82918ad441ca3f6058"
+    },
+    {
+      "source": "docs/inbox.md",
+      "sha256": "636f28ecae05c9875f8f1c978c852795536553f5daad1e09be407b624c712a05",
+      "destination": "inbox",
+      "disposition": "manual",
+      "archiveSha256Lf": "636f28ecae05c9875f8f1c978c852795536553f5daad1e09be407b624c712a05"
+    },
+    {
+      "source": "docs/install.md",
+      "sha256": "e3ef8c30ddd49c604ebed7a6160d08e4ab240902307033255f4be553fc3d2289",
+      "destination": "install",
+      "disposition": "manual",
+      "archiveSha256Lf": "e3ef8c30ddd49c604ebed7a6160d08e4ab240902307033255f4be553fc3d2289"
+    },
+    {
+      "source": "docs/integration.md",
+      "sha256": "dd2843a35d08bddcb30e218309c967f47fc358578eafcd3ddb59331617f846be",
+      "destination": "integration",
+      "disposition": "manual",
+      "archiveSha256Lf": "7d90fe8e025930651b6ef3b096f849f40551127e880d7849edf87e0824616b10"
+    },
+    {
+      "source": "docs/network.md",
+      "sha256": "40f9e8cc9f682c9d5ee1605dc86358eeda0e2bfb6741d5b04f3da325fb52d63c",
+      "destination": "network",
+      "disposition": "manual",
+      "archiveSha256Lf": "40f9e8cc9f682c9d5ee1605dc86358eeda0e2bfb6741d5b04f3da325fb52d63c"
+    },
+    {
+      "source": "docs/packaging.md",
+      "sha256": "25e25f6c3885fdda7cbc7a8c9b4fca0742f593ddbe132e813a82e57fdfc691ec",
+      "destination": "internal/legacy/packaging.md",
+      "disposition": "contributor-archive",
+      "archiveSha256Lf": "ab7b6defe533fb5a34bd42fff60cba4d70c4f9d996a157dd2a3b8b0feb031b93"
+    },
+    {
+      "source": "docs/platform-compatibility.md",
+      "sha256": "9ef0e6851562365508cb45b76abed41954ea214d4479b25f5e57d68c64fc21c7",
+      "destination": "internal/legacy/platform-compatibility.md",
+      "disposition": "contributor-archive",
+      "archiveSha256Lf": "9ef0e6851562365508cb45b76abed41954ea214d4479b25f5e57d68c64fc21c7"
+    },
+    {
+      "source": "docs/plugins.md",
+      "sha256": "93cc38bd78516ff0ccb707b28db5132973b4dd1fb7887796c0c337d0e865154b",
+      "destination": "plugins",
+      "disposition": "manual",
+      "archiveSha256Lf": "93cc38bd78516ff0ccb707b28db5132973b4dd1fb7887796c0c337d0e865154b"
+    },
+    {
+      "source": "docs/process-streaming.md",
+      "sha256": "b15c4f865ebf0c833871169df305cf57588601a0495a4545899748735f8f6fb2",
+      "destination": "internal/legacy/process-streaming.md",
+      "disposition": "contributor-archive",
+      "archiveSha256Lf": "b15c4f865ebf0c833871169df305cf57588601a0495a4545899748735f8f6fb2"
+    },
+    {
+      "source": "README.fr.md",
+      "sha256": "b58b3d3d086f70c44c00d2ed3c46257b1069329b8b61c11fab32dabcb83886a9",
+      "destination": "overview",
+      "disposition": "manual",
+      "archiveSha256Lf": "e1fe46a9ee1fda6e050fe6abccec05fd1ad56c68384298eb4283919909759845"
+    },
+    {
+      "source": "README.md",
+      "sha256": "00e401dc33a7dece48f17754c2d1908f5ebaec82aee0e81f47f69947eb1f4710",
+      "destination": "overview",
+      "disposition": "manual",
+      "archiveSha256Lf": "d5d11f7253980944019d59ce0a04c2995b5ee1ec584865c7abb78ec933c51477"
+    },
+    {
+      "source": "docs/resolutions.md",
+      "sha256": "532e1856a8a618b37c3fa82ceabc3c6758c35592f85f56eb67ea01f5a550ad4a",
+      "destination": "resolutions",
+      "disposition": "manual",
+      "archiveSha256Lf": "532e1856a8a618b37c3fa82ceabc3c6758c35592f85f56eb67ea01f5a550ad4a"
+    },
+    {
+      "source": "docs/roadmap.md",
+      "sha256": "aed198779d0ce3d9fa26167ec72f7b49a07900b3fa255c9c9803c9f8fbde66cf",
+      "destination": "internal/legacy/roadmap.md",
+      "disposition": "contributor-archive",
+      "archiveSha256Lf": "593195d74bcd6f5b3d05fa44881c92d4448ec62f857cc10bdaadce0f2febaf39"
+    },
+    {
+      "source": "docs/services.md",
+      "sha256": "32c9e94c0a2494861a384b25e53ce63b3bbed4b1cab465524900900468986244",
+      "destination": "services",
+      "disposition": "manual",
+      "archiveSha256Lf": "32c9e94c0a2494861a384b25e53ce63b3bbed4b1cab465524900900468986244"
+    },
+    {
+      "source": "docs/snapshot-workflows.md",
+      "sha256": "bea96eac34a4a677bbfc21b13088e82a417a0437ef2132e0b6d559c989857404",
+      "destination": "snapshot-workflows",
+      "disposition": "manual",
+      "archiveSha256Lf": "bea96eac34a4a677bbfc21b13088e82a417a0437ef2132e0b6d559c989857404"
+    },
+    {
+      "source": "docs/transfers.md",
+      "sha256": "2bb4dda2b271d89c54d91446150c339818622c20524c46609c588ca241e12539",
+      "destination": "transfers",
+      "disposition": "manual",
+      "archiveSha256Lf": "2bb4dda2b271d89c54d91446150c339818622c20524c46609c588ca241e12539"
+    },
+    {
+      "source": "THIRD_PARTY.md",
+      "sha256": "c0ce9ad117253de3ba3277eecc92d3e424d424b67f021b1518cdb04bd39fc959",
+      "destination": "THIRD_PARTY.md",
+      "disposition": "retained-notices",
+      "archiveSha256Lf": "c0ce9ad117253de3ba3277eecc92d3e424d424b67f021b1518cdb04bd39fc959"
+    },
+    {
+      "source": "LICENSE",
+      "sha256": "1033811bb65b8fcb0bca742a8aa16cfda24e0d3fefbb3d102e7f27006f886d81",
+      "destination": "LICENSE",
+      "disposition": "retained-license",
+      "archiveSha256Lf": "1033811bb65b8fcb0bca742a8aa16cfda24e0d3fefbb3d102e7f27006f886d81"
+    }
+  ]
+}

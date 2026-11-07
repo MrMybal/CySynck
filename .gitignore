@@ -17,3 +17,6 @@ dist/
 *.p12
 *.log
 *.spec
+.CyDocBuild/node_modules/
+.CyDocBuild/.cache/
+Documentation/

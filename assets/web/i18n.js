@@ -2,6 +2,16 @@
 // English is the source language. Keep API identifiers and user content unchanged.
 globalThis.CySynckI18n = (() => {
   const french = {
+    "Help (F1)": "Aide (F1)",
+    "Help": "Aide",
+    "Offline documentation": "Documentation hors ligne",
+    "Extract the entire archive and open Documentation.html locally. The reader needs no server or Internet connection.": "Extrayez l’archive entière puis ouvrez Documentation.html localement. Le lecteur ne nécessite ni serveur ni connexion Internet.",
+    "The local URL belongs to the server computer. Browsers may block links from a Web page to local files.": "L’URL locale appartient à l’ordinateur serveur. Le navigateur peut bloquer les liens d’une page Web vers des fichiers locaux.",
+    "Local topic URL": "URL locale du sujet",
+    "Topic route after extraction": "Route du sujet après extraction",
+    "Open on server computer": "Ouvrir sur l’ordinateur serveur",
+    "Download offline manual": "Télécharger le manuel hors ligne",
+    "Copy local URL": "Copier l’URL locale",
     "Keep LFS pointers during fast-forward": "Conserver les pointeurs LFS pendant l’avance rapide",
     "LFS assets are not expanded. Materialize them separately after integration. Modified or expanded working files block this operation.": "Les assets LFS ne sont pas développés. Matérialisez-les séparément après l’intégration. Les fichiers modifiés ou déjà développés bloquent cette opération.",
     "LFS pointer files: {files}": "Fichiers pointeurs LFS : {files}",

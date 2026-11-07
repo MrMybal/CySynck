@@ -5,3 +5,8 @@ aside select{width:100%;margin-top:8px}textarea{box-sizing:border-box;width:100%
 .snapshot-file-list{max-height:18rem;overflow:auto;overflow-wrap:anywhere;margin:12px 0}.snapshot-file-list button{display:block;text-align:left;margin:3px 0}
 #mode-options-fields label{margin:10px 0}#mode-options-fields small{display:block;color:var(--dim)}#mode-options-fields input:not([type=checkbox]){display:block;width:100%}
  .backup-inventory{max-height:22rem;overflow:auto;overflow-wrap:anywhere}.backup-inventory p{margin:.4rem 0}#backup-rules{width:100%;box-sizing:border-box}
+/* Local-help dialog stays inside the viewport and uses the application's colors. */
+#help-dialog { max-width: min(46rem, 92vw); max-height: 85vh; overflow: auto; background: #20252c; color: #eef0f3; border: 1px solid #647382; border-radius: .7rem; }
+#help-dialog::backdrop { background: #0009; }
+#help-dialog input { width: 100%; box-sizing: border-box; }
+.context-help { font-size: .8rem; margin-inline-start: .6rem; padding: .2rem .5rem; }

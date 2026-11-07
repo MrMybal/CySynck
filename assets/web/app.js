@@ -2,6 +2,39 @@
 const $ = id => document.getElementById(id);
 const {t, setText: translated, init: initLanguages} = CySynckI18n;
 initLanguages();
+let helpTopic = "Overview";
+document.addEventListener("focusin", event => {
+  const context = event.target.closest("[data-help-topic],[data-help-context]");
+  if (context) helpTopic = context.dataset.helpTopic || context.dataset.helpContext;
+});
+async function showHelp(topic) {
+  helpTopic = topic;
+  const info = await api("help", "POST", {context: topic, language: $("language").value});
+  $("help-url").value = info.url;
+  $("help-route").value = info.route;
+  $("help-open").disabled = !info.can_open;
+  if (!$("help-dialog").open) $("help-dialog").showModal();
+}
+document.addEventListener("click", event => {
+  const button = event.target.closest("[data-help-topic]");
+  if (button) safe(() => showHelp(button.dataset.helpTopic));
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "F1") {event.preventDefault(); safe(() => showHelp(helpTopic));}
+});
+$("help-open").addEventListener("click", () => safe(() => api("help/open", "POST", {context: helpTopic, language: $("language").value})));
+$("help-copy").addEventListener("click", () => safe(async () => {
+  $("help-url").select();
+  if (navigator.clipboard) await navigator.clipboard.writeText($("help-url").value);
+  else document.execCommand("copy");
+}));
+$("help-download").addEventListener("click", () => safe(async () => {
+  const response = await fetch("/api/help/archive", {headers: {Authorization: "Bearer " + token}});
+  if (!response.ok) throw new Error((await response.json()).error || t("Operation refused"));
+  const url = URL.createObjectURL(await response.blob()), link = document.createElement("a");
+  link.href = url; link.download = "CySynck-Documentation.zip"; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}));
 let token = "", selected = "", transferLoad = 0, gitLoad = 0, gitReviewLoad=0, gitHistoryLoad=0, gitReceiptsLoad=0;
 function clearGitReview() {
   $("git-review").replaceChildren(); $("git-review-patch").textContent="";

@@ -1,0 +1,2 @@
+#pragma once
+inline constexpr const char *cysynck_help_contexts = R"contexts(@cysynck_help_contexts@)contexts";

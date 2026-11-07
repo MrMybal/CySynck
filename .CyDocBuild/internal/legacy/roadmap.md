@@ -1,0 +1,403 @@
+# Development milestones
+
+## Delivered in 0.40
+
+- Reviewed export of preserved expanded LFS assets into an exclusive separate directory,
+  including after HEAD advances to a different asset identity, anchored to the original commit.
+- Selected copies, streamed SHA-256 checks, source metadata preservation and a progress manifest;
+  source receipts, Git context, working files and cache remain unchanged.
+- CLI, C/C++ JSON API and English/French CyUI/Web controls, with SHA-1/SHA-256 fixtures
+  and an extracted C SDK export after a real pointer-only fast-forward.
+- MIT license for CySynck, installed in CLI/SDK packages and the macOS application;
+  dependency notices retain their respective licenses.
+- Syncthing startup selects port-probing and log options from the executable's help,
+  supporting the distinct 1.x/2.x spellings used by Linux distributions and newer installations.
+  Linux CI also identified Git fixture filter and executable-bit assumptions corrected locally.
+- Linux autostart uses a literal launcher for executable paths containing percent signs,
+  avoiding GIO's pre-expansion executable lookup; native revalidation remains pending.
+
+See [preserved asset export](git-asset-export.md). Working-tree restoration, interrupted
+export resume, native platform runtime and new GUI interaction tests remain pending.
+
+## Delivered in 0.39
+
+- Reviewed restoration of exact committed LFS pointers from unchanged expanded working assets,
+  preserving expanded originals without cache access, filters or Git metadata changes.
+- Selected files/folders, schema-2 receipt checks and reviewed-interruption acknowledgement;
+  a complete pointer-restoration to fast-forward workflow covered in SHA-1/SHA-256 fixtures.
+- CLI, existing C/C++ ABI and bilingual CyUI/Web controls, with an extracted SDK scenario
+  checking pointer bytes, preserved assets, unchanged index and absence of cache writes.
+
+See [restoring committed LFS pointers](git-dehydration.md). Automatic restoration of preserved
+assets, interrupted dehydration resume and native platform/runtime validation remain pending.
+
+## Delivered in 0.38
+
+- Reviewed LFS recovery from mixed working pointers, interrupted publication and already
+  published assets, preserving exact originals without replacing existing destinations.
+- Re-creation of missing staging from SHA-256 verified local cache objects, completing every
+  staging copy before moving any pointer, including an initially absent recovery directory.
+- CyUI/Web English/French staging counts and per-path blockers, SHA-1/SHA-256 recovery fixtures
+  and an extracted C SDK scenario for missing staging with a working pointer still in place.
+
+See [staging and mixed-state recovery](git-materialization.md#resuming-staging-and-mixed-states-038).
+Corrupt staging, changed originals and duplicate working/preserved pointers require manual
+inspection. Native Linux/macOS execution and power-loss testing remain pending.
+
+## Delivered in 0.37
+
+- Reviewed completion of interrupted LFS publication using verified prepared assets and intact
+  original pointers, with no cache requirement and no replacement of existing destinations.
+- Completion of an interrupted journal when every asset is already published, preserving file
+  bytes/timestamps, original errors, receipt selection and Git HEAD/index/configuration.
+- CLI/C/C++ ABI and bilingual CyUI/Web preview/apply controls, targeted SHA-1/SHA-256 recovery
+  fixtures and a staged-publication scenario against the extracted SDK.
+
+See [resuming LFS publication](git-materialization.md#resuming-verified-publication-037).
+The 0.38 extension above adds staging and mixed before/publication recovery.
+
+## Delivered in 0.36
+
+- Reviewed LFS materialization of exact files or folder prefixes, with canonical bounded
+  selection, selected cache verification and preservation of unselected working files.
+- Selection and project-configuration binding in preview tokens; selected receipts validate
+  their scope against committed pointers and retain interruption acknowledgement and legacy compatibility.
+- CLI path-list files, existing C/C++ ABI and bilingual CyUI/Web controls, with targeted
+  SHA-1/SHA-256 fixtures and an extracted-package selection scenario.
+
+See [selective LFS materialization](git-materialization.md#selecting-files-and-folders-036).
+
+## Delivered in 0.35
+
+- Bounded raw working-file hashing for integration previews, post-apply checks and receipt
+  verification, shared by fast-forward and divergent merge workflows through the existing ABI.
+- SHA-1/SHA-256 identities, exact binary and line-ending checks, disabled filters, per-file
+  metadata freshness checks and no object/index/configuration writes during inspection.
+- Dedicated multi-batch fixtures, a reported process/timing comparison and an extracted SDK
+  scenario checking multiple imported files and receipt verification.
+
+See [bounded Git inspection](git-object-inspection.md). Native platform validation and larger
+real-project performance measurements remain pending.
+
+## Delivered in 0.34
+
+- Explicit pointer-only LFS fast-forward and first-import integration, with unchanged default
+  refusal, canonical pointer/attribute validation and bounded deduplicated asset inventories.
+- Fresh plan binding, disabled external filters and preserved local data/configuration;
+  integration receipt verification and interruption review understand the pointer policy.
+- CLI, existing C/C++ ABI and bilingual CyUI/Web policy controls, with an extracted-package
+  first-import scenario. Asset hydration remains a separate reviewed operation.
+
+See [LFS pointer integration](git-lfs-integration.md). Automatic integration of materialized
+working assets and divergent LFS merging remain separate milestones.
+
+## Delivered in 0.33
+
+- Read-only LFS recovery receipt checks anchored to the recorded committed history, with
+  full cache hashes, missing/damaged diagnostics and checks independent of later HEAD changes.
+- Explicit acknowledgement of reviewed interruptions, using fresh profile/project/receipt/
+  configuration/cache-bound tokens. Partial or missing cache state stays disclosed; original
+  incomplete status and installed identities remain preserved.
+- Bilingual CyUI/Web receipt details, verification and acknowledgement, with CLI/C/C++ parity
+  and extracted-package checks. Damaged entries require manual inspection before acknowledgement.
+
+See [recovery receipt verification](git-cache.md#checking-and-reviewing-recovery-receipts-033).
+
+## Delivered in 0.32
+
+- Paginated local/imported-branch LFS history cache inventories, presence/size diagnostics,
+  explicit SHA-256 verification and revision/configuration/metadata freshness fingerprints.
+- Reviewed refill of available missing objects from an explicit exchange peer, with checked
+  selections, no-overwrite publication, a shared cache lock and private completion/failure receipts.
+- Bilingual CyUI/Web cache and receipt views, CLI/C/C++ routes and extracted-package checks
+  that preserve working files, index, HEAD and existing cache entries.
+
+See [LFS cache inspection and refill](git-cache.md). Damaged local objects stay preserved;
+LFS branch integration and distributed asset locking remain separate milestones.
+
+## Delivered in 0.31
+
+- Shared backup exclusion diagnostics, preserving existing glob semantics and protected recovery
+  originals, with bounded rule validation for project settings and the dedicated editor.
+- Paginated metadata-only backup previews, storage predictions and profile/project/settings/
+  inventory-bound tokens for checked rule saves and optional checked manual backups.
+- CLI, unchanged C ABI and bilingual CyUI/Web scope editors, with independent extracted-package
+  checks. Existing manual, scheduled and before-sync backups remain available.
+
+See [backup scope](backup-scope.md). Previews inspect file metadata, rather than content hashes;
+concurrent filesystem changes still require normal backup capture checks.
+
+## Delivered in 0.30
+
+- Loaded native plugin inventory, descriptions, library fingerprints and optional bilingual
+  metadata, with validation before publishing modes and continued ABI v1 compatibility.
+- Per-project typed mode options, defaults, strict value checking and profile/project/schema-
+  bound editor tokens, shared by CLI, C/C++ API and bilingual CyUI/Web controls.
+- Additive C plugin loading and a header-only `CySynck::PluginSDK` target, with an independent
+  example built from the extracted package and exercised through the pure C consumer.
+
+See [native plugins and mode options](plugins.md). Native libraries execute with host rights;
+loading remains explicit. Unreal and native Linux/macOS execution still need platform validation.
+
+## Delivered in 0.29
+
+- Paginated snapshot contents with folder prefixes and manifest freshness hashes, without
+  loading payloads or scanning the current working tree.
+- Selective file/folder restoration with deduplication, selected-content integrity checks,
+  destination/manifest/selection-bound previews and exclusive output creation.
+- Snapshot-to-snapshot change lists and verified bounded text patches, including added/deleted
+  files and permission-only changes, independent of current project files.
+
+The CLI, unchanged C ABI, CyUI and Web share these workflows in English/French. Whole, fixed-block
+and CDC backups remain compatible. See [snapshot workflows](snapshot-workflows.md).
+
+## Delivered in 0.28
+
+Three related Git/LFS milestones share the C++20 core and local commits:
+
+- Small committed blobs are deduplicated and read in bounded Git batches, with binary-safe
+  framing and measured object-read timings in [object inspection](git-object-inspection.md).
+- Exact checked-out LFS pointers can be materialized from verified local cache objects after
+  a context-bound preview. Local edits/deletions, staged work, flags and read-only files stay
+  preserved; original pointers remain in owner-private recovery storage.
+- Paginated LFS receipts can be verified against committed pointers, HEAD, staged entries and flags,
+  working assets and recovery originals. Interrupted operations at an exact before/after
+  state can be acknowledged without modifying those files or discarding the original error.
+
+CLI, unchanged C ABI and bilingual CyUI/Web views expose materialization and receipt controls.
+See [offline LFS materialization](git-materialization.md). Automatic LFS checkout during
+reviewed branch integration remains separate work.
+
+## Delivered in 0.27
+
+Git text conflicts now offer per-region local, peer or combined choices. The shared C++ core
+parses bounded, unambiguous diff3 proposals, preserves automatic context and recomputes drafts
+against a context-bound token. CyUI and Web in English/French build an editable draft explicitly;
+the CLI and unchanged C ABI expose the same operation. Final text still requires a complete
+reviewed repository preview and is verified by the existing private recovery receipt.
+See [conflict regions](git-divergent-merge.md#choosing-individual-conflict-regions-027).
+
+## Delivered in 0.26
+
+Manual Git conflict text editing complements whole-file local/peer choices. CyUI and Web expose
+ancestor/source views and an editable proposal; the CLI JSON file and C/C++ SDK accept the same
+bounded UTF-8 content. Saving edits requires another whole-repository preview. Edited blobs stay
+private until explicit application, and receipts retain exact content for before/after checks.
+Marker lines, LFS pointers and conflicting file permissions are refused. Empty content is an
+explicit empty file. See [edited Git conflicts](git-divergent-merge.md#editing-conflict-text-026).
+
+## Delivered in 0.25
+
+Reviewed divergent Git integration accepts explicit whole-file local/peer choices for bounded
+UTF-8 text conflicts, including add/add and modify/delete cases. Every conflict needs a choice
+and a fresh whole-repository preview. Other files retain their automatic merge result. Private
+index/tree generation preserves the source during preview; apply and recovery receipts recompute
+the exact choices. CLI JSON files, the C/C++ SDK and bilingual CyUI/Web share the operation.
+Per-region editing, LFS and structural/binary conflicts remain future work.
+See [conflict choices](git-divergent-merge.md#choosing-committed-files-for-conflicts-025).
+
+## Delivered in 0.24
+
+Reviewed integration now supports conflict-free divergent Git branches. A whole-repository
+preview computes a private result tree, then explicit application creates an unsigned two-parent
+commit and advances the local branch with verified file/index and local-data checks. Conflicts,
+unsafe paths, LFS and custom merge/checkout rules remain blocked. CLI, C/C++ SDK, CyUI and Web
+share the preview token and recovery receipts in English/French. Receipt checks recompute the
+merged tree and validate the actual merge commit. See [divergent Git merge](git-divergent-merge.md).
+
+## Delivered in 0.23
+
+Three-way committed Git review compares both branches with a unique common ancestor. It
+classifies one-sided, identical, overlapping and structural changes, then offers bounded
+per-file text proposals with labelled diff3 conflicts. The proposal and all three committed
+versions are available through CLI, the C/C++ SDK, CyUI and Web in English/French. Staged and
+working changes, refs, configuration and Git objects are preserved. Binary, LFS, structural,
+custom-driver and checkout-conversion cases require manual review. These proposals do not
+apply divergent repository merges. See [three-way Git review](git-merge-review.md).
+
+## Delivered in 0.22
+
+Optional content-defined backup storage (`backup_storage: cdc`) cuts large files into 1–8 MiB
+chunks and reuses content when insertions or deletions shift byte offsets. It supports files
+from 8 MiB through 64 GiB with at most 65,536 blocks; other sizes use whole-file storage.
+Fixed-block storage remains the default. CLI, CyUI and Web expose all three policies in English/French,
+and the C/C++ SDK uses the same JSON setting and snapshot/restore routes.
+Versioned recipes, per-block/full-file SHA-256 checks, retention, diffs and explicit cleanup
+support mixed whole/fixed/content-defined history. See [content-defined backup storage](block-backups.md#content-defined-storage-022).
+
+## Delivered in 0.21
+
+Integration receipts are available as paginated summaries through CLI, API/SDK, CyUI and Web
+(English/French). Read-only checks compare the repository to the recorded before/after commits,
+verify the index and raw tracked files, and compare recorded local metadata when available.
+An interrupted receipt can be marked as reviewed with a fresh check token, preserving its
+original status/error and all Git files. Changed work, stale checks, invalid receipts and leftover
+locks block acknowledgement. Older receipts disclose missing local metadata explicitly.
+See [receipt history and review](git-integration.md#receipt-history-and-review).
+
+## Delivered in 0.20
+
+Reviewed fast-forward integration preserves unrelated untracked and ignored regular files,
+including build outputs and standalone empty directories. Filesystem-based collision checks
+protect incoming files and parent directories regardless of ignore rules. A bounded local
+metadata fingerprint pins the preview and is checked after checkout; file contents are not
+read for this inventory. CLI, SDK, CyUI and Web expose preserved-file counts and bytes.
+Tracked changes, local checkout attributes, links and conflicting paths remain blocked.
+See [local-data preservation](git-integration.md#local-data-freshness) for limits and concurrency.
+
+## Delivered in 0.19
+
+Imported branch heads can be integrated into a clean local project by reviewed fast-forward,
+including unborn local branches. CLI, C/C++ SDK, CyUI and Web share a context/configuration/tree
+preview token and private complete/incomplete receipt. Native Git updates HEAD, index and
+working files with hooks, filters, fsmonitor, automatic stash and network protocols disabled.
+Modified, staged, untracked or ignored payloads, unsafe paths, detached HEAD, in-progress Git
+operations, sparse/shared indices, LFS pointers and checkout conversions are refused.
+Divergent history still requires manual Git merge. See [Git integration](git-integration.md).
+
+## Delivered in 0.18
+
+Ordinary Git revision files stream through bounded subprocess buffers, raising their per-file
+limit from 4 MiB to 1 GiB. Output is checked against the reviewed byte count, raw Git object ID
+and SHA-256. Git hashes the output without filters or object writes. LFS keeps its 4 GiB asset
+limit and expanded output remains bounded to 16 GiB. The same route powers the CLI, SDK and
+bilingual interfaces.
+
+The internal process runner delivers stdout chunks without accumulating them, drains bounded
+stderr concurrently and propagates sink failures after canceling owned children. Windows uses
+process jobs; POSIX streaming uses owned process groups and defers reaping until readers finish.
+Existing capture callers keep their 8 MiB bound. Fixtures exercise real 101 MiB Git extraction,
+SHA-1/SHA-256 identities, input/output pressure, cancellation, timeouts and descendant cleanup.
+See [Git extraction](git-extraction.md) and [process streaming](process-streaming.md).
+
+## Delivered in 0.17
+
+An imported branch head or selected reachable commit can be extracted as a file snapshot in
+a separate new directory. The preview pins the revision, symbolic HEAD, destination, inventory
+and LFS policy/cache. Application verifies Git blobs and streamed LFS output, uses exclusive
+file creation and saves a private completion receipt with SHA-256 hashes. Failures preserve
+partial output and an incomplete receipt. Local Git refs, index and working files stay intact.
+
+The CLI, C/C++ SDK and bilingual CyUI/Web comparison views share this operation. Raw-pointer
+extraction is explicit. Limits are 10,000 files, 4 MiB per ordinary Git blob, 4 GiB per LFS asset,
+4,096 distinct LFS assets and 16 GiB total output. Linked files, submodules, unsafe or colliding
+paths, shallow history and promisor configurations are refused. See [Git extraction](git-extraction.md).
+Applying a branch to an existing working tree, merging and rebasing remain separate Git operations.
+
+## Delivered in 0.16
+
+New Git-mode projects can initialize their repository from a preview tied to the project,
+folder, branch and SHA-1/SHA-256 format. Existing metadata, bare repositories and files are
+preserved. The CLI, C/C++ SDK and bilingual interfaces share this explicit setup flow.
+
+First imports can be reviewed before the first local commit. The complete peer tree is
+compared with an empty tree, while history and individual commits remain available. Nullable
+local commit IDs and pinned symbolic refs distinguish an unborn branch from detached or
+corrupt HEAD and invalidate stale requests. Native and Web history lists scroll independently.
+See [Git setup](git-setup.md). Checking out or merging imported files remains a separate Git action.
+
+## Delivered in 0.15
+
+Imported branches now expose paginated topological commit history, recorded authors and
+committers, subjects and ordered parents. Ref identities pin continuation pages and stale
+responses are discarded by both interfaces. A selected commit can be compared with a chosen
+parent, including secondary merge parents, root commits and empty commits. Comparisons use
+committed objects, preserve local changes and share the bounded diff viewer. SHA-1 and SHA-256
+repositories are supported; shallow history is refused instead of misreporting a boundary as
+a root. CLI and C/C++ API routes mirror the bilingual CyUI and Web views.
+See [Git history](git-history.md). Applying or merging commits remains a separate Git operation.
+
+## Delivered in 0.14
+
+Three Git collaboration milestones share the C++ core, CLI, SDK and bilingual interfaces:
+
+- Per-project LFS policy, including an explicitly approved existing custom `lfs.storage`
+  directory. The saved policy also controls automatic Git-mode synchronization.
+- Imported-branch review with ancestry, changed files, bounded committed-text previews,
+  unified patches and the desktop CyUI comparison viewer. Review preserves HEAD, index
+  and working files and never runs external diff or text-conversion commands.
+- Explicit cleanup of owned exports and unreferenced exchange LFS objects, with selection,
+  a catalog-dependent preview token, retained-reference checks and partial-failure reporting.
+
+See [LFS policy](git-lfs.md), [Git review](git-review.md) and [Git storage](git-storage.md).
+Git merging, distributed acknowledgements and local LFS cache pruning remain separate work.
+
+## Delivered in 0.13
+
+Git exchange now includes canonical Git LFS v1 assets by default. C++ inspects the exact exported
+branch history, including deleted versions and shared content, and transports verified objects
+through Syncthing. Import checks the inventory against Git objects before installing the LFS
+cache and publishing a tracking ref; HEAD, staged changes and working files are preserved.
+Distinct manifests keep older clients from silently importing incomplete LFS exports, while
+explicit legacy export remains available. CLI, native desktop and Web expose the same behavior.
+See [offline Git LFS exchange](git-lfs.md) for limits and compatibility.
+
+## Delivered in 0.12
+
+Resumable direct files now default to 1 GiB per file, with configurable limits up to 4 GiB
+and separate 4 GiB default inbox/outbox quotas (up to 64 GiB each). Settings and usage are
+available through the CLI, C/C++ API and bilingual desktop/Web views. Quota reductions preserve
+existing reservations and received payloads. Sender capture streams into one private snapshot
+without a duplicate backup object; exact-name partial cleanup scales linearly with chunk count.
+Tests send a real 101 MiB binary file over chunk HTTP with a lost acknowledgement, restart,
+changed source, resume and verified export. A 4 GiB metadata reservation exercises 64-bit
+boundaries without allocating a multi-gigabyte payload. Native Linux/macOS transfer execution
+and multi-gigabyte runtime benchmarking remain pending. See [direct transfers](transfers.md).
+
+## Delivered in 0.11
+
+Large-file backups now use fixed 4 MiB blocks by default for files from 8 MiB to 256 GiB.
+Snapshots share blocks across projects and versions; whole-file storage remains selectable.
+Verification checks both block and complete-file SHA-256. Restoration, bounded diff previews
+and explicit cleanup support mixed old/new manifests. CLI, desktop and Web expose the policy
+and storage counters in English/French. Dedicated fixtures cover a mixed 513-file Unicode tree,
+corruption and repair, hostile recipes, shared retention, linked namespaces and concurrent cleanup.
+See [block backups](block-backups.md).
+
+## Delivered in 0.10
+
+Direct files now use restart-safe journals and 1 MiB SHA-256 chunks. Manual resume reconciles
+the receiver's verified prefix with the sender's frozen source, including a lost acknowledgement.
+The CLI, native desktop and bilingual Web console expose progress, resume and local removal.
+The legacy endpoint remains available explicitly. The initial 100 MiB resumable-file cap
+was raised in 0.12. See the [transfer protocol and limits](transfers.md).
+
+The real-engine fixtures keep an absolute 128 MB free-space reserve and require 256 MiB
+available before running. This makes their small files usable on large developer volumes
+where Syncthing's percentage threshold would otherwise block scans. Production engine
+configuration retains its normal disk thresholds.
+
+## Delivered in 0.9
+
+| Milestone | Result | Validation |
+| --- | --- | --- |
+| Profile diagnostics | One report for CLI, API, desktop and Web; required/optional dependencies, directory health, recovery flags and explicit probes | Isolated tools and loopback engine fixture; English/French UI checks |
+| User service preparation | Per-profile Linux systemd/macOS LaunchAgent preview, checked export token, private output and hashed receipt | Export preservation, argument escaping, XML parsing and CLI/API parity; activation remains pending on native hosts |
+| C/C++ SDK packaging | Buildable examples shipped inside the archive; pure C entry point with Windows UTF-8 argument conversion | Fresh extraction, C and C++ compilation/execution, C ABI diagnostic/service calls and JSON errors |
+
+These milestones extend the C++ core and its interfaces. Syncthing and WireGuard continue
+to run as external engines. No GitHub push is required for local compilation, tests or
+commits; the native GitHub jobs only run after an authorized push or workflow dispatch.
+
+## Platform validation still required
+
+Windows x64 is exercised locally, including real Syncthing synchronization and deployment.
+The headless Linux core, CLI and C++ test binaries also cross-compile with Zig from Windows.
+This validates compilation and linking, rather than Linux runtime behavior.
+
+Native Linux desktop/server and macOS builds must pass their CI jobs, extracted-package
+checks and actual service activation tests before release claims cover those platforms.
+The Unreal bridge still needs compilation and testing inside Unreal. Developer ID signing,
+macOS notarization, signed Windows installers and automatic updates remain separate work.
+
+## Next functional milestones
+
+- Exercise multi-gigabyte resumable transfers and native Linux/macOS transport and services.
+- Benchmark content-defined backup storage on much larger project trees and real asset workloads.
+- Extend pointer-only LFS integration to materialized working assets and divergent branches;
+  extend LFS storage/locking support and verify CyRevision interoperability.
+- Design and test WireGuard rendezvous/NAT traversal against real network configurations;
+  Syncthing discovery and relays do not themselves provide that transport.
+
+Implementation guides: [diagnostics](diagnostics.md), [services](services.md),
+[integration](integration.md) and [platform packaging](packaging.md).

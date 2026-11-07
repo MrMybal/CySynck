@@ -21,15 +21,15 @@
   <div id="projects"></div><button id="refresh" data-i18n>Refresh</button>
 </aside>
 <main>
-  <header><div><p class="eyebrow" data-i18n>WORKSPACE</p><h2 data-i18n>Overview</h2></div><a id="syncthing" target="_blank" rel="noreferrer">Syncthing Web ↗</a></header>
+  <header><div><p class="eyebrow" data-i18n>WORKSPACE</p><h2 data-i18n>Overview</h2></div><button id="help" data-help-topic="Overview" data-i18n>Help (F1)</button><a id="syncthing" target="_blank" rel="noreferrer">Syncthing Web ↗</a></header>
   <p id="error" role="alert"></p><section id="summary"></section>
-  <section id="plugins-panel">
-    <h3 data-i18n>Plugins</h3>
+  <section id="plugins-panel" data-help-context="Plugins">
+    <h3><span data-i18n>Plugins</span><button class="context-help" data-help-topic="Plugins" data-i18n>Help</button></h3>
     <p data-i18n>Native plugins are loaded explicitly when the host starts.</p>
     <button id="plugins-refresh" data-i18n>Refresh plugins</button><div id="plugins-list"></div>
   </section>
   <section>
-    <h3 data-i18n>Add a project</h3>
+    <h3><span data-i18n>Add a project</span><button class="context-help" data-help-topic="Settings" data-i18n>Help</button></h3>
     <form id="create">
       <input name="name" placeholder="Project name" data-i18n-placeholder required>
       <input name="root" placeholder="Folder path on the server" data-i18n-placeholder required>
@@ -49,27 +49,27 @@
       <button data-i18n>Create project</button>
     </form>
   </section>
-  <section id="detail" hidden>
+  <section id="detail" data-help-context="Settings" hidden>
     <h3 id="project-name"></h3><p id="project-root" class="hint"></p>
     <div class="actions">
-      <button data-action="backup" data-i18n>Back up</button>
-      <button data-action="verify" data-i18n>Verify latest backup</button>
-      <button data-action="changes" data-i18n>Compare with latest backup</button>
-      <button data-action="conflicts" data-i18n>Find conflicts</button>
-      <button data-action="register" data-i18n>Add to Syncthing</button>
-      <button data-action="sync" data-i18n>Synchronize</button>
-      <button data-action="status" data-i18n>Engine status</button>
+      <button data-action="backup" data-help-context="Backups" data-i18n>Back up</button>
+      <button data-action="verify" data-help-context="Backups" data-i18n>Verify latest backup</button>
+      <button data-action="changes" data-help-context="Changes" data-i18n>Compare with latest backup</button>
+      <button data-action="conflicts" data-help-context="Conflicts" data-i18n>Find conflicts</button>
+      <button data-action="register" data-help-context="Engine" data-i18n>Add to Syncthing</button>
+      <button data-action="sync" data-help-context="Engine" data-i18n>Synchronize</button>
+      <button data-action="status" data-help-context="Engine" data-i18n>Engine status</button>
     </div>
     <p data-i18n>Synchronize requests a scan. Syncthing continues to manage background transfers.</p>
-    <section id="mode-options-panel" hidden>
-      <h3 data-i18n>Mode options</h3><p data-i18n>These settings belong to this project.</p>
+    <section id="mode-options-panel" data-help-context="Plugins" hidden>
+      <h3><span data-i18n>Mode options</span><button class="context-help" data-help-topic="Plugins" data-i18n>Help</button></h3><p data-i18n>These settings belong to this project.</p>
       <button id="mode-options-reload" data-i18n>Reload mode options</button>
       <p id="mode-options-note" aria-live="polite"></p>
       <form id="mode-options-form"><div id="mode-options-fields"></div>
         <div class="actions"><button id="mode-options-save" data-i18n>Save mode options</button><button id="mode-options-defaults" type="button" data-i18n>Use defaults</button></div>
       </form>
     </section>
-    <form id="backup-storage-form">
+    <form id="backup-storage-form" data-help-context="Backup storage">
       <label><span data-i18n>Backup storage</span><select id="backup-storage-policy">
         <option value="auto" data-i18n>Fixed blocks (4 MiB)</option>
         <option value="whole" data-i18n>Whole files</option>
@@ -80,8 +80,8 @@
       <button data-i18n>Save backup storage policy</button>
       <span id="backup-storage-result" aria-live="polite"></span>
     </form>
-    <section id="backup-scope-panel">
-      <h3 data-i18n>Backup scope</h3>
+    <section id="backup-scope-panel" data-help-context="Backup scope">
+      <h3><span data-i18n>Backup scope</span><button class="context-help" data-help-topic="Backup scope" data-i18n>Help</button></h3>
       <p data-i18n>One glob per line. * and ? match paths or path components. Rules also affect local change lists.</p>
       <p data-i18n>Excluded folders are pruned. Links and recovery originals stay excluded.</p>
       <label><span data-i18n>Backup exclusions</span><textarea id="backup-rules" rows="6" spellcheck="false"></textarea></label>
@@ -93,20 +93,20 @@
       <div class="actions"><button id="backup-scope-prev" disabled data-i18n>Previous page</button><button id="backup-scope-next" disabled data-i18n>Next page</button></div>
       <div id="backup-scope-entries" class="backup-inventory"></div>
     </section>
-    <div id="changes"></div>
-    <h3 data-i18n>Conflict copies</h3><div id="conflicts"></div><pre id="output"></pre>
-    <h3 data-i18n>Differences</h3>
-    <form id="compare-files">
+    <div id="changes" data-help-context="Changes"></div>
+    <h3><span data-i18n>Conflict copies</span><button class="context-help" data-help-topic="Conflicts" data-i18n>Help</button></h3><div id="conflicts" data-help-context="Conflicts"></div><pre id="output"></pre>
+    <h3><span data-i18n>Differences</span><button class="context-help" data-help-topic="Changes" data-i18n>Help</button></h3>
+    <form id="compare-files" data-help-context="Changes">
       <input id="compare-left" placeholder="Left relative path" data-i18n-placeholder required>
       <input id="compare-right" placeholder="Right relative path" data-i18n-placeholder required>
       <button data-i18n>Compare files</button>
     </form>
-    <button id="copy-patch" disabled data-i18n>Copy patch</button>
+    <button id="copy-patch" data-help-context="Changes" disabled data-i18n>Copy patch</button>
     <pre id="patch" data-i18n>Select a file from the changes list.</pre>
-    <h3 data-i18n>Backups</h3><div id="snapshots"></div>
-    <h3 data-i18n>Browse saved files</h3>
+    <h3><span data-i18n>Backups</span><button class="context-help" data-help-topic="Backups" data-i18n>Help</button></h3><div id="snapshots"></div>
+    <h3><span data-i18n>Browse saved files</span><button class="context-help" data-help-topic="Snapshot files" data-i18n>Help</button></h3>
     <p data-i18n>Metadata only; file contents are verified when previewed or restored.</p>
-    <form id="snapshot-browser-form">
+    <form id="snapshot-browser-form" data-help-context="Snapshot files">
       <label><span data-i18n>Snapshot</span><select id="backup-snapshot"></select></label>
       <label><span data-i18n>Folder prefix</span><input id="backup-prefix"></label>
       <button data-i18n>Browse saved files</button>
@@ -114,16 +114,16 @@
     </form>
     <div class="actions"><button id="backup-prev" disabled data-i18n>Previous page</button><button id="backup-next" disabled data-i18n>Next page</button></div>
     <p id="backup-files-summary" aria-live="polite"></p><div id="backup-files" class="snapshot-file-list"></div>
-    <h3 data-i18n>Restore to new directory</h3>
+    <h3><span data-i18n>Restore to new directory</span><button class="context-help" data-help-topic="Snapshot restore" data-i18n>Help</button></h3>
     <p data-i18n>One relative path per line; folders end with /. Leave empty for the whole snapshot.</p>
-    <form id="backup-restore-form">
+    <form id="backup-restore-form" data-help-context="Snapshot restore">
       <label><span data-i18n>Restore selection</span><textarea id="backup-paths" rows="4"></textarea></label>
       <label><span data-i18n>Destination</span><input id="backup-destination" required></label>
       <button data-i18n>Preview restoration</button><button id="backup-restore" type="button" disabled data-i18n>Restore to new directory</button>
     </form>
     <pre id="backup-restore-summary" aria-live="polite"></pre>
-    <h3 data-i18n>Compare saved versions</h3>
-    <form id="snapshot-compare-form">
+    <h3><span data-i18n>Compare saved versions</span><button class="context-help" data-help-topic="Snapshot comparison" data-i18n>Help</button></h3>
+    <form id="snapshot-compare-form" data-help-context="Snapshot comparison">
       <label><span data-i18n>Older snapshot</span><select id="backup-left"></select></label>
       <label><span data-i18n>Newer snapshot</span><select id="backup-right"></select></label>
       <button data-i18n>Compare snapshots</button>
@@ -132,8 +132,8 @@
     <p id="backup-compare-summary" aria-live="polite"></p><div id="backup-changes" class="snapshot-file-list"></div>
     <pre id="backup-patch" aria-live="polite"></pre>
   </section>
-  <section id="resolution-panel" hidden>
-    <h3 data-i18n>Resolve conflict</h3><p id="resolution-path"></p>
+  <section id="resolution-panel" data-help-context="Conflicts" hidden>
+    <h3><span data-i18n>Resolve conflict</span><button class="context-help" data-help-topic="Conflicts" data-i18n>Help</button></h3><p id="resolution-path"></p>
     <p data-i18n>Both source versions are preserved. Pause the project before applying a choice, then resume synchronization explicitly after checking the result.</p>
     <select id="resolution-choice">
       <option value="current" data-i18n>Keep current version</option>
@@ -149,11 +149,11 @@
     </div>
     <pre id="resolution-summary"></pre>
   </section>
-  <section id="recovery-panel" hidden>
-    <h3 data-i18n>Recovery history</h3><button id="recovery-load" data-i18n>Refresh history</button><div id="recovery-records"></div>
+  <section id="recovery-panel" data-help-context="Recovery" hidden>
+    <h3><span data-i18n>Recovery history</span><button class="context-help" data-help-topic="Recovery" data-i18n>Help</button></h3><button id="recovery-load" data-i18n>Refresh history</button><div id="recovery-records"></div>
   </section>
-  <section id="git-panel" hidden>
-      <h3 data-i18n>Git exchange</h3>
+  <section id="git-panel" data-help-context="Git exchange" hidden>
+      <h3><span data-i18n>Git exchange</span><button class="context-help" data-help-topic="Git exchange" data-i18n>Help</button></h3>
       <div id="git-setup-panel" hidden>
         <h4 data-i18n>Repository setup</h4>
         <p id="git-setup-root"></p>
@@ -166,7 +166,7 @@
         </form>
       </div>
       <div id="git-ready" hidden>
-      <details id="lfs-cache-panel"><summary data-i18n>LFS cache</summary>
+      <details id="lfs-cache-panel" data-help-context="LFS cache"><summary data-i18n>LFS cache</summary>
         <p data-i18n>Inspect committed branch history. Leave both imported-branch fields empty to use local HEAD.</p>
         <label><span data-i18n>Imported peer (optional)</span><input id="lfs-cache-peer"></label>
         <label><span data-i18n>Imported branch (optional)</span><input id="lfs-cache-branch"></label>
@@ -229,8 +229,8 @@
       <div id="git-records"></div>
       </div>
   </section>
-  <section id="transfer-panel" hidden>
-    <h3 data-i18n>Direct transfers</h3>
+  <section id="transfer-panel" data-help-context="Direct transfers" hidden>
+    <h3><span data-i18n>Direct transfers</span><button class="context-help" data-help-topic="Direct transfers" data-i18n>Help</button></h3>
     <p data-i18n>Resume uses a frozen copy of the source. Both peers need an active VPN and receiver.</p>
     <details>
       <summary data-i18n>Profile transfer limits</summary>
@@ -253,21 +253,21 @@
     <div id="transfer-result" aria-live="polite"></div>
     <div id="transfer-records"></div>
   </section>
-  <section id="received-panel" hidden>
-    <h3 data-i18n>Received files</h3>
+  <section id="received-panel" data-help-context="Received files" hidden>
+    <h3><span data-i18n>Received files</span><button class="context-help" data-help-topic="Received files" data-i18n>Help</button></h3>
     <p data-i18n>Export creates a new separate directory and preserves the received copy.</p>
     <button id="received-load" data-i18n>Refresh received files</button>
     <div id="received-records"></div>
   </section>
   <section>
-    <h3 data-i18n>Diagnostics</h3>
+    <h3><span data-i18n>Diagnostics</span><button class="context-help" data-help-topic="Diagnostics" data-i18n>Help</button></h3>
     <div class="actions"><button id="doctor-inspect" data-i18n>Inspect diagnostics</button><button id="doctor-probe" data-i18n>Test tools and connection</button></div>
     <div id="doctor-output"></div>
   </section>
   <section>
-    <h3 data-i18n>Services</h3>
+    <h3><span data-i18n>Services</span><button class="context-help" data-help-topic="Services" data-i18n>Help</button></h3>
     <p data-i18n>Review the target paths and port. Export does not install or start a service.</p>
-    <form id="service-form">
+    <form id="service-form" data-help-context="Services">
       <label><span data-i18n>Target platform</span><select id="service-platform"><option value="linux">Linux (systemd)</option><option value="macos">macOS (launchd)</option></select></label>
       <label><span data-i18n>CLI on target</span><input id="service-executable" placeholder="/opt/cysynck/bin/cysynck" required></label>
       <label><span data-i18n>State on target</span><input id="service-state" placeholder="/srv/cysynck/team" required></label>
@@ -275,18 +275,29 @@
       <button data-i18n>Prepare service</button>
     </form>
     <pre id="service-preview" hidden></pre>
-    <label><span data-i18n>Export folder on the server</span><input id="service-directory"></label>
-    <button id="service-export" disabled data-i18n>Export service files</button>
+    <label><span data-i18n>Export folder on the server</span><input id="service-directory" data-help-context="Services"></label>
+    <button id="service-export" data-help-context="Services" disabled data-i18n>Export service files</button>
     <p data-i18n>Open the exported README on the target machine for installation and removal commands.</p>
     <div id="service-result"></div>
   </section>
   <section>
-    <h3 data-i18n>Backup storage</h3>
+    <h3><span data-i18n>Backup storage</span><button class="context-help" data-help-topic="Storage" data-i18n>Help</button></h3>
     <p data-i18n>Cleanup removes only objects unused by all retained backups.</p>
-    <div class="actions"><button id="inspect-storage" data-i18n>Inspect storage</button><button id="prune-storage" disabled data-i18n>Free unused space</button></div>
+    <div class="actions"><button id="inspect-storage" data-help-context="Storage" data-i18n>Inspect storage</button><button id="prune-storage" data-help-context="Storage" disabled data-i18n>Free unused space</button></div>
     <pre id="storage-output"></pre>
   </section>
-  <section><h3 data-i18n>Recent activity</h3><div id="events"></div></section>
+  <section><h3><span data-i18n>Recent activity</span><button class="context-help" data-help-topic="Activity" data-i18n>Help</button></h3><div id="events"></div></section>
 </main>
+<dialog id="help-dialog" aria-labelledby="help-title">
+  <h2 id="help-title" data-i18n>Offline documentation</h2>
+  <p data-i18n>Extract the entire archive and open Documentation.html locally. The reader needs no server or Internet connection.</p>
+  <p data-i18n>The local URL belongs to the server computer. Browsers may block links from a Web page to local files.</p>
+  <label><span data-i18n>Local topic URL</span><input id="help-url" readonly></label>
+  <label><span data-i18n>Topic route after extraction</span><input id="help-route" readonly></label>
+  <button id="help-open" data-i18n>Open on server computer</button>
+  <button id="help-download" data-i18n>Download offline manual</button>
+  <button id="help-copy" data-i18n>Copy local URL</button>
+  <form method="dialog"><button data-i18n>Close</button></form>
+</dialog>
 </body>
 </html>
