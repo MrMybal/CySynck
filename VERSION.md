@@ -1,0 +1,40 @@
+# CySynck — Version notes
+
+[Back to README](README.md) · [Français](VERSION.fr.md)
+
+**Core, CLI and desktop source version: 0.40.0**<br>
+**Stage: IN DEVELOPMENT**<br>
+**Published application binaries: none**
+
+These notes describe the current source tree, not a published binary release. The C ABI remains at version 1. The bundled documentation uses CyDoc reader 0.1.0; that is a dependency version, separate from CySynck's version.
+
+## Changes in 0.40.0 and the current source tree
+
+- Export preserved Git LFS assets from pointer-restoration receipts into a new separate directory. Preview/apply is available through the CLI, desktop, Web/API and existing C/C++ JSON interface, with optional path selection.
+- Verify recorded asset identities and source fingerprints before export. Completed exports include a provenance manifest; interrupted exports retain an incomplete manifest and partial copies for inspection.
+- Replace distributed Markdown help with a complete offline CyDoc reader: 44 topics per language, English by default and French, contextual desktop/Web help, CLI page/section links and a complete transferable ZIP.
+- Generate public C++/C/plugin references from the distributed headers, keep stable help identifiers and supported legacy aliases, and include documentation generation in builds and packages.
+- Handle supported Syncthing CLI variants and Linux startup executable paths. The C++ consumer example handles Unicode paths on Windows.
+
+The application also includes project-based Syncthing modes, versioned backups, file review and recovery, explicit Git/LFS exchange, native plugins and optional direct VPN/chat/file workflows. The [offline manual](README.md#offline-manual) describes their exact operation and refusal conditions.
+
+## Known issues
+
+No separate itemized confirmed-bug list accompanies this source version. Consult the [actual issue tracker](https://github.com/MrMybal/CySynck/issues) for reports and [open an issue](https://github.com/MrMybal/CySynck/issues/new) with reproduction steps when needed. The limitations below do not imply the absence of bugs.
+
+## Documented limitations
+
+- **Distribution and platforms:** no application binary release is currently published. Windows x64 has local build/package/runtime validation. Linux headless cross-compilation does not establish native Linux runtime behavior. Linux desktop, native macOS, permissions and tunnel activation still need target validation.
+- **VPN connectivity:** WireGuard needs reachable UDP endpoints or a suitable network arrangement. Automatic NAT hole punching, STUN/ICE and WireGuard packet relay are not implemented. Syncthing discovery/relays may themselves use infrastructure.
+- **Direct messaging/files:** the authenticated application channel uses HTTP inside the VPN and a shared group secret. Keep it inside the tunnel. Offline store-and-forward delivery and chat read receipts are not provided.
+- **Recovery and concurrency:** multi-file operations are not filesystem transactions. Application locks do not stop external editors or Git clients. Keep independent backups; general ACL, extended-attribute and original-time restoration are not guaranteed.
+- **LFS asset export:** only supported pointer-restoration receipts and unchanged preserved files are accepted. Existing destinations and links are refused; limits are 4 GiB per asset and 16 GiB total. Interrupted exports require inspection and a new destination for another attempt.
+- **Integration:** plugins are trusted native code. The Unreal/Blueprint example is synchronous and requires compilation/validation for the chosen Unreal version. Automatic asynchronous Blueprint scheduling and CyRevision protocol interoperability are not supplied.
+- **Installation:** Syncthing, Git, Git LFS tools and WireGuard are installed separately when needed. Signed installers, automatic update downloads and Windows Installed Apps registration are not implemented.
+- **Local manual:** actual browser opening and file-origin storage still need checks on the target browsers/platforms. DOM-model and package checks do not establish browser rendering or storage policy.
+
+## References
+
+- [Source repository](https://github.com/MrMybal/CySynck) · [Releases](https://github.com/MrMybal/CySynck/releases) · [Issues](https://github.com/MrMybal/CySynck/issues).
+- [README and build instructions](README.md) · [Offline manual entry points](README.md#offline-manual).
+- [MIT license](LICENSE) · [Third-party notices](THIRD_PARTY.md).

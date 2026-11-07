@@ -1,46 +1,108 @@
-# CySynck
+<table width="100%">
+  <tr>
+    <td width="300" align="left" valign="top">
+      <a href="#offline-manual">Offline help</a><br>
+      <a href="https://github.com/MrMybal/CySynck">Repository</a><br>
+      <a href="https://github.com/MrMybal/CySynck/issues">Issues</a><br><br>
+      <sub>README</sub><br>
+      <a href="README.md">English</a> · <a href="README.fr.md">Français</a>
+    </td>
+    <td width="400" align="center" valign="middle">
+      <strong>CySynck</strong><br>
+      <sub>Desktop · CLI · SDK</sub>
+    </td>
+    <td width="300" align="right" valign="top">
+      <p><sub>Application license</sub><br><a href="LICENSE"><strong>MIT</strong></a></p>
+      <p><sub>Source version</sub><br><a href="VERSION.md"><strong>0.40.0</strong></a><br><strong>IN DEVELOPMENT</strong></p>
+    </td>
+  </tr>
+</table>
 
-English · [Français](README.fr.md)
+<h1 align="center">CySynck</h1>
 
-A project-based synchronization and backup companion in **C++20**, powered by [Syncthing](https://github.com/syncthing/syncthing) and [CyUI](https://github.com/MrMybal/CyUI).
-One shared core serves the native Windows/macOS/Linux desktop, CLI, local Web console and integration SDK. Linux servers can build without GUI dependencies.
+Synchronize projects, keep versioned backups and review file changes from one application. CySynck is a **C++20** companion to [Syncthing](https://github.com/syncthing/syncthing), with a native [CyUI](https://github.com/MrMybal/CyUI) desktop, a CLI, a Web console and a shared integration SDK. It is intended for people managing shared folders, Git projects and Linux servers.
 
-**Version 0.40.0 — active development.** Windows x64 is tested locally; native Linux/macOS and the synchronous Unreal/Blueprint bridge need target-platform validation. Syncthing, Git and WireGuard are external installations.
+> **IN DEVELOPMENT · 0.40.0**
+>
+> This is the current source version; no downloadable application release is published yet. Windows x64 has local runtime validation. Native Linux/macOS and Unreal integration still need target validation. Read the [version notes and documented limitations](VERSION.md).
 
-## Documentation
+[![CySynck 0.40.0 desktop on Windows, showing the empty project overview, navigation and contextual Help button](assets/screenshots/desktop-0.40.0.png)](assets/screenshots/desktop-0.40.0.png)
 
-The complete offline **CyDoc** manual includes **English (default)** and **French**, stable contextual links, search, bookmarks and reading positions. It works directly from `file://` without a server, CDN or Internet connection.
+## About CySynck
 
-- Installed/build package: open `Documentation/Documentation.html` with its complete `DocData/` directory.
-- Native desktop: **Help (F1)** opens the current view's topic.
-- CLI: `cysynck docs`, or `cysynck docs git-materialization --language fr --print` for a local URL without launching a browser.
-- Web: contextual Help offers local opening on a loopback server and the complete offline archive for a remote workstation. Extract the archive before opening its reader.
-- Repository: [English manual sources](.CyDocBuild/manual/en/overview.md) · [French manual sources](.CyDocBuild/manual/fr/overview.md) · [documentation regeneration](.CyDocBuild/README.md).
+Create a project for each folder and choose its synchronization mode, backup policy or Git exchange workflow. The desktop brings together differences, recovery copies, snapshots, Git/LFS operations and network tools. Its command panel uses the same commands as the standalone CLI. The original Syncthing Web interface remains accessible from the Engine view.
 
-The reader uses no optional media modules and no Three.js. Architecture diagrams compile to static SVG. Public C++/C/plugin reference pages come from the three distributed headers; private implementation is not published in the reader.
+The desktop, CLI and Web/API console share one core. The core can also be embedded through its C++ interface or versioned C ABI, with trusted native plugins adding project modes. Linux servers can build without GUI dependencies. English is the default interface language; French is also included.
 
 ## Features
 
-| Area | Available workflows |
+- **Project modes:** two-way, send-only and receive-only synchronization, backups, explicit Git exchange and native plugin modes.
+- **Backups:** scheduling, exclusion previews, retention, whole-file/fixed-block/content-defined storage, integrity verification and selective restoration.
+- **File review:** bounded side-by-side or unified differences, Git-compatible patches and explicit conflict resolution with preserved recovery copies.
+- **Git and LFS:** verified bundle exchange, branch/commit/three-way review, reviewed merges, separate extraction, cache management, materialization, pointer restoration and export of preserved assets.
+- **Direct networking:** WireGuard pairing, chat and verified resumable file transfers through an authenticated channel inside the VPN.
+- **Desktop and operations:** tray integration, per-profile login startup, diagnostics and reviewed systemd/LaunchAgent service export.
+- **Integration:** C++20 core, C ABI v1 using UTF-8 JSON, typed plugin options and buildable C/C++/plugin examples. A synchronous Unreal/Blueprint example is supplied for target validation.
+
+## Offline manual
+
+The complete **CyDoc** manual contains 44 topics in each language, including tutorials and public C++/C/plugin references. Search, bookmarks, notes and reading positions work locally. Reading requires no server, CDN, Node.js or Internet connection.
+
+After building the sources or extracting a complete application package, open the matching reader route in a browser:
+
+| Language | Reader path relative to the package or repository root |
 | --- | --- |
-| Projects and synchronization | Two-way, send-only, receive-only, backups, Git exchange and trusted native plugin modes |
-| Desktop | CyUI overview, diff/recovery, backups, Git/LFS, network, tray, per-profile login startup and command panel |
-| Backups | Scheduling, exclusions with preview, retention, whole/fixed-block/CDC storage, verification and selective restoration |
-| File review | Bounded side-by-side/unified differences, Git-compatible patches, explicit conflict resolution and preserved recovery copies |
-| Git collaboration | Setup, verified bundle/LFS exchange, branch/commit/three-way review, separate extraction and reviewed fast-forward/divergent merges |
-| LFS working files | Cache inspection/refill, selected materialization, interruption checks/resume, pointer restoration and export of preserved assets |
-| Network | WireGuard pairing, direct chat, verified resumable files, profile quotas and received-file exports |
-| SDK and plugins | C++20 core, C ABI v1 with UTF-8 JSON, typed plugin options and buildable C/C++/plugin examples |
-| Operations | Diagnostics, reviewed systemd/LaunchAgent export and explicit storage cleanup |
+| English (default) | `Documentation/Documentation.html#/en/overview` |
+| Français | `Documentation/Documentation.html#/fr/overview` |
 
-See the manual for exact limits, preview/application steps and recovery behavior. WireGuard NAT traversal/packet relay, offline chat delivery, signed installers/updates and CyRevision protocol interoperability are not implemented. Multi-file operations are not filesystem transactions; keep independent backups.
+Keep the whole `Documentation/` directory, including `DocData/`, together. The generated reader is not tracked in Git and no hosted CySynck manual is currently published; the paths above become available after generation. Open it through `file://`, or use contextual help:
 
-## Build and package
+- **Desktop:** **Help (F1)** opens the current view's topic.
+- **CLI:** `cysynck docs`, or `cysynck docs git-materialization --language fr --print` to obtain the local URL without launching a browser.
+- **Web console:** contextual Help offers local opening on a loopback server or the complete `CySynck-Documentation.zip` for another workstation. Extract the archive before opening its `Documentation.html`.
 
-Requirements: **CMake 3.24+**, **C++20 compiler**, Git, **Node.js 22+** and npm. Node is only a build tool for the manual. CMake downloads native dependencies; the pinned CyDoc archive is included so downstream builds need no access to its private repository.
-Windows uses Visual Studio 2022 C++ tools; macOS uses Xcode Command Line Tools. Linux desktop needs GLFW's OpenGL/X11/Wayland development libraries; `libayatana-appindicator3-dev` enables its tray.
+To generate just the manual, run `npm ci --prefix .CyDocBuild` followed by `npm run build --prefix .CyDocBuild`. See the [documentation toolchain guide](.CyDocBuild/README.md) for authoring and translation maintenance.
+
+---
+
+## Installation
+
+There are currently **no published binary downloads**. Build from the sources below. The [release page](https://github.com/MrMybal/CySynck/releases) is the destination for future application releases.
+
+| Target | Availability | Start after installing into `dist/` |
+| --- | --- | --- |
+| Windows x64 | Source build; desktop, CLI and package validated locally | `dist/bin/cysynck-desktop.exe` |
+| Linux desktop | Source target; native runtime validation remains necessary | `dist/bin/cysynck-desktop` |
+| Linux server | Headless source target; cross-compilation checked, native runtime validation remains necessary | `dist/bin/cysynck serve` |
+| macOS | Source target; native build/runtime validation remains necessary | `open dist/CySynck.app` |
+
+Install **Syncthing**, **Git** and **WireGuard** separately for the workflows that need them; Git LFS tracking tools are also external. CySynck does not bundle these programs. WireGuard requires suitable privileges and reachable UDP endpoints; peer discovery alone does not create connectivity through every NAT.
+
+For a locally built Windows package, extract the full archive and run `Install-CySynck.ps1` from its root to install for the current user. Portable use is also available. Keep all package folders together, including libraries, Web assets and the manual. The manual's installation page explains updates and removal.
+
+For a first local backup, use the CLI in `dist/bin/` with an existing folder:
 
 ```sh
+cysynck project add Notes /absolute/path/to/notes --id notes --mode backup --interval 60 --keep 30
+cysynck backup notes
+cysynck verify notes
+cysynck docs quickstart
+```
+
+Quote paths containing spaces and inspect the verification report's `ok` field. `--state DIR` selects a private profile. Scheduled work requires a running desktop or `cysynck serve`. Keep independent backups and restore into a new separate directory; multi-file operations are not filesystem transactions.
+
+## Source, build and required libraries
+
+Requirements: **CMake 3.24+**, a **C++20 compiler**, Git, **Node.js 22+** and npm. Node.js is used to build the manual; it is not needed to run the application or read the export. CMake fetches the pinned native dependencies. A pinned CyDoc package is included in the repository.
+
+Windows builds use the Visual Studio 2022 C++ tools. macOS needs Xcode Command Line Tools. Linux desktop builds need OpenGL and GLFW's X11/Wayland development libraries; `libayatana-appindicator3-dev` enables the optional tray. The [native build workflow](.github/workflows/build.yml) lists the Linux packages used by CI.
+
+<details>
+<summary>Get the source, build, test and package</summary>
+
+```sh
+git clone https://github.com/MrMybal/CySynck.git
+cd CySynck
 npm ci --prefix .CyDocBuild
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel 3
@@ -50,24 +112,51 @@ cmake --install build --config Release --prefix dist
 cpack --config build/CPackConfig.cmake -C Release -B dist/packages
 ```
 
-Use `-DCYSYNCK_DESKTOP=OFF` for a headless server. The scripts `scripts/build.ps1` and `scripts/build.sh` prepare dependencies, build, test and install. Packages contain the complete manual and `CySynck-Documentation.zip`; only the exported reader is distributed, not `.CyDocBuild/`.
+Add `-DCYSYNCK_DESKTOP=OFF` when configuring a headless server. Alternatively, `scripts/build.ps1` (`-ServerOnly` for headless) and `scripts/build.sh` (`CYSYNCK_DESKTOP=OFF` for headless) prepare dependencies, compile, test and install.
 
-Run `dist/bin/cysynck-desktop.exe` on Windows, `dist/bin/cysynck-desktop` on Linux, or `open dist/CySynck.app` on macOS. The Windows archive also includes the per-user `Install-CySynck.ps1` installer. Keep all package directories together when relocating.
+CMake generates and copies the complete manual and `CySynck-Documentation.zip` into the application package. Documentation authoring inputs are not shipped. To regenerate the manual separately:
 
 ```sh
-cysynck project add Notes /absolute/path/to/notes --id notes --mode backup --interval 60 --keep 30
-cysynck backup notes
-cysynck verify notes
-cysynck docs quickstart
+npm run build --prefix .CyDocBuild
+npm test --prefix .CyDocBuild
 ```
 
-Use an existing folder, quote paths with spaces, inspect the verification report's `ok` field, and restore only to a new separate directory. `--state DIR` selects a private profile. Background scheduling requires an active desktop or `cysynck serve` process. Run `cysynck help` for command syntax and `cysynck doctor --probe true` for explicit tool/connection checks.
+For real two-peer tests, configure `-DCYSYNCK_TEST_SYNCTHING=/path/to/syncthing` before building and running CTest. The offline manual's integration and plugin pages describe the installed SDK and examples.
 
-## Contributor references
+</details>
 
-Original publishing, packaging, cross-compilation and milestone records are preserved in [.CyDocBuild/internal/legacy](.CyDocBuild/internal/legacy). Small `docs/*.md` compatibility pointers retain old repository links; they are no longer a shipped help system.
-Native CI compiles/tests/packages all targets. The secret-scan workflow checks Git history with Gitleaks. For real two-peer tests, configure `-DCYSYNCK_TEST_SYNCTHING=/path/to/syncthing` before building and running CTest.
+---
 
 ## License
 
-CySynck is licensed under [MIT](LICENSE). Dependency notices are listed in [THIRD_PARTY.md](THIRD_PARTY.md) and included in packages. Syncthing, Git and WireGuard retain their own licenses; their source/binaries and CyRevision source are not incorporated into this project.
+**CySynck uses the [MIT license](LICENSE).** Copyright © 2026 CyberAlien. Third-party components retain their own terms.
+
+### Third-party libraries
+
+| Library · source | License · terms | Use / scope |
+| --- | --- | --- |
+| [nlohmann/json 3.12.0](https://github.com/nlohmann/json) | [MIT](https://github.com/nlohmann/json/blob/v3.12.0/LICENSE.MIT) | Core JSON handling and public C++ SDK. |
+| [cpp-httplib](https://github.com/yhirose/cpp-httplib) | [MIT](https://github.com/yhirose/cpp-httplib/blob/5814e121dfb5049f72a5c3956c3c8961b40da78b/LICENSE) | Core HTTP/API and direct networking. |
+| [PicoSHA2](https://github.com/okdshin/PicoSHA2) | [MIT](https://github.com/okdshin/PicoSHA2/blob/161cb3fc4170fa7a3eca9e582cebd27cc4d1fe29/LICENSE) | Core SHA-256 checks. |
+| [TinyXML2 10.0.0](https://github.com/leethomason/tinyxml2) | [zlib](https://github.com/leethomason/tinyxml2/blob/321ea883b7190d4e85cae5512a12e5eaa8f8731f/LICENSE.txt) | Core Syncthing XML configuration. |
+| [CyUI](https://github.com/MrMybal/CyUI) | [MIT](https://github.com/MrMybal/CyUI/blob/a228501d9418550ce68d2d67b70cebbb8fa3ee2a/LICENSE) | Native desktop; Diff and Inspector modules, including Code. |
+| [Dear ImGui](https://github.com/ocornut/imgui) | [MIT](https://github.com/ocornut/imgui/blob/1ab953d75a760d5102eb2d5c4c6c4e65df6b29f3/LICENSE.txt) | Native desktop widgets and backends. |
+| [GLFW 3.4](https://github.com/glfw/glfw) | [zlib/libpng](https://github.com/glfw/glfw/blob/3.4/LICENSE.md) | Native desktop window and OpenGL context. |
+| [Lexilla / Scintilla](https://github.com/MrMybal/CyUI/tree/a228501d9418550ce68d2d67b70cebbb8fa3ee2a/third_party) | [Lexilla/Scintilla permissive terms](https://github.com/MrMybal/CyUI/blob/a228501d9418550ce68d2d67b70cebbb8fa3ee2a/third_party/lexilla/License.txt) | Lexers and interfaces used by CyUI Code in the desktop. |
+| [CyDoc 0.1.0](https://github.com/MrMybal/CyDoc) | [MIT](https://github.com/MrMybal/CyDoc/blob/main/LICENSE) | Bundled offline reader and build-time compiler; pinned archive and provenance in [.CyDocBuild/vendor](.CyDocBuild/vendor). |
+| [marked 17.0.6](https://github.com/markedjs/marked) | [MIT; included Markdown license terms](https://github.com/markedjs/marked/blob/v17.0.6/LICENSE.md) | Build-time Markdown compilation through CyDoc. |
+| [PrismJS 1.30.0](https://github.com/PrismJS/prism) | [MIT](https://github.com/PrismJS/prism/blob/v1.30.0/LICENSE) | Build-time highlighting; its notice accompanies the manual. |
+| [esbuild 0.25.12](https://github.com/evanw/esbuild) | [MIT](https://github.com/evanw/esbuild/blob/v0.25.12/LICENSE.md) | Build-time reader bundling. |
+| [Happy DOM 21.0.4](https://github.com/capricorn86/happy-dom) | [MIT](https://github.com/capricorn86/happy-dom/blob/v21.0.4/LICENSE) | Documentation tests only. |
+| [GTK3](https://gitlab.gnome.org/GNOME/gtk) / [Ayatana AppIndicator](https://github.com/AyatanaIndicators/libayatana-appindicator) | [LGPL-2.1-or-later / LGPL-2.1 or LGPL-3.0 notices](THIRD_PARTY.md) | Optional system libraries for the Linux desktop tray; absent from headless builds. |
+| Microsoft Visual C++ runtime | [Microsoft redistribution terms](THIRD_PARTY.md) | Runtime files redistributed with MSVC-built Windows packages. |
+
+This table indexes the main components. Retain the complete [third-party notices](THIRD_PARTY.md) and license texts distributed under `share/cysynck/licenses/`, macOS Resources and `Documentation/DocData/licenses/`. It does not replace transitive dependency notices. No optional CyDoc media modules or Three.js are included. Syncthing, Git and WireGuard remain separate external installations with their own licenses.
+
+## References and links
+
+- [Offline manual and contextual help](#offline-manual) · [Version notes and limitations](VERSION.md).
+- [Source repository](https://github.com/MrMybal/CySynck) · [Issue tracker](https://github.com/MrMybal/CySynck/issues) · [Releases](https://github.com/MrMybal/CySynck/releases).
+- [Documentation generation and translations](.CyDocBuild/README.md) · [Public SDK headers](include/cysynck) · [Integration examples](examples).
+- [Syncthing](https://github.com/syncthing/syncthing) · [CyUI](https://github.com/MrMybal/CyUI) · [CyDoc](https://github.com/MrMybal/CyDoc) · [WireGuard](https://www.wireguard.com/).
+- [SyncTrayzor](https://github.com/GermanCoding/SyncTrayzor) and [CyRevision](https://github.com/MrMybal/CyRevision) are functional references; their source is not incorporated and CyRevision protocol interoperability is not implemented.
