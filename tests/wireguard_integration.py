@@ -53,14 +53,24 @@ def main():
     diagnostic = work / "activation.json"
     wrapper = work / "wg-quick-capture"
     wrapper.write_text("""#!/usr/bin/python3
-import json, os, re, subprocess, sys
+import json, os, re, stat, subprocess, sys
 from pathlib import Path
+config = Path(sys.argv[2])
+info = config.stat()
+context = {'uid': os.getuid(), 'euid': os.geteuid(), 'file_uid': info.st_uid, 'file_gid': info.st_gid, 'file_mode': oct(stat.S_IMODE(info.st_mode))}
+try:
+    with config.open('rb') as stream: stream.read(1)
+    context['config_readable_before_exec'] = True
+except OSError as error:
+    context['config_readable_before_exec'] = str(error)
+try: context['security_context'] = Path('/proc/self/attr/current').read_text().strip()
+except OSError: pass
 result = subprocess.run([os.environ['CYSYNCK_TEST_REAL_WG_QUICK'], *sys.argv[1:]], capture_output=True, text=True)
 message = re.sub(r'[A-Za-z0-9+/]{43}=', '<redacted-key>', result.stderr[-4000:])
 message = message.replace(os.environ['CYSYNCK_MESH_TOKEN'], '<redacted-token>')
 path = Path(os.environ['CYSYNCK_TEST_WG_DIAGNOSTIC'])
 items = json.loads(path.read_text()) if path.exists() else []
-items.append({'action': sys.argv[1], 'exit_code': result.returncode, 'stderr': message})
+items.append({'action': sys.argv[1], 'exit_code': result.returncode, 'stderr': message, 'context': context})
 path.write_text(json.dumps(items[-8:]))
 raise SystemExit(result.returncode)
 """, encoding="utf-8")
