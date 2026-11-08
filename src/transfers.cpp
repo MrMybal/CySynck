@@ -1,6 +1,7 @@
 #include "transfers.hpp"
 #include "linux_direct_socket.hpp"
 #include "windows_direct_socket.hpp"
+#include "macos_direct_socket.hpp"
 #include "backup.hpp"
 #include "inbox.hpp"
 #include <algorithm>
@@ -481,7 +482,7 @@ Json Core::transfer_send(const Json &data) {
             "Set CYSYNCK_MESH_TOKEN (at least 24 random characters) on paired devices");
     DiskLock lease(state_, "transfers-send.lock", false);
     Json record, peer;
-    std::string localAddress, sender;
+    std::string localAddress, sender, localPublicKey;
     auto projectId = identifier(data.at("project"));
     {
         std::lock_guard lock(mutex_);
@@ -489,6 +490,7 @@ Json Core::transfer_send(const Json &data) {
         load();
         auto p = project(projectId);
         localAddress = registry_.at("network").at("profile").at("address");
+        localPublicKey = registry_.at("network").at("profile").value("public_key", "");
         sender = registry_.at("peer_id");
         if (data.contains("transfer")) {
             auto id = identifier(data.at("transfer"));
@@ -584,6 +586,10 @@ Json Core::transfer_send(const Json &data) {
         auto binding = windows_direct_interface(localAddress, sender, peer.at("address"));
         client.set_socket_options([localAddress, binding](auto socket) {
             bind_windows_direct_socket(socket, binding);
+#elif defined(__APPLE__)
+        auto binding = macos_direct_interface(localAddress, sender, localPublicKey, peer.at("address"));
+        client.set_socket_options([localAddress, binding](auto socket) {
+            bind_macos_direct_socket(socket, binding);
 #else
         client.set_socket_options([localAddress](auto socket) {
 #endif

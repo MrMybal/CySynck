@@ -33,6 +33,12 @@ jobs:
       - name: Real Windows WireGuardNT and service ownership
         if: runner.os == 'Windows'
         run: python tests/wireguard_windows.py --disposable-host --cli build/Release/cysynck.exe --direct-probe build/Release/cysynck-windows-direct-socket-tests.exe --work "${{ runner.temp }}/cysynck-wg-win-${{ github.run_id }}-${{ github.run_attempt }}" --report build/network-report/wireguard-windows.json
+      - name: Install official macOS WireGuard tools on disposable runner
+        if: runner.os == 'macOS'
+        run: brew install wireguard-tools wireguard-go
+      - name: Real macOS WireGuard and unprivileged interface binding
+        if: runner.os == 'macOS'
+        run: sudo env "PATH=$PATH" GITHUB_ACTIONS=true python3 tests/wireguard_macos.py --disposable-host --cli "$GITHUB_WORKSPACE/build/cysynck" --direct-probe "$GITHUB_WORKSPACE/build/cysynck-macos-direct-socket-tests" --work "$RUNNER_TEMP/cysynck-wg-mac-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --report "$GITHUB_WORKSPACE/build/network-report/wireguard-macos.json"
       - name: Test
         run: ctest --test-dir build -C Release --parallel 2 --output-on-failure
       - name: Install

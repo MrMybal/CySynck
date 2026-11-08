@@ -12,8 +12,15 @@ checks; see `kernel-wireguard-linux.json`). Windows now validates the official
 WireGuardNT adapter, LUID and address before setting IP_UNICAST_IF on every direct
 client/listener socket. Actual Windows loopback TCP, accepted-socket inheritance,
 replies and ordinary-adapter refusal pass locally; a disposable official-driver
-gate is implemented, with native CI execution still pending. macOS binding remains
-implementation work.
+gate is implemented, with native CI execution still pending. macOS now binds TCP
+with IP_BOUND_IF using a public, root-owned authorization published by local
+`vpn up` after live public-key verification. It binds the profile/key/address to
+the actual utun index, boot-session UUID and protected UAPI socket inode/ctime;
+every socket revalidates those values. Ordinary hosts read no private socket or
+mapping file. The authorization disappears on successful `vpn down`; a stopped,
+recycled or re-keyed profile fails the stored identity/generation comparison.
+Actual macOS driver/unprivileged probes are implemented but native execution is
+pending. This is not yet measured macOS driver evidence.
 
 ## Requirements for the implementation
 
@@ -49,11 +56,11 @@ adapter/address inventory and review listener/reply behavior separately.
 
 Darwin exposes `IP_BOUND_IF`. A generic `utun` name alone does not establish
 WireGuard ownership: use the logical wg-quick mapping plus a current ownership
-check. A persisted public attestation from local tunnel control could retain the
-verified WG key, address, interface index and boot identity for unprivileged hosts;
-it must reject recycled utun indices/names across lifecycle/boot changes and avoid
-turning new root-owned 0600 files into unreadable state for the preparing user.
-This attestation is a design option, not existing code or verified behavior.
+check. The implemented public attestation lives in the protected root-owned
+WireGuard runtime directory with mode 0644, avoiding new root-owned private state
+files that an ordinary preparing user cannot read. The UAPI socket retains its
+original owner-only mode. The boot-session UUID is independent of wall-clock
+adjustments. Actual platform evidence remains pending as stated above.
 
 Sources inspected (interfaces/constants only; no external implementation copied):
 
@@ -66,3 +73,4 @@ Sources inspected (interfaces/constants only; no external implementation copied)
 - <https://github.com/WireGuard/wireguard-nt/blob/master/driver/device.c>
 - <https://github.com/WireGuard/wireguard-nt/blob/master/api/adapter.c>
 - <https://github.com/apple-oss-distributions/xnu/blob/main/bsd/netinet/in.h>
+- <https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_sysctl.c>

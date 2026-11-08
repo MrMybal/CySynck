@@ -8,6 +8,7 @@
 #include "gateway_udp.hpp"
 #include "linux_direct_socket.hpp"
 #include "windows_direct_socket.hpp"
+#include "macos_direct_socket.hpp"
 #include <ctime>
 #include <fstream>
 #include <httplib.h>
@@ -365,6 +366,14 @@ Json Core::network_action(const std::string &action, const Json &data) {
         auto result = vpn_tunnel_control(action, wg_tool(), activation_tool(), tunnel_name,
                                   profile(network.at("profile")).at("public_key"), configuration,
                                   action == "down" ? render(false, false) : render(true));
+#ifdef __APPLE__
+        auto local = profile(network.at("profile"));
+        if (action == "up")
+            authorize_macos_direct_interface(local.at("address"), local.at("peer_id"),
+                                              local.at("public_key"), wg_tool(), configuration);
+        else
+            forget_macos_direct_interface(local.at("peer_id"));
+#endif
         network["applied_peers"] = Json::object();
         if (!router.is_null()) result["router_mapping"] = router;
         return result;
@@ -569,7 +578,7 @@ Json Core::direct_send(const Json &data, bool file) {
     if (token.size() < 24)
         throw std::runtime_error("Set the same CYSYNCK_MESH_TOKEN (at least 24 "
                                  "random characters) on paired devices");
-    std::string body, messageId = random_id(), sender, localAddress;
+    std::string body, messageId = random_id(), sender, localAddress, localPublicKey;
     Json peer, entry;
     auto projectId = data.at("project").get<std::string>(),
          peerId = data.at("peer").get<std::string>();
@@ -580,6 +589,7 @@ Json Core::direct_send(const Json &data, bool file) {
         auto &p = project(projectId);
         peer = trusted_peer(registry_, projectId, peerId);
         localAddress = registry_.at("network").at("profile").at("address");
+        localPublicKey = registry_.at("network").at("profile").value("public_key", "");
         sender = registry_.at("peer_id");
         if (file) {
             auto relative = data.at("path").get<std::string>();
@@ -613,6 +623,10 @@ Json Core::direct_send(const Json &data, bool file) {
     auto binding = windows_direct_interface(localAddress, sender, peer.at("address"));
     client.set_socket_options([localAddress, binding](auto socket) {
         bind_windows_direct_socket(socket, binding);
+#elif defined(__APPLE__)
+    auto binding = macos_direct_interface(localAddress, sender, localPublicKey, peer.at("address"));
+    client.set_socket_options([localAddress, binding](auto socket) {
+        bind_macos_direct_socket(socket, binding);
 #else
     client.set_socket_options([localAddress](auto socket) {
 #endif
