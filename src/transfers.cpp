@@ -1,4 +1,5 @@
 #include "transfers.hpp"
+#include "linux_direct_socket.hpp"
 #include "backup.hpp"
 #include "inbox.hpp"
 #include <algorithm>
@@ -574,7 +575,13 @@ Json Core::transfer_send(const Json &data) {
         verify_received(snapshot, record);
         httplib::Client client(peer.at("address").get<std::string>(),
                                peer.at("mesh_port").get<int>());
+#ifdef __linux__
+        auto interface = linux_direct_interface(localAddress, sender, peer.at("address"));
+        client.set_socket_options([localAddress, interface](auto socket) {
+            bind_linux_direct_socket(socket, interface);
+#else
         client.set_socket_options([localAddress](auto socket) {
+#endif
             if (!httplib::detail::bind_ip_address(socket, localAddress))
                 throw std::runtime_error(
                     "The local VPN address is unavailable; connect WireGuard first");

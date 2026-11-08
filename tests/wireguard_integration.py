@@ -20,6 +20,7 @@ import subprocess
 import sys
 import time
 import uuid
+from direct_socket_fixture import DirectSocketFixture
 
 
 def require(condition, message):
@@ -98,6 +99,8 @@ def main():
     parser.add_argument("--cli", type=Path, required=True)
     parser.add_argument("--work", type=Path, required=True, help="New absolute cysynck-wg-* directory")
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--direct-probe", type=Path,
+                        help="Compiled production socket helper probe for the unprivileged kernel check")
     parser.add_argument("--prepare-apparmor", action="store_true",
                         help="Temporarily add exact read-only test configs via the installed profile's local include")
     args = parser.parse_args()
@@ -223,6 +226,9 @@ raise SystemExit(result.returncode)
             require(candidate["signing_fingerprint"] == fingerprint, "Independent signer fingerprint differs")
             app(side, "vpn", "trust", "wireguard-ci", profiles[other]["peer_id"],
                 "--key", profiles[other]["public_key"], "--fingerprint", fingerprint)
+        direct_guard = DirectSocketFixture(cli, work, namespaces, profiles, children, run, app)
+        direct_guard.plain_interfaces()
+        report["checks"].extend(["plain-veth-direct-credentials-blocked", "spoofed-WireGuard-name-veth-credentials-blocked"])
         if args.prepare_apparmor:
             rules = ""
             for side in ("a", "b"):
@@ -249,6 +255,11 @@ raise SystemExit(result.returncode)
             require(status["tunnel"]["owned"] and any(h["recent"] for h in status["handshakes"]),
                     "No recent owned kernel WireGuard handshake")
         report["checks"].append("real-kernel-handshake-and-ping")
+        direct_guard.overlapping_routes(interfaces)
+        report["checks"].append("overlapping-physical-routes-do-not-leak-direct-credentials")
+        if args.direct_probe:
+            direct_guard.unprivileged(args.direct_probe.resolve(strict=True), user_uid, user_gid, interfaces)
+            report["checks"].append("unprivileged-interface-bound-TCP-over-kernel-WireGuard")
         before = kernel_peer_transfer("a", interfaces["a"], profiles["b"]["public_key"])
 
         receiver = subprocess.Popen(["ip", "netns", "exec", namespaces[1], str(cli), "--state",

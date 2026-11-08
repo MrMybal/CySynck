@@ -28,7 +28,7 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel 3
       - name: Test
-        run: ctest --test-dir build -C Release --output-on-failure
+        run: ctest --test-dir build -C Release --parallel 2 --output-on-failure
       - name: Install
         run: cmake --install build --config Release --prefix dist
       - name: Test Windows deployment without system integration
@@ -72,14 +72,14 @@ jobs:
       - run: npm ci --prefix .CyDocBuild
       - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCYSYNCK_DESKTOP=OFF -DCYSYNCK_TEST_SYNCTHING=/usr/bin/syncthing
       - name: Build the headless CLI for real network validation
-        run: cmake --build build --target cysynck --parallel 3
+        run: cmake --build build --target cysynck cysynck-linux-direct-socket-tests --parallel 3
       - name: Real Linux kernel WireGuard in isolated network namespaces
-        run: sudo python3 tests/wireguard_integration.py --prepare-apparmor --cli "$GITHUB_WORKSPACE/build/cysynck" --work "$RUNNER_TEMP/cysynck-wg-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --report "$GITHUB_WORKSPACE/build/network-report/wireguard.json"
+        run: sudo python3 tests/wireguard_integration.py --prepare-apparmor --cli "$GITHUB_WORKSPACE/build/cysynck" --direct-probe "$GITHUB_WORKSPACE/build/cysynck-linux-direct-socket-tests" --work "$RUNNER_TEMP/cysynck-wg-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --report "$GITHUB_WORKSPACE/build/network-report/wireguard.json"
       - name: Real PCP and NAT-PMP routers with kernel WireGuard
         run: sudo python3 tests/router_wireguard_integration.py --prepare-apparmor --cli "$GITHUB_WORKSPACE/build/cysynck" --work "$RUNNER_TEMP/cysynck-wg-nat-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --report "$GITHUB_WORKSPACE/build/network-report/router-wireguard.json"
       - name: Build all remaining C++ test and SDK targets
         run: cmake --build build --parallel 3
-      - run: ctest --test-dir build --output-on-failure
+      - run: ctest --test-dir build --parallel 2 --output-on-failure
       - run: cpack --config build/CPackConfig.cmake -B dist/packages
       - run: cmake -DPACKAGE_DIR="${{ github.workspace }}/dist/packages" -DWORK_DIR="${{ github.workspace }}/package-smoke" -P tests/package_smoke.cmake
       - uses: actions/upload-artifact@v4

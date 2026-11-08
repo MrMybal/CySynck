@@ -6,6 +6,7 @@
 #include "cyrevision_codec.hpp"
 #include "router_lease.hpp"
 #include "gateway_udp.hpp"
+#include "linux_direct_socket.hpp"
 #include <ctime>
 #include <fstream>
 #include <httplib.h>
@@ -603,7 +604,13 @@ Json Core::direct_send(const Json &data, bool file) {
         }
     }
     httplib::Client client(peer.at("address").get<std::string>(), peer.at("mesh_port").get<int>());
+#ifdef __linux__
+    auto interface = linux_direct_interface(localAddress, sender, peer.at("address"));
+    client.set_socket_options([localAddress, interface](auto socket) {
+        bind_linux_direct_socket(socket, interface);
+#else
     client.set_socket_options([localAddress](auto socket) {
+#endif
         if (!httplib::detail::bind_ip_address(socket, localAddress))
             throw std::runtime_error(
                 "The local VPN address is unavailable; connect WireGuard first");

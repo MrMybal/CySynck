@@ -1,5 +1,6 @@
 #include <cysynck/core.hpp>
 #include "help.hpp"
+#include "linux_direct_socket.hpp"
 #include <httplib.h>
 #include <regex>
 #include <stdexcept>
@@ -332,6 +333,13 @@ int HttpServer::bind(const std::string &host, int port) {
         auto profile = core.registry_.value("network", Json::object()).value("profile", Json());
         if (profile.is_null() || host != profile.at("address").get<std::string>())
             throw std::runtime_error("Direct receiver must bind to the configured VPN address");
+#ifdef __linux__
+        auto interface = linux_direct_interface(host, core.registry_.at("peer_id"));
+        impl_->server.set_socket_options([interface](auto socket) {
+            httplib::default_socket_options(socket);
+            bind_linux_direct_socket(socket, interface);
+        });
+#endif
     }
     if (port == 0) {
         auto assigned = impl_->server.bind_to_any_port(host);

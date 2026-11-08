@@ -4,8 +4,12 @@ Current production chat/legacy-file and resumable transfer clients call
 `httplib::detail::bind_ip_address` with the configured local VPN address. The direct
 receiver checks that its listener address equals the profile address. These checks
 do not by themselves establish that a TCP socket uses WireGuard when an ordinary
-interface also owns an overlapping address/route. No additional interface binding
-has been implemented yet. Do not report this audit as a passing guard.
+interface also owns an overlapping address/route. A Linux implementation now checks
+the address/interface inventory and Netlink WireGuard type before binding every
+TCP socket with SO_BINDTODEVICE. Actual plain-veth/spoofed-name, overlapping-route
+and unprivileged kernel probes are being added to its native gate. Until that gate
+passes, do not report this source implementation as a verified guard. Windows and
+macOS interface binding remain implementation work.
 
 ## Requirements for the implementation
 
