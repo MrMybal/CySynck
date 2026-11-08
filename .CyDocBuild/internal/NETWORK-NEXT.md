@@ -80,7 +80,10 @@ Remaining work:
   and NAT-PMP grants, collision with a foreign mapping, signed discovery, actual
   Core::tick renewal, forged/stale shared records, encrypted chat/file counters and
   owned cleanup. Its Python syntax and secret scan pass on Windows; actual Linux
-  execution is still pending. No forwarding rule or temporary interface is placed
+  execution is still pending. The first runner detected a fixture backend mismatch:
+  miniupnpd-iptables uses libiptc while the system iptables alternative uses nftables.
+  The fixture now explicitly uses iptables-legacy, without changing host alternatives.
+  No forwarding rule or temporary interface is placed
   in the host network namespace. Router debug logs are private and discarded.
   Reproduce with miniupnpd-iptables, iptables and the previous kernel-test tools:
   `sudo python3 tests/router_wireguard_integration.py --prepare-apparmor --cli /absolute/build/cysynck --work /tmp/cysynck-wg-nat-UNIQUE --report /absolute/reports/router-wireguard.json`.

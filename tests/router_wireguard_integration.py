@@ -87,7 +87,10 @@ def main():
                 child.wait(timeout=5)
 
     def firewall(router, *arguments):
-        return run(["iptables", "-w", "5", *arguments], space=tag + "-r" + router)
+        # The distro miniupnpd-iptables binary uses libiptc (legacy), not the
+        # system's potentially nft-backed iptables alternative. Keep both ends
+        # on the same backend without changing host alternatives or host rules.
+        return run(["iptables-legacy", "-w", "5", *arguments], space=tag + "-r" + router)
 
     def copy_publications(source, destination):
         incoming = work / source / "project/.cysynck-network/peers"
@@ -120,7 +123,7 @@ def main():
         return sum(map(int, row[1:]))
 
     try:
-        for tool in ("wg", "wg-quick", "ip", "iptables", "miniupnpd", "ping", "openssl", "ss", "unshare", "mount"):
+        for tool in ("wg", "wg-quick", "ip", "iptables-legacy", "miniupnpd", "ping", "openssl", "ss", "unshare", "mount"):
             require(shutil.which(tool), "Missing independent test tool: " + tool)
         version = run(["miniupnpd", "--version"], check=False)
         report["router_version"] = (version.stdout + version.stderr).splitlines()[0][:240]
