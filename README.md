@@ -123,6 +123,8 @@ npm test --prefix .CyDocBuild
 
 For real two-peer tests, configure `-DCYSYNCK_TEST_SYNCTHING=/path/to/syncthing` before building and running CTest. The offline manual's integration and plugin pages describe the installed SDK and examples.
 
+The opt-in [multi-GiB workload test](.CyDocBuild/internal/LARGE-WORKLOAD.md) exercises interruption/resume and CDC restoration with real streamed data. Enable it with `-DCYSYNCK_LARGE_WORKLOAD_TESTS=ON` and allow 18 GiB free; it is excluded from default test runs. The Linux server CI also runs real WireGuard tunnels in isolated network namespaces.
+
 </details>
 
 ---

@@ -1,0 +1,32 @@
+{
+  "cdc": {
+    "initial_new_bytes": 2415919227,
+    "reused_bytes": 2413796351,
+    "reused_fraction": 0.9991196024398331,
+    "shifted_new_bytes": 2126973,
+    "shifted_sha256": "4d7200a4d96d6c26167bb8e5421b126e44eb52f74eb4a83705755f933db419ee"
+  },
+  "elapsed_seconds": {
+    "captured-and-verified-large-cdc-snapshot": 161.9652924,
+    "generated-2304-MiB-plus-123-bytes": 10.0476761,
+    "interrupted-after-acknowledged-data": 30.8789978,
+    "restored-and-hashed-all-shifted-bytes": 252.6872517,
+    "resumed-after-core-restart-and-source-edit": 123.9590835,
+    "shifted-large-cdc-snapshot-reused-content": 200.7156722
+  },
+  "generator": "mt19937_64 seed 0x435953594e434b31, little-endian words, 1 MiB buffer",
+  "interrupted_at_bytes": 34603008,
+  "original_sha256": "6007c0ea0934fae63c504f2731a2d453fcf16c329016b528b97930b3d3b3cd88",
+  "payload_bytes": 2415919227,
+  "peak_resident_bytes": 38064128,
+  "resumed_bytes": 2415919227,
+  "success": true,
+  "transport": "production HTTP on loopback; separate real-WireGuard test",
+  "validation": {
+    "platform": "Windows x64 Release (MSVC)",
+    "core_revision": "cb9941f",
+    "test_source_sha256": "df5b17276debcd2042db5d5795f328b2c469419be6ad1d0073bfef7d8b0db675",
+    "test_binary_sha256": "0f8920229f635b527bf5464609dd085411a4b73600577944ba9437f5bc1f417a",
+    "core_binary_sha256": "fb79e8f196a22bbd6591e77ffa8b11b51620e20a979c244363a7bd043f0cf9bc"
+  }
+}

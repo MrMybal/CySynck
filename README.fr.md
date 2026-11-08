@@ -123,6 +123,8 @@ npm test --prefix .CyDocBuild
 
 Pour tester deux vrais pairs, configurez `-DCYSYNCK_TEST_SYNCTHING=/path/to/syncthing` avant compilation et CTest. Les pages d’intégration et d’extensions du manuel hors ligne décrivent le SDK installé et ses exemples.
 
+Le [test optionnel multi-Gio](.CyDocBuild/internal/LARGE-WORKLOAD.md) vérifie l’interruption/reprise et la restauration CDC sur de vraies données lues par flux. Activez-le avec `-DCYSYNCK_LARGE_WORKLOAD_TESTS=ON` et prévoyez 18 Gio libres ; il est exclu des tests par défaut. La CI serveur Linux exécute aussi de vrais tunnels WireGuard dans des espaces réseau isolés.
+
 </details>
 
 ---
