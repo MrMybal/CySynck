@@ -13,6 +13,7 @@
 #include <future>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl2.h>
 #include <imgui_impl_opengl3.h>
 #include <iostream>
 #include <misc/cpp/imgui_stdlib.h>
@@ -4887,7 +4888,7 @@ static int run(std::vector<std::string> args) {
     try {
         auto state = cysynck::default_state();
         std::vector<std::string> plugins;
-        std::string screenshot, view, theme, language;
+        std::string screenshot, view, theme, language, renderer = "auto";
         int frames = 0;
         bool first = false, background = false, foreground = false, no_tray = false;
         for (size_t i = 0; i < args.size(); ++i) {
@@ -4921,9 +4922,13 @@ static int run(std::vector<std::string> args) {
                 theme = args[i];
             else if (flag == "--language")
                 language = args[i];
+            else if (flag == "--renderer")
+                renderer = args[i];
             else
                 throw std::runtime_error("Unknown desktop option: " + flag);
         }
+        if (renderer != "auto" && renderer != "opengl2" && renderer != "opengl3")
+            throw std::runtime_error("Renderer must be auto, opengl2 or opengl3");
         std::unique_ptr<cysynck::desktop::Session> desktop_session;
         cysynck::Core core(state);
         cysynck::desktop::LaunchSpec launch{
@@ -4943,33 +4948,49 @@ static int run(std::vector<std::string> args) {
         }
         for (auto &p : plugins)
             core.load_plugin(fs::u8path(p));
+        glfwSetErrorCallback([](int code, const char *description) {
+            std::cerr << "GLFW " << code << ": " << (description ? description : "Unknown error") << '\n';
+        });
         if (!glfwInit())
-            throw std::runtime_error("GLFW initialization failed");
-#ifdef __APPLE__
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-        const char *glsl = "#version 150";
-#else
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+            throw std::runtime_error("GLFW initialization failed; see the graphics diagnostic above");
         const char *glsl = "#version 130";
+        bool legacy_renderer = renderer == "opengl2";
+        auto create_window = [&](bool legacy) {
+            glfwDefaultWindowHints();
+            // Keep capture windows hidden; interactive launches show after tray setup.
+            glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, legacy ? 2 : 3);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, legacy ? 1 : 0);
+#ifdef __APPLE__
+            if (!legacy) {
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+                glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+                glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+                glsl = "#version 150";
+            }
 #endif
-        // Create hidden, then show only after the saved preference and actual
-        // notification-area availability have been checked. Captures render offscreen.
-        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-        window = glfwCreateWindow(1440, 960, "CySynck", nullptr, nullptr);
+            return glfwCreateWindow(1440, 960, "CySynck", nullptr, nullptr);
+        };
+        window = create_window(legacy_renderer);
+        if (!window && renderer == "auto") {
+            std::cerr << "Retrying with the OpenGL 2.1 compatibility renderer.\n";
+            legacy_renderer = true;
+            window = create_window(true);
+        }
         if (!window)
             throw std::runtime_error("Cannot create native OpenGL window");
         glfwMakeContextCurrent(window);
         glfwSwapInterval(1);
+        if (!screenshot.empty())
+            std::cout << "Renderer: " << (legacy_renderer ? "opengl2" : "opengl3") << "; "
+                      << glGetString(GL_RENDERER) << "; " << glGetString(GL_VERSION) << '\n';
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
         ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
         ImGui::GetIO().IniFilename = nullptr;
-        ImGui_ImplGlfw_InitForOpenGL(window, true);
-        ImGui_ImplOpenGL3_Init(glsl);
+        if (!ImGui_ImplGlfw_InitForOpenGL(window, true) ||
+            !(legacy_renderer ? ImGui_ImplOpenGL2_Init() : ImGui_ImplOpenGL3_Init(glsl)))
+            throw std::runtime_error("Cannot initialize the desktop graphics backend");
         {
             App app(core, startup);
             if (first)
@@ -5076,7 +5097,10 @@ static int run(std::vector<std::string> args) {
                     glfwWaitEventsTimeout(0.1);
                     continue;
                 }
-                ImGui_ImplOpenGL3_NewFrame();
+                if (legacy_renderer)
+                    ImGui_ImplOpenGL2_NewFrame();
+                else
+                    ImGui_ImplOpenGL3_NewFrame();
                 ImGui_ImplGlfw_NewFrame();
                 ImGui::NewFrame();
                 app.draw();
@@ -5095,7 +5119,10 @@ static int run(std::vector<std::string> args) {
                 auto color = c::vec(c::palette().bg0);
                 glClearColor(color.x, color.y, color.z, color.w);
                 glClear(GL_COLOR_BUFFER_BIT);
-                ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+                if (legacy_renderer)
+                    ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+                else
+                    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
                 if (frames && ++count >= frames) {
                     if (!screenshot.empty())
                         capture(fs::u8path(screenshot), width, height);
@@ -5107,7 +5134,10 @@ static int run(std::vector<std::string> args) {
             }
             scheduler.request_stop();
         }
-        ImGui_ImplOpenGL3_Shutdown();
+        if (legacy_renderer)
+            ImGui_ImplOpenGL2_Shutdown();
+        else
+            ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
         ImGui::DestroyContext();
         glfwDestroyWindow(window);

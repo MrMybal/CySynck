@@ -5,7 +5,7 @@ description: Utilisation, commandes et limites : Application desktop.
 section: Démarrer
 order: 3
 parent: overview
-sourceRevision: 1
+sourceRevision: 2
 ---
 
 # Application desktop {#application-desktop}
@@ -18,6 +18,21 @@ Voir [la boîte de réception](doc:inbox) pour les limites et les anciens profil
 L'interface et la logique de session sont en C++20 et utilisent le même cœur que le CLI.
 Le backend de la barre de menus macOS utilise un petit pont Objective-C++ vers AppKit ;
 il reste séparé du cœur, du serveur et du SDK Unreal.
+
+## Compatibilité graphique {#graphics-compatibility}
+
+L’application privilégie son moteur OpenGL 3. Si la création de ce contexte échoue,
+elle réessaie en OpenGL 2.1 avec le moteur historique de Dear ImGui. Sous macOS,
+l’intégration GLFW épinglée autorise aussi le format de pixels logiciel d’Apple lorsque
+le rendu accéléré est indisponible. Le rendu logiciel est plus lent et ne valide pas
+la compatibilité avec un GPU.
+
+Utiliser `cysynck-desktop --renderer opengl2` pour imposer le rendu historique à des fins
+de diagnostic, `--renderer opengl3` pour exiger le moteur moderne, ou `--renderer auto`
+pour le comportement par défaut. macOS utilise l’exécutable dans
+`CySynck.app/Contents/MacOS/`. Les échecs graphiques affichent le diagnostic GLFW.
+Les lancements bornés `--frames 8 --capture /chemin/absolu/sortie.bmp` affichent également
+le moteur sélectionné, le renderer et la version OpenGL, sans activer le démarrage à la connexion.
 
 ## Différences et conflits {#differences-et-conflits}
 

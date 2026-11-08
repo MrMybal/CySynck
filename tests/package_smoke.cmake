@@ -1109,12 +1109,8 @@ else()
   set(desktop "${prefix}/bin/cysynck-desktop${suffix}")
 endif()
 if(DESKTOP_SMOKE)
-  execute_process(COMMAND "${desktop}" --state "${WORK_DIR}/desktop-state" --frames 8
-    --capture "${WORK_DIR}/desktop.bmp" WORKING_DIRECTORY "${WORK_DIR}"
-    RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE error TIMEOUT 60)
-  if(NOT result EQUAL 0 OR NOT EXISTS "${WORK_DIR}/desktop.bmp")
-    message(FATAL_ERROR "Packaged desktop failed to render (${result}): ${error}")
-  endif()
+  include("${CMAKE_CURRENT_LIST_DIR}/desktop_smoke.cmake")
+  cysynck_desktop_smoke("${desktop}" "${WORK_DIR}")
 endif()
 # Review backup rules through the unchanged C ABI, then execute the saved scope through CLI.
 file(TO_CMAKE_PATH "${WORK_DIR}/Backup scope été" scope_root)

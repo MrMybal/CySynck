@@ -5,7 +5,7 @@ description: Use the native desktop, tray, background session and login startup.
 section: Start
 order: 3
 parent: overview
-revision: 1
+revision: 2
 ---
 
 # Desktop application {#application-desktop}
@@ -14,6 +14,19 @@ The **Network → Open received files** view lists direct transfers stored priva
 The catalog survives chat-history retention. See [received files](doc:inbox) for limits and older profiles.
 The C++20 interface/session uses the same core as the CLI. The macOS status menu uses a small Objective-C++ AppKit bridge isolated from the core, server and Unreal SDK.
 Use **Help (F1)** for the current view; the manual opens in the interface language.
+
+## Graphics compatibility {#graphics-compatibility}
+
+The desktop prefers its OpenGL 3 renderer. If creating that context fails, it retries
+with OpenGL 2.1 and Dear ImGui's legacy renderer. On macOS, the pinned GLFW integration
+also permits Apple's software pixel format after accelerated rendering is unavailable.
+Software rendering is slower and does not establish GPU compatibility.
+
+Use `cysynck-desktop --renderer opengl2` to select legacy rendering for diagnosis,
+`--renderer opengl3` to require the modern path, or `--renderer auto` for the default.
+macOS uses the executable inside `CySynck.app/Contents/MacOS/`. Graphics failures print
+the GLFW diagnostic. Bounded `--frames 8 --capture /absolute/output.bmp` runs additionally
+print the selected backend, renderer and OpenGL version without enabling login startup.
 
 ## Differences and conflicts {#differences-et-conflits}
 

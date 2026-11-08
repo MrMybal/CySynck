@@ -24,6 +24,11 @@ The pinned CyDoc npm archive and its provenance are maintained under `.CyDocBuil
 
 CyUI also uses Lexilla/Scintilla in its Code module; their licenses accompany the desktop distribution. Redistributed MSVC runtime files are subject to the Microsoft redistribution terms associated with the compiler installation.
 
+The pinned GLFW 3.4 NSGL source receives an application-owned macOS patch at configure time
+(`cmake/GlfwSoftwareFallback.cmake`). It tries Apple's software pixel format only after the
+accelerated format fails. GLFW retains its zlib/libpng terms. The desktop also includes
+Dear ImGui's OpenGL 2 backend for legacy/software contexts; hardware OpenGL 3 remains preferred.
+
 The desktop uses Shell32/User32/GDI32 on Windows and AppKit on macOS. On Linux, tray support optionally links to system GTK3 (LGPL 2.1+) and Ayatana AppIndicator (LGPL 2.1 or 3) libraries. Those libraries are not included in the Windows archive. The headless server does not depend on these graphical libraries.
 
 Syncthing, Git and WireGuard are external programs installed separately. CySynck uses their APIs and command-line tools and does not redistribute their binaries in this version. CyRevision and SyncTrayzor are functional references; their source files are not incorporated into this project.
