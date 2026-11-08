@@ -48,6 +48,25 @@ def main():
                        CYSYNCK_WG_QUICK=shutil.which("wg-quick") or "wg-quick",
                        CYSYNCK_OPENSSL=shutil.which("openssl") or "openssl",
                        CYSYNCK_MESH_TOKEN=secrets.token_hex(32))
+    # Preserve the actual wg-quick failure in a bounded, key-redacted report. The
+    # application still performs the activation and receives the real exit status.
+    diagnostic = work / "activation.json"
+    wrapper = work / "wg-quick-capture"
+    wrapper.write_text("""#!/usr/bin/python3
+import json, os, re, subprocess, sys
+from pathlib import Path
+result = subprocess.run([os.environ['CYSYNCK_TEST_REAL_WG_QUICK'], *sys.argv[1:]], capture_output=True, text=True)
+message = re.sub(r'[A-Za-z0-9+/]{43}=', '<redacted-key>', result.stderr[-4000:])
+message = message.replace(os.environ['CYSYNCK_MESH_TOKEN'], '<redacted-token>')
+path = Path(os.environ['CYSYNCK_TEST_WG_DIAGNOSTIC'])
+items = json.loads(path.read_text()) if path.exists() else []
+items.append({'action': sys.argv[1], 'exit_code': result.returncode, 'stderr': message})
+path.write_text(json.dumps(items[-8:]))
+raise SystemExit(result.returncode)
+""", encoding="utf-8")
+    wrapper.chmod(0o700)
+    environment.update(CYSYNCK_TEST_REAL_WG_QUICK=environment["CYSYNCK_WG_QUICK"],
+                       CYSYNCK_TEST_WG_DIAGNOSTIC=str(diagnostic), CYSYNCK_WG_QUICK=str(wrapper))
 
     def run(command, *, namespace=None, check=True, input=None, timeout=90):
         if namespace:
@@ -79,6 +98,8 @@ def main():
             namespaces.append(namespace)
             run(["ip", "link", "set", "lo", "up"], namespace=namespace)
             (work / side / "project").mkdir(parents=True)
+        run(["ip", "link", "add", "probe-wg", "type", "wireguard"], namespace=namespaces[0])
+        run(["ip", "link", "delete", "probe-wg"], namespace=namespaces[0])
         # Create both ends inside the test namespaces; no temporary host link is used.
         run(["ip", "-n", namespaces[0], "link", "add", "lan-a", "type", "veth",
              "peer", "name", "lan-b", "netns", namespaces[1]])
@@ -187,6 +208,8 @@ def main():
     except Exception as error:
         report["error"] = str(error)
     finally:
+        if diagnostic.exists():
+            report["wireguard_activation"] = json.loads(diagnostic.read_text())
         for child in children:
             if child.poll() is None:
                 child.terminate()

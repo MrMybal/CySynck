@@ -45,6 +45,10 @@ struct GatewayUdp::Impl {
             if (socket < 0)
 #endif
                 throw std::runtime_error("Cannot create gateway UDP socket");
+#ifndef _WIN32
+            if (socket >= FD_SETSIZE)
+                throw std::runtime_error("Gateway UDP socket exceeds the select descriptor limit");
+#endif
             if (::connect(socket, reinterpret_cast<sockaddr *>(&endpoint), sizeof(endpoint)))
                 throw std::runtime_error("Cannot reach the selected port-mapping gateway");
             sockaddr_in local{};
@@ -106,7 +110,9 @@ GatewayPacket GatewayUdp::request(const GatewayPacket &packet,
                             .count();
             if (left <= 0)
                 break;
-            timeval timeout{static_cast<long>(left / 1000000), static_cast<long>(left % 1000000)};
+            timeval timeout{};
+            timeout.tv_sec = static_cast<decltype(timeout.tv_sec)>(left / 1000000);
+            timeout.tv_usec = static_cast<decltype(timeout.tv_usec)>(left % 1000000);
             fd_set input;
             FD_ZERO(&input);
             FD_SET(impl_->socket, &input);
