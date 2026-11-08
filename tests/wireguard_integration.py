@@ -21,6 +21,7 @@ import sys
 import time
 import uuid
 from direct_socket_fixture import DirectSocketFixture
+from syncthing_bootstrap_fixture import SyncthingBootstrapFixture
 
 
 def require(condition, message):
@@ -101,6 +102,8 @@ def main():
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--direct-probe", type=Path,
                         help="Compiled production socket helper probe for the unprivileged kernel check")
+    parser.add_argument("--syncthing", type=Path,
+                        help="Use two actual managed engines for public profile transport and LAN endpoint discovery")
     parser.add_argument("--prepare-apparmor", action="store_true",
                         help="Temporarily add exact read-only test configs via the installed profile's local include")
     args = parser.parse_args()
@@ -189,15 +192,25 @@ raise SystemExit(result.returncode)
         profiles = {}
         for index, side in enumerate(("a", "b"), 1):
             namespace = tag + "-" + side
-            run(["ip", "address", "add", f"192.0.2.{index}/30", "dev", "lan-" + side], namespace=namespace)
+            run(["ip", "address", "add", f"192.168.239.{index}/30", "dev", "lan-" + side], namespace=namespace)
             run(["ip", "link", "set", "lan-" + side, "up"], namespace=namespace)
             app(side, "project", "add", "Kernel VPN test", str(work / side / "project"),
-                "--id", "wireguard-ci", "--mode", "backup", "--interval", "0")
+                "--id", "wireguard-ci", "--mode", "sendreceive" if args.syncthing else "backup", "--interval", "0")
+        bootstrap = None
+        if args.syncthing:
+            bootstrap = SyncthingBootstrapFixture(args.syncthing.resolve(strict=True), cli, work,
+                namespaces, children, environment, run, app)
+            bootstrap.start()
+        for index, side in enumerate(("a", "b"), 1):
             # The endpoint is this device's externally reachable listener, not the peer's.
             profiles[side] = app(side, "vpn", "configure", "Kernel-" + side, f"10.77.230.{index}",
-                                 "--endpoint", f"192.0.2.{index}:{51820 + index}",
+                                 "--endpoint", "" if bootstrap else f"192.168.239.{index}:{51820 + index}",
                                  "--listen-port", str(51820 + index))
             app(side, "vpn", "publish", "wireguard-ci")
+            profiles[side] = app(side, "vpn", "status")["profile"]
+        if bootstrap:
+            report['bootstrap'] = bootstrap.exchange(profiles)
+            report['checks'].append('real-Syncthing-public-profile-transport-without-manual-copy')
         # A privileged local tunnel action must preserve a prepared user's registry
         # ownership and mode, rather than leaving a root-owned 0600 replacement.
         user_uid = int(os.environ.get("SUDO_UID", str(cli.stat().st_uid)))
@@ -215,10 +228,11 @@ raise SystemExit(result.returncode)
         for side, other in (("a", "b"), ("b", "a")):
             exchange = work / side / "project/.cysynck-network/peers"
             source = work / other / "project/.cysynck-network/peers"
-            # This test isolates actual WireGuard/app traffic. Existing real Syncthing
-            # tests cover profile transport; the harness copies only public publications.
-            for item in source.glob(profiles[other]["peer_id"] + "*.json"):
-                shutil.copy2(item, exchange / item.name)
+            # The optional real-engine fixture supplies these files through
+            # Syncthing itself. The smaller standalone gate copies public data only.
+            if not bootstrap:
+                for item in source.glob(profiles[other]["peer_id"] + "*.json"):
+                    shutil.copy2(item, exchange / item.name)
             candidates = app(side, "vpn", "discover", "wireguard-ci")["peers"]
             candidate = next(c for c in candidates if c["profile"]["peer_id"] == profiles[other]["peer_id"])
             signer_der = base64.b64decode(profiles[other]["signing_key"], validate=True)
@@ -226,6 +240,9 @@ raise SystemExit(result.returncode)
             require(candidate["signing_fingerprint"] == fingerprint, "Independent signer fingerprint differs")
             app(side, "vpn", "trust", "wireguard-ci", profiles[other]["peer_id"],
                 "--key", profiles[other]["public_key"], "--fingerprint", fingerprint)
+        if bootstrap:
+            bootstrap.verify_resolution(profiles)
+            report['checks'].append('real-connected-Syncthing-LAN-hint-preserves-WireGuard-UDP-port')
         direct_guard = DirectSocketFixture(cli, work, namespaces, profiles, children, run, app)
         direct_guard.plain_interfaces()
         report["checks"].extend(["plain-veth-direct-credentials-blocked", "spoofed-WireGuard-name-veth-credentials-blocked"])
