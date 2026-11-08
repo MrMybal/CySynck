@@ -11,6 +11,7 @@ Ces notes décrivent les sources actuelles, pas une version binaire publiée. L�
 
 ## Changements de la version 0.40.0 et des sources actuelles
 
+- Noms de tunnels WireGuard propres à chaque profil, contrôle des clés et de l’appartenance des services Windows avant action, résolution des noms macOS et préservation des tunnels étrangers/historiques. Les tests utilisent des outils/services simulés ; la validation réelle des pilotes et du réseau reste distincte.
 - Transport Git/LFS signé CyRevision 0.1.34 avec identités approuvées par empreinte, séquences d’import croissantes, références de revue atomiques et reprise après interruption, depuis CLI/desktop/Web et l’aide bilingue. Les imports réels .NET/C++ passent dans les deux sens ; l’admission reste gérée par CyRevision. Les outils de test isolent une correction de ses signatures dépendant des fins de ligne du système.
 - Ajout d’un repli OpenGL historique, des diagnostics GLFW et de vérifications réelles du framebuffer des applications empaquetées, dont les contextes macOS sans GPU.
 - Pont Unreal 0.2.0 avec requêtes FIFO sur un travailleur, événements Blueprint sur le thread de jeu, file bornée et fermeture/arrêt déterministes. Le script de préparation préserve les extensions existantes ; les tests réels dans Unreal 5.7.4 et 5.8.3 Windows Editor passent.

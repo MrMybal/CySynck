@@ -4,7 +4,7 @@ title: WireGuard and direct communication
 description: Pair trusted peers, prepare the VPN and use chat or direct files.
 section: Network
 order: 50
-revision: 1
+revision: 2
 ---
 
 # WireGuard and direct communication {#reseau-wireguard-et-communications-directes}
@@ -45,9 +45,27 @@ cysynck vpn write-config
 
 Verify the public key with its owner before trusting it, on both devices. A pinned-key change is refused.
 `vpn revoke PROJECT_ID PEER_ID` removes local pairing. Each peer receives only a `/32` route to its VPN address, with no default Internet route or PostUp/PostDown commands.
-Private `vpn/cysynck.conf` stays in local state; never synchronize it. POSIX permissions are owner-only; Windows uses the private account state and OS protections.
+Private `vpn/cs-PROFILE_HASH.conf` stays in local state; never synchronize it. Its stable
+15-character tunnel name is derived from this profile's peer identity and is shown by
+`vpn preview`, `vpn write-config` and `vpn status`. Separate profiles use separate names.
+POSIX permissions are owner-only; Windows uses the private account state and OS protections.
 
 ## Activate the tunnel {#activer-le-tunnel}
+
+CySynck checks the existing interface's public key before controlling it. A foreign key
+or foreign Windows service configuration causes a refusal. Windows service ownership
+also requires the expected executable, service command and exact private configuration
+path. Inspection failures are not treated as an absent tunnel. macOS resolves the logical
+configuration name to its `utun` interface through wg-quick's runtime mapping, then checks
+the key. These checks do not replace operating-system administrator/root permissions.
+
+An old owned global `cysynck` tunnel must be stopped with `vpn down` before the new
+profile-specific tunnel starts. The old configuration must belong to this profile;
+foreign global tunnels are preserved. Shutdown regenerates a minimal configuration
+without hooks rather than executing commands from an edited old file. Repeated up/down
+does not overwrite or reactivate an already active/absent tunnel. If an owned Windows
+service exists without a running interface, `already_up` is false; stop it before retrying.
+Stop/start is needed to apply changed address or peer settings to an existing tunnel.
 
 In an administrator/root terminal, use **the same `--state` profile** prepared by the user:
 

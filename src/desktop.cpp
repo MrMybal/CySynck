@@ -74,6 +74,12 @@ static void localize() {
     c::registerTranslations(
         "fr",
         {{"CyRevision exchange", "Échange CyRevision"},
+         {"Tunnel interface", "Interface du tunnel"},
+         {"Recent handshake", "Échange de clés récent"},
+         {"No recent handshake", "Aucun échange de clés récent"},
+         {"The profile's WireGuard tunnel is not active", "Le tunnel WireGuard du profil est inactif"},
+         {"A foreign tunnel occupies this profile's interface name", "Un tunnel étranger utilise le nom d’interface de ce profil"},
+         {"Cannot inspect WireGuard interfaces; check tool availability and permissions", "Impossible d’inspecter les interfaces WireGuard ; vérifiez les outils et les permissions"},
          {"Publishing name", "Nom de publication"},
          {"Create or show public identity", "Créer ou afficher l’identité publique"},
          {"CyRevision project GUID", "GUID du projet CyRevision"},
@@ -1014,6 +1020,7 @@ class App {
     bool history_loaded = false;
     bool received_loaded = false;
     bool git_loaded = false, git_setup_requested = false;
+    bool network_requested = false;
     Json cyrevision_state, cyrevision_incoming, cyrevision_recovery;
     std::string cyrevision_name, cyrevision_guid, cyrevision_public_json, cyrevision_fingerprint, cyrevision_device;
     bool cyrevision_legacy_windows = false;
@@ -4736,7 +4743,20 @@ class App {
         }
         c::endCard();
     }
+    void refresh_network() {
+        network_requested = true;
+        net("status", Json::object(), [this](const Json &r) {
+            network_state = r;
+            if (!r["profile"].is_null()) {
+                vpn_name = r["profile"]["name"];
+                vpn_address = r["profile"]["address"];
+                vpn_endpoint = r["profile"]["endpoint"];
+            }
+        });
+    }
+    void invalidate_network() { network_state = nullptr; network_requested = false; }
     void network_view() {
+        if (network_state.is_null() && !network_requested && !busy()) refresh_network();
         if (!project().is_null() && button("Open received files", true))
             view = "Received files";
         if (!project().is_null()) {
@@ -4759,29 +4779,32 @@ class App {
         }
         if (button("Configure identity", true))
             net("configure",
-                {{"name", vpn_name}, {"address", vpn_address}, {"endpoint", vpn_endpoint}});
+                {{"name", vpn_name}, {"address", vpn_address}, {"endpoint", vpn_endpoint}},
+                [this](const Json &) { invalidate_network(); });
         ImGui::SameLine();
         if (button("Preview VPN config"))
-            net("status", Json::object(), [this](const Json &r) {
-                network_state = r;
-                if (!r["profile"].is_null()) {
-                    vpn_name = r["profile"]["name"];
-                    vpn_address = r["profile"]["address"];
-                    vpn_endpoint = r["profile"]["endpoint"];
-                }
-            });
+            refresh_network();
         if (!network_state.is_null()) {
+            text(c::tr("Tunnel interface") + ": " + network_state.value("interface", ""));
             if (!network_state["profile"].is_null())
                 c::textMono("%s",
                             network_state["profile"]["public_key"].get<std::string>().c_str());
             text(network_state["config_preview"]);
-            c::textDim("%s", network_state["status_error"].get<std::string>().c_str());
+            c::textDim("%s", c::tr(network_state["status_error"].get<std::string>().c_str()).c_str());
+            for (const auto &peer : network_state.at("peers")) {
+                const auto &profile = peer.at("profile");
+                bool recent = false;
+                for (const auto &handshake : network_state.at("handshakes"))
+                    recent |= handshake.at("public_key") == profile.at("public_key") && handshake.at("recent").get<bool>();
+                text(profile.at("name").get<std::string>() + " / " + profile.at("address").get<std::string>());
+                c::textDim("%s", c::tr(recent ? "Recent handshake" : "No recent handshake").c_str());
+            }
         }
         if (button("Connect VPN"))
-            net("up");
+            net("up", Json::object(), [this](const Json &) { invalidate_network(); });
         ImGui::SameLine();
         if (button("Disconnect VPN"))
-            net("down");
+            net("down", Json::object(), [this](const Json &) { invalidate_network(); });
         c::endCard();
         if (project().is_null()) {
             c::emptyState(c::tr("Select a project").c_str(),

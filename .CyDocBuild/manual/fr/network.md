@@ -4,7 +4,7 @@ title: Réseau WireGuard et communications directes
 description: Utilisation, commandes et limites : Réseau WireGuard et communications directes.
 section: Réseau
 order: 50
-sourceRevision: 1
+sourceRevision: 2
 ---
 
 # Réseau WireGuard et communications directes {#reseau-wireguard-et-communications-directes}
@@ -58,11 +58,28 @@ Un changement de clé épinglée est refusé ; `vpn revoke PROJECT_ID PEER_ID` r
 l'appairage local. Un peer reçoit seulement une route `/32` vers son adresse VPN.
 Aucune route Internet par défaut ni commande PostUp/PostDown n'est générée.
 
-Le fichier privé `vpn/cysynck.conf` reste dans l'état local. Ne jamais le placer dans
-un dossier synchronisé. Les permissions POSIX sont limitées au propriétaire ; sous Windows,
+Le fichier privé `vpn/cs-EMPREINTE_PROFIL.conf` reste dans l’état local. Son nom de tunnel
+stable de 15 caractères est dérivé de l’identité du pair et affiché par `vpn preview`,
+`vpn write-config` et `vpn status`. Chaque profil dispose de son propre nom. Ne jamais
+le placer dans un dossier synchronisé. Les permissions POSIX sont limitées au propriétaire ; sous Windows,
 utiliser un dossier d'état privé du compte et les protections du système.
 
 ## Activer le tunnel {#activer-le-tunnel}
+
+CySynck vérifie la clé publique de l’interface existante avant de la contrôler. Une clé
+étrangère ou un service Windows associé à une autre configuration provoque un refus.
+Le service Windows doit utiliser l’exécutable, la commande et le chemin privé exacts
+attendus. Un échec d’inspection ne vaut pas absence de tunnel. Sous macOS, le nom logique
+est relié à l’interface `utun` via le mapping de wg-quick, puis la clé est vérifiée.
+Ces contrôles ne remplacent pas les permissions administrateur/root du système.
+
+Arrêter un ancien tunnel global `cysynck` appartenant au profil avec `vpn down` avant
+de démarrer le nouveau tunnel propre au profil. Son ancienne configuration doit appartenir
+au profil ; les tunnels globaux étrangers sont préservés. L’arrêt régénère une configuration
+minimale sans hooks au lieu d’exécuter les commandes d’un ancien fichier modifié.
+Répéter up/down ne remplace pas un tunnel actif et ne réactive pas un tunnel absent.
+Si un service Windows existe sans interface active, `already_up` est faux ; l’arrêter avant
+de réessayer. Un arrêt/démarrage applique les changements d’adresses ou de pairs au tunnel existant.
 
 Dans un terminal administrateur/root, **avec le même dossier `--state`** que celui utilisé
 par le compte pour préparer la configuration :

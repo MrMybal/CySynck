@@ -11,6 +11,7 @@ These notes describe the current source tree, not a published binary release. Th
 
 ## Changes in 0.40.0 and the current source tree
 
+- Isolate WireGuard tunnel names by profile, verify keys and Windows service ownership before control, resolve macOS runtime names and preserve foreign/legacy tunnels. Model tests use isolated tools/services; real driver/network validation remains a separate gate.
 - Add signed CyRevision 0.1.34 Git/LFS transport with pinned publishing identities, monotonic import checkpoints, atomic review refs and interruption recovery, exposed in CLI/desktop/Web and bilingual help. Real .NET/C++ imports pass in both directions; group admission stays in CyRevision. Test tooling isolates a compatibility patch for its OS-dependent signature newlines.
 - Add a legacy OpenGL fallback, GLFW error diagnostics and real framebuffer checks for packaged desktops, including GPU-less macOS contexts.
 - Supply Unreal bridge 0.2.0 with FIFO worker requests, game-thread Blueprint completion, bounded queueing and deterministic close/shutdown. A staging helper preserves existing plugins; real Unreal 5.7.4 and 5.8.3 Windows Editor automation passes.

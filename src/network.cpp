@@ -1,6 +1,7 @@
 #include <cysynck/core.hpp>
 #include "inbox.hpp"
 #include "transfers.hpp"
+#include "vpn_tunnel.hpp"
 #include <fstream>
 #include <httplib.h>
 #include <regex>
@@ -75,10 +76,12 @@ Json Core::network_action(const std::string &action, const Json &data) {
     if (!registry_.contains("network"))
         registry_["network"] = {{"peers", Json::object()}};
     auto &network = registry_["network"];
-    auto directory = state_ / "vpn";
+    auto directory = project_child(state_, "vpn");
     fs::create_directories(directory);
+    auto tunnel_name = vpn_interface_name(registry_.at("peer_id").get<std::string>());
+    auto configuration = project_child(directory, tunnel_name + ".conf");
     if (action == "configure") {
-        auto privateFile = directory / "private.key";
+        auto privateFile = project_child(directory, "private.key");
         if (!fs::exists(privateFile)) {
             auto result = process({wg_tool(), "genkey"});
             if (result.code)
@@ -113,12 +116,12 @@ Json Core::network_action(const std::string &action, const Json &data) {
         std::reverse(output.begin(), output.end());
         return output;
     }
-    auto render = [&](bool secret) {
+    auto render = [&](bool secret, bool private_field = true) {
         auto local = profile(network.at("profile"));
-        std::string out =
-            "[Interface]\nPrivateKey = " +
-            (secret ? trim(read_file(directory / "private.key", 128)) : "<local private key>") +
-            "\nAddress = " + local["address"].get<std::string>() +
+        std::string out = "[Interface]\n";
+        if (private_field) out += "PrivateKey = " +
+            (secret ? trim(read_file(project_child(directory, "private.key"), 128)) : "<local private key>") + "\n";
+        out += "Address = " + local["address"].get<std::string>() +
             "/32\nListenPort = " + std::to_string(local["listen_port"].get<int>()) + "\n";
         for (auto &peer : network["peers"]) {
             auto p = profile(peer.at("profile"));
@@ -132,51 +135,50 @@ Json Core::network_action(const std::string &action, const Json &data) {
     };
     if (action == "status") {
         Json handshakes = Json::array();
+        Json tunnel;
         std::string error;
         try {
-            auto r = process({wg_tool(), "show", "cysynck", "latest-handshakes"}, {}, {}, 10);
-            if (!r.code) {
-                std::istringstream rows(r.out);
-                std::string publicKey;
-                long long time;
-                while (rows >> publicKey >> time)
-                    handshakes.push_back(
-                        {{"public_key", publicKey},
-                         {"timestamp", time},
-                         {"recent", time != 0 && std::time(nullptr) - time < 180}});
-            } else
-                error = "Tunnel absent or permission to query it is unavailable";
+            if (network.contains("profile")) {
+                tunnel = vpn_tunnel_status(wg_tool(), tunnel_name, profile(network.at("profile")).at("public_key"), configuration);
+                handshakes = tunnel.at("handshakes");
+                if (tunnel.at("present") == true && tunnel.at("owned") != true)
+                    error = "A foreign tunnel occupies this profile's interface name";
+                else if (tunnel.at("present") != true && tunnel.at("legacy").at("owned") != true)
+                    error = "The profile's WireGuard tunnel is not active";
+            }
         } catch (const std::exception &e) {
             error = e.what();
         }
         return {{"profile", network.value("profile", Json(nullptr))},
                 {"peers", network["peers"]},
                 {"handshakes", handshakes},
+                {"interface", tunnel_name},
+                {"tunnel", tunnel},
                 {"status_error", error},
                 {"config_preview", network.contains("profile") ? render(false) : ""}};
     }
     if (!network.contains("profile"))
         throw std::runtime_error("Configure the local WireGuard identity first");
     if (action == "preview")
-        return {{"config", render(false)}};
+        return {{"config", render(false)}, {"interface", tunnel_name}};
     if (action == "write-config" || action == "up" || action == "down") {
-        auto config = directory / "cysynck.conf";
-        atomic_write(config, render(true), true);
-        if (action == "write-config")
-            return {{"path", path_string(config)}};
-        std::vector<std::string> args;
+        if (action != "down") {
+            auto derived = process({wg_tool(), "pubkey"}, {}, read_file(project_child(directory, "private.key"), 128));
+            if (derived.code || trim(derived.out) != profile(network.at("profile")).at("public_key").get<std::string>())
+                throw std::runtime_error("Local WireGuard public identity differs from its private key");
+        }
+        if (action == "write-config") {
+            atomic_write(configuration, render(true), true);
+            return {{"path", path_string(configuration)}, {"interface", tunnel_name}};
+        }
 #ifdef _WIN32
         auto tool = env("CYSYNCK_WIREGUARD", "C:/Program Files/WireGuard/wireguard.exe");
-        args = action == "up"
-                   ? std::vector<std::string>{tool, "/installtunnelservice", path_string(config)}
-                   : std::vector<std::string>{tool, "/uninstalltunnelservice", "cysynck"};
 #else
-        args = {env("CYSYNCK_WG_QUICK", "wg-quick"), action, path_string(config)};
+        auto tool = env("CYSYNCK_WG_QUICK", "wg-quick");
 #endif
-        if (process(args, {}, {}, 45).code)
-            throw std::runtime_error("WireGuard requires administrator/root rights; "
-                                     "check the WireGuard logs");
-        return {{"requested", action}, {"interface", "cysynck"}};
+        return vpn_tunnel_control(action, wg_tool(), tool, tunnel_name,
+                                  profile(network.at("profile")).at("public_key"), configuration,
+                                  action == "down" ? render(false, false) : render(true));
     }
     auto &p = project(data.at("project"));
     auto path = exchange_dir(p);
