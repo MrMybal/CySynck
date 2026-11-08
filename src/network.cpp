@@ -213,6 +213,7 @@ Json Core::network_action(const std::string &action, const Json &data) {
                 {"requires_restart", !network.value("pending_removals", Json::object()).empty() ||
                     network.value("endpoint_refresh", Json::object()).value("requires_restart", false)},
                 {"pending_removals", network.value("pending_removals", Json::object()).size()},
+                {"endpoint_history_entries", network.value("endpoint_history", Json::object()).size()},
                 {"signing_fingerprint", network.contains("profile") && network["profile"].contains("signing_key")
                     ? cyrevision::fingerprint(network["profile"]["signing_key"]) : ""},
                 {"status_error", error},
@@ -275,6 +276,7 @@ Json Core::network_action(const std::string &action, const Json &data) {
         auto wanted = data.value("project", std::string{});
         if (!wanted.empty()) project(wanted);
         Json connections = Json::object(), errors = Json::array(), output = Json::array(), tunnel_errors = Json::array();
+        if (!network.contains("endpoint_history")) network["endpoint_history"] = Json::object();
         if (engine_config().at("key_configured").get<bool>())
             try { connections = engine_request("GET", "system/connections").at("connections"); }
             catch (const std::exception &e) { errors.push_back({{"source", "syncthing"}, {"error", e.what()}}); }
@@ -285,10 +287,12 @@ Json Core::network_action(const std::string &action, const Json &data) {
                 auto name = project_id.get<std::string>();
                 if ((!wanted.empty() && wanted != name) || !pinned.contains("signing_key")) continue;
                 try {
+                    auto identity = network_endpoint_identity(pinned, name);
+                    retain_endpoint_checkpoint(network["endpoint_history"], identity, peer["endpoint_checkpoints"][name]);
                     auto publication = project_child(exchange_dir(project(name)), id + ".endpoint.json");
                     if (fs::exists(publication))
-                        accept_network_endpoint(read_file(publication, 16384), network_endpoint_identity(pinned, name),
-                                                peer["endpoint_checkpoints"][name], now, directory);
+                        accept_network_endpoint(read_file(publication, 16384), identity,
+                                                peer["endpoint_checkpoints"][name], now, directory, &network["endpoint_history"]);
                 } catch (const std::exception &e) {
                     errors.push_back({{"peer", id}, {"project", name}, {"error", e.what()}});
                 }
@@ -485,6 +489,13 @@ Json Core::network_action(const std::string &action, const Json &data) {
         auto peer = valid_id(data.at("peer"));
         if (!network["peers"].contains(peer)) return {{"revoked", peer}, {"requires_restart", false}};
         auto &entry = network["peers"][peer];
+        if (entry.at("profile").contains("signing_key") && entry.contains("endpoint_checkpoints")) {
+            if (!network.contains("endpoint_history")) network["endpoint_history"] = Json::object();
+            auto name = p.at("id").get<std::string>();
+            if (entry.at("endpoint_checkpoints").contains(name))
+                retain_endpoint_checkpoint(network["endpoint_history"], network_endpoint_identity(profile(entry.at("profile")), name),
+                                             entry.at("endpoint_checkpoints").at(name));
+        }
         auto &projects = entry["projects"];
         projects.erase(std::remove(projects.begin(), projects.end(), p.at("id")), projects.end());
         if (entry.contains("endpoint_checkpoints")) entry["endpoint_checkpoints"].erase(p.at("id").get<std::string>());

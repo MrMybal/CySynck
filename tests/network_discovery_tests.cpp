@@ -172,6 +172,26 @@ int main(int argc, char **argv) {
                       .at("endpoint") == "",
               "An expired endpoint remained eligible");
 
+        Json history = Json::object(), cached;
+        accept_network_endpoint(second, identity, cached, now, root, &history);
+        for (size_t i = 0; i < 4095; ++i)
+            history["legacy-fixture-" + std::to_string(i)] = {{"sequence", 1}, {"canonical_hash", std::string(64, 'a')}};
+        cached = nullptr;
+        refuses([&] { accept_network_endpoint(first, identity, cached, now, root, &history); },
+                "A cleared cache reset the retained identity replay floor");
+        accept_network_endpoint(second, identity, cached, now, root, &history);
+        auto extra_identity = network_endpoint_identity(remote, "extra");
+        auto extra_record = sign_endpoint_record(extra_identity, "198.18.0.8:45003", "pcp", 1, now - 1, now + 60,
+                                                  root / "remote.pem");
+        Json extra_cache;
+        refuses([&] { accept_network_endpoint(extra_record, extra_identity, extra_cache, now, root, &history); },
+                "History pressure discarded an existing replay floor to admit another identity");
+        check(history.size() == 4096 && extra_cache.is_null(), "A refused history admission mutated its cache");
+        history.erase("legacy-fixture-0");
+        accept_network_endpoint(extra_record, extra_identity, extra_cache, now, root, &history);
+        check(extra_cache.at("metadata").at("sequence") == 1,
+              "A distinct project's independently signed sequence inherited another project's replay floor");
+
         Core core(root / "state");
         project(core, root / "project", "team");
         project(core, root / "extra-project", "extra");
@@ -290,6 +310,22 @@ int main(int argc, char **argv) {
         refreshed = restarted.request("POST", "/api/network/refresh");
         check(refreshed.at("requires_restart") == false,
               "Retry did not complete the owned tunnel revocation");
+        trust["project"] = "team";
+        restarted.request("POST", "/api/network/trust", trust);
+        Core paired_again(core.state());
+        auto old_after_pairing = paired_again.request("POST", "/api/network/refresh", {{"project", "team"}});
+        check(!old_after_pairing.at("errors").empty() &&
+                  old_after_pairing.at("peers").at(0).at("resolved").at("endpoint") == "",
+              "Revocation and re-pairing reset the durable signed endpoint replay floor");
+        atomic_write(exchange / "remote.endpoint.json", record(3, "198.18.0.8:45099", now + 180));
+        check(!paired_again.request("POST", "/api/network/refresh", {{"project", "team"}}).at("errors").empty(),
+              "Re-pairing accepted a conflicting reuse of the latest signed sequence");
+        atomic_write(exchange / "remote.endpoint.json", third);
+        auto same_after_pairing = paired_again.request("POST", "/api/network/refresh", {{"project", "team"}});
+        check(same_after_pairing.at("errors").empty() &&
+                  same_after_pairing.at("peers").at(0).at("resolved").at("endpoint") == "198.18.0.8:45002",
+              "The preserved replay floor prevented idempotent re-pairing to the latest valid record");
+        paired_again.request("POST", "/api/network/revoke", {{"project", "team"}, {"peer", "remote"}});
         auto calls_before = Json::parse(read_file(world_file)).at("calls").size();
         restarted.tick();
         check(Json::parse(read_file(world_file)).at("calls").size() == calls_before,

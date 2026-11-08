@@ -4,7 +4,7 @@ title: Réseau WireGuard et communications directes
 description: Utilisation, commandes et limites : Réseau WireGuard et communications directes.
 section: Réseau
 order: 50
-sourceRevision: 6
+sourceRevision: 7
 ---
 
 # Réseau WireGuard et communications directes {#reseau-wireguard-et-communications-directes}
@@ -117,6 +117,12 @@ cysynck vpn automatic false
 L’actualisation automatique est désactivée par défaut et vérifie environ toutes les 45 secondes pendant l’exécution de l’hôte. Elle ne crée jamais de tunnel ; modifier un tunnel actif nécessite les droits administrateur/root et les contrôles de propriété. Une adresse dynamique expirée disparaît de la configuration générée et est effacée du pair actif avant de rétablir sa route hôte. Les erreurs sont disponibles dans `endpoint_refresh` de `vpn status`. HTTP et le CLI distant ne peuvent pas configurer les identités, appairer/révoquer des pairs, écrire la configuration privée, activer le tunnel ou activer/exécuter l’actualisation automatique ; utiliser le bureau ou CLI local.
 
 Les nouvelles identités conservent leur clé de signature séparée dans `vpn/endpoint-signing.pem`, jamais dans le dossier d’échange. Publier un endpoint manuel écrit aussi une publication signée valable 15 minutes.
+
+Les seuils compacts de séquence/empreinte survivent aussi à la révocation et au
+réappairage du même ensemble projet/appareil/clés. Ils ne conservent aucune
+autorisation et ne rétablissent pas une adresse révoquée. Cet historique privé
+admet au maximum 4096 nouveaux ensembles d’identités ; une fois plein, il refuse
+les nouveaux enregistrements sans effacer silencieusement la protection contre le rejeu.
 
 ## Redirection du routeur sur consentement {#router-mapping}
 

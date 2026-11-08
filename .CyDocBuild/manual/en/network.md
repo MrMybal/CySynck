@@ -4,7 +4,7 @@ title: WireGuard and direct communication
 description: Pair trusted peers, prepare the VPN and use chat or direct files.
 section: Network
 order: 50
-revision: 6
+revision: 7
 ---
 
 # WireGuard and direct communication {#reseau-wireguard-et-communications-directes}
@@ -100,6 +100,11 @@ cysynck vpn automatic false
 Automatic refresh is off by default and checks about every 45 seconds while the host runs. It never creates a tunnel; updating an active tunnel requires administrator/root permissions and passes ownership checks. An expired dynamic endpoint is removed from the generated configuration and cleared from the live peer before re-adding its host route. Errors are available under `endpoint_refresh` in `vpn status`. HTTP and remote CLI cannot configure identities, pair/revoke peers, write private tunnel configurations, activate tunnels or arm/perform automatic refresh; use the local desktop or CLI.
 
 New local identities keep their separate endpoint signing key in `vpn/endpoint-signing.pem`, never in the exchange. Publishing a manual endpoint also writes a signed publication valid for 15 minutes.
+
+Compact sequence/hash floors also survive revocation and re-pairing of the same
+project/device/key tuple. They do not preserve authorization or restore a revoked
+endpoint. This private history admits at most 4096 new identity tuples; reaching
+the limit refuses new records without silently discarding replay protection.
 
 ## Opt-in router mapping {#router-mapping}
 

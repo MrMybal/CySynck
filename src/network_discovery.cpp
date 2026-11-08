@@ -11,6 +11,22 @@
 #include <arpa/inet.h>
 #endif
 namespace cysynck {
+namespace {
+std::string history_key(const EndpointIdentity &identity) {
+    return sha256(Json::array({identity.project, identity.peer, identity.wireguard_key,
+                                identity.signing_key, identity.device_id, identity.listen_port}).dump());
+}
+Json floor(const Json &checkpoint) {
+    return {{"sequence", checkpoint.at("metadata").at("sequence")},
+            {"canonical_hash", checkpoint.at("canonical_hash")}};
+}
+void check_floor(const Json &current, const Json &previous) {
+    auto sequence = previous.at("sequence").get<int64_t>();
+    if (current.at("sequence").get<int64_t>() < sequence ||
+        (current.at("sequence") == sequence && current.at("canonical_hash") != previous.at("canonical_hash")))
+        throw std::runtime_error("Endpoint publication rolls back or reuses a signed sequence");
+}
+} // namespace
 EndpointIdentity network_endpoint_identity(const Json &profile, const std::string &project) {
     return {project,
             profile.at("peer_id"),
@@ -20,18 +36,31 @@ EndpointIdentity network_endpoint_identity(const Json &profile, const std::strin
             profile.at("listen_port")};
 }
 Json accept_network_endpoint(const std::string &bytes, const EndpointIdentity &identity,
-                             Json &checkpoint, int64_t now, const fs::path &scratch) {
+                             Json &checkpoint, int64_t now, const fs::path &scratch,
+                             Json *private_history) {
     auto verified = verify_endpoint_record(bytes, identity, now, scratch);
     const auto &body = verified.at("metadata");
-    if (!checkpoint.is_null()) {
-        auto sequence = checkpoint.at("metadata").at("sequence").get<int64_t>();
-        if (body.at("sequence").get<int64_t>() < sequence ||
-            (body.at("sequence") == sequence &&
-             verified.at("canonical_hash") != checkpoint.at("canonical_hash")))
-            throw std::runtime_error("Endpoint publication rolls back or reuses a signed sequence");
+    if (!checkpoint.is_null()) check_floor(floor(verified), floor(checkpoint));
+    if (private_history) {
+        if (!private_history->is_object()) *private_history = Json::object();
+        auto key = history_key(identity);
+        if (private_history->contains(key)) check_floor(floor(verified), private_history->at(key));
+        else if (private_history->size() >= 4096 && checkpoint.is_null())
+            throw std::runtime_error("Private endpoint identity history limit (4096) reached; no replay checkpoints were discarded");
+        (*private_history)[key] = floor(verified);
     }
     checkpoint = verified;
     return body;
+}
+void retain_endpoint_checkpoint(Json &history, const EndpointIdentity &identity, const Json &checkpoint) {
+    if (checkpoint.is_null()) return;
+    if (!history.is_object()) history = Json::object();
+    auto key = history_key(identity);
+    auto value = floor(checkpoint);
+    // Migration archives an already accepted private cache; it does not admit a
+    // new untrusted publication or let history pressure prevent revocation.
+    if (!history.contains(key) || value.at("sequence").get<int64_t>() > history.at(key).at("sequence").get<int64_t>())
+        history[key] = value;
 }
 std::string direct_network_endpoint(const Json &profile, const Json &connection) {
     auto type = connection.value("type", std::string{});
