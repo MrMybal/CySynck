@@ -7,7 +7,7 @@
 #include <thread>
 using namespace cysynck;
 static int checks = 0;
-static void check(bool value, const char *message) {
+static void check(bool value, const std::string &message) {
     if (!value)
         throw std::runtime_error(message);
     ++checks;
@@ -452,8 +452,25 @@ int main() {
         try {
             httplib::Client client("127.0.0.1", port);
             auto input = begin("http", tail, "sender");
-            auto response = client.Post("/transfer/begin", input.dump(), "application/json");
-            check(response && response->status == 401, "Resumable HTTP requires the mesh secret");
+            // Authentication runs before request-body parsing. A bodyless probe checks
+            // its exact status without racing an early TCP close over unread POST bytes.
+            auto response = client.Post("/transfer/begin", "", "application/json");
+            check(response && response->status == 401,
+                  response ? "Unauthenticated HTTP returned " + std::to_string(response->status)
+                           : "Unauthenticated HTTP probe failed: " +
+                                 httplib::to_string(response.error()));
+            auto unauthorized = begin("http-unauthorized", tail, "sender");
+            response = client.Post("/transfer/begin",
+                                   {{"Authorization", "Bearer test-only-wrong-credential"},
+                                    {"X-CySynck-Peer", "sender"}},
+                                   unauthorized.dump(), "application/json");
+            check(!response || response->status == 401,
+                  "A complete transfer request with a wrong mesh secret was not rejected");
+            check(!registry(receiver)
+                       .value("transfers_in", Json::object())
+                       .value("team", Json::object())
+                       .contains("http-unauthorized"),
+                  "A rejected HTTP transfer must not create a receiver reservation");
             httplib::Headers headers{{"Authorization", "Bearer " + env("CYSYNCK_MESH_TOKEN")},
                                      {"X-CySynck-Peer", "sender"}};
             response = client.Post("/transfer/begin", headers, input.dump(), "application/json");

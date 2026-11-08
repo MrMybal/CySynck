@@ -321,8 +321,11 @@ int HttpServer::bind(const std::string &host, int port) {
         if (profile.is_null() || host != profile.at("address").get<std::string>())
             throw std::runtime_error("Direct receiver must bind to the configured VPN address");
     }
-    if (port == 0)
-        return impl_->server.bind_to_any_port(host);
+    if (port == 0) {
+        auto assigned = impl_->server.bind_to_any_port(host);
+        if (assigned < 1) throw std::runtime_error("Cannot bind an available listener port");
+        return assigned;
+    }
     if (!impl_->server.bind_to_port(host, port))
         throw std::runtime_error("Cannot bind listener; check the address, tunnel and port");
     return port;
