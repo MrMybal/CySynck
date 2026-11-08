@@ -1,0 +1,46 @@
+{
+  "success": true,
+  "kernel": "7.0.0-1019-azure",
+  "checks": [
+    "independent-pcp-and-nat-pmp-grants-preserve-foreign-port",
+    "real-kernel-handshake-through-two-independent-nat-routers",
+    "real-Core-tick-renewal-and-signed-republication",
+    "forged-and-stale-shared-endpoints-preserve-verified-kernel-peer",
+    "authenticated-chat-and-verified-file-through-mapped-wireguard",
+    "owned-router-cleanup-preserves-foreign-mapping-and-withdraws-sidecar"
+  ],
+  "topology": "two clients, two miniupnpd routers, three veth pairs, no host network changes",
+  "router_version": "miniupnpd 2.3.9 Feb 11 2026",
+  "legacy_dnat_renderer": "unsupported revision; independently payload-probed",
+  "apparmor": {
+    "prepared": true,
+    "profile": "/etc/apparmor.d/wg-quick",
+    "exact_configurations": 2,
+    "permissions": "read-only, no wildcard, no disable/complain mode",
+    "restored": true
+  },
+  "grants": {
+    "a": {
+      "protocol": "pcp",
+      "internal_port": 51821,
+      "external_port": 45001,
+      "external_address": "198.18.50.1",
+      "expires_at": 1794143131
+    },
+    "b": {
+      "protocol": "nat-pmp",
+      "internal_port": 51822,
+      "external_port": 45001,
+      "external_address": "198.18.50.2",
+      "expires_at": 1794143071
+    }
+  },
+  "payload_bytes": 8388608,
+  "payload_sha256": "eac640b5f3238d3f7b0dddf6e09fb3dae21e6c182b40fcad46e30a57e2ea0046",
+  "wireguard_bytes_growth": 9072680,
+  "revision": "c23ed6f9797a9c7ebe885248a9c0d8738ff6e866",
+  "native_version": "0.41.0",
+  "ci_run": 42482897027,
+  "job_id": 128738492510,
+  "scope": "Two clients and two independent miniupnpd routers in four isolated namespaces; real PCP/NAT-PMP grants, renewal, signed endpoints, authenticated chat, verified 8 MiB file and foreign-forwarding preservation. Public profiles copied to isolate the NAT test; physical firmware and CGNAT not measured."
+}

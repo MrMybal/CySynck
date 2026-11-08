@@ -1,0 +1,18 @@
+{
+  "success": true,
+  "driver": "official WireGuard Windows 1.1.1 / WireGuardNT",
+  "checks": [
+    "real-SCM-foreign-service-preserved",
+    "real-WireGuardNT-service-and-Unicode-profile",
+    "actual-WireGuardNT-adapter-and-TCP-interface-binding",
+    "real-WireGuardNT-foreign-key-preserved",
+    "verified-owned-service-and-adapter-removal"
+  ],
+  "owned_cleanup_complete": true,
+  "revision": "c23ed6f9797a9c7ebe885248a9c0d8738ff6e866",
+  "native_version": "0.41.0",
+  "ci_run": 42482897027,
+  "job_id": 128738492657,
+  "ctest_passed": 50,
+  "scope": "Actual official WireGuard Windows 1.1.1 installed from its pinned checksum and publisher-signed MSI on a disposable elevated native host. Real SCM foreign service, Unicode profile, WireGuardNT adapter and IP_UNICAST_IF, foreign live-key preservation and owned cleanup. Loopback TCP/reply inheritance and ordinary-adapter refusal are in CTest. No unprivileged Windows token or cross-host Windows payload measurement."
+}

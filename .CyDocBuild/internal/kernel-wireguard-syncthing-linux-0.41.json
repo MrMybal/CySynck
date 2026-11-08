@@ -1,0 +1,41 @@
+{
+  "kernel": "7.0.0-1019-azure",
+  "checks": [
+    "real-Syncthing-public-profile-transport-without-manual-copy",
+    "privileged-state-write-preserves-existing-owner",
+    "real-connected-Syncthing-LAN-hint-preserves-WireGuard-UDP-port",
+    "plain-veth-direct-credentials-blocked",
+    "spoofed-WireGuard-name-veth-credentials-blocked",
+    "real-kernel-handshake-and-ping",
+    "overlapping-physical-routes-do-not-leak-direct-credentials",
+    "unprivileged-interface-bound-TCP-over-kernel-WireGuard",
+    "authenticated-chat-over-kernel-wireguard",
+    "verified-resumable-protocol-file-over-kernel-wireguard",
+    "live-revocation-and-service-restart-preservation",
+    "foreign-kernel-interface-preserved"
+  ],
+  "success": true,
+  "bootstrap": {
+    "transport": "real managed Syncthing over isolated static LAN TCP",
+    "public_profile_sha256": {
+      "a": "98980ca35449d22ba2c625c7a917272a6117c78096f1baa46237352b7bcff41a",
+      "b": "fd0c52112df7318f9debb3ad3900defc55969d37858888290a9795f58b645af4"
+    },
+    "manual_profile_copy": false
+  },
+  "apparmor": {
+    "prepared": true,
+    "profile": "/etc/apparmor.d/wg-quick",
+    "exact_configurations": 2,
+    "permissions": "read-only, no wildcard, no disable/complain mode",
+    "restored": true
+  },
+  "payload_bytes": 16777216,
+  "payload_sha256": "fbc6902d90c21d903b46d2d126f82cc6484a0c108b1bc4bdf0b4425dc588ca99",
+  "wireguard_bytes_growth": 17975188,
+  "revision": "c23ed6f9797a9c7ebe885248a9c0d8738ff6e866",
+  "native_version": "0.41.0",
+  "ci_run": 42482897027,
+  "job_id": 128738492510,
+  "scope": "Twelve real kernel checks with two actual managed Syncthing engines, automatic connected LAN endpoint hints, interface/route guards, unprivileged bound TCP, authenticated chat, a verified 16 MiB file and live revoke/restart. No manual public-profile copy; isolated namespaces; AppArmor include restored."
+}

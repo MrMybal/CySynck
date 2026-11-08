@@ -1,0 +1,18 @@
+{
+  "success": true,
+  "version": "0.41.0",
+  "package_source_revision": "c23ed6f9797a9c7ebe885248a9c0d8738ff6e866",
+  "binary_source_revision": "18642105fa67884783324d3bfbe325f60c2b5a00",
+  "package": "CySynck-0.41.0-win64.zip",
+  "sha256": "61bc1030b617204d646fdfb55a0f4898008d66bfb607a9d4bf13d712fbd375a3",
+  "bytes": 5373211,
+  "signed": false,
+  "verified_file_count": 130,
+  "documentation_files_changed_from_tested_candidate": [
+    "CySynck-0.41.0-win64/CySynck-Documentation.zip",
+    "CySynck-0.41.0-win64/Documentation/DocData/data.js",
+    "CySynck-0.41.0-win64/Documentation/DocData/manifest.json"
+  ],
+  "validation": "All non-manual archive paths and SHA-256 contents exactly match the extracted/CLI/C++/C/plugin SDK tested candidate. Every manual file and ZIP matches the newly validated 90-page bilingual export. CPack SHA-256 sidecar matches; the freshly extracted CLI resolves the French network section locally without opening a browser.",
+  "core_sha256": "8b6dc93e1eabb05851dfd763bff73880d580aef462395ee13c39a08791f1e8f7"
+}

@@ -1,0 +1,30 @@
+{
+  "success": true,
+  "source_revision": "c23ed6f9797a9c7ebe885248a9c0d8738ff6e866",
+  "native_version": "0.41.0",
+  "ci_run": 42482897027,
+  "secret_scan_run": 42482897023,
+  "jobs": [
+    {
+      "id": 128738492510,
+      "name": "linux-server",
+      "conclusion": "success"
+    },
+    {
+      "id": 128738492657,
+      "name": "build (windows-latest)",
+      "conclusion": "success"
+    },
+    {
+      "id": 128738492697,
+      "name": "build (ubuntu-latest)",
+      "conclusion": "success"
+    },
+    {
+      "id": 128738492751,
+      "name": "build (macos-latest)",
+      "conclusion": "success"
+    }
+  ],
+  "scope": "All four native jobs succeeded, including actual driver/router gates, CTest, installation, native SDK/package execution and relocated desktop rendering. Later report and artifact-upload selector changes do not alter the shipped C++/Web/manual payload."
+}

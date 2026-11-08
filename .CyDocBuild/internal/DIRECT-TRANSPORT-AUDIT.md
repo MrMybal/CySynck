@@ -11,18 +11,27 @@ and unprivileged kernel probes passed in native run 42477753274 (ten real-driver
 checks; see `kernel-wireguard-linux.json`). Windows now validates the official
 WireGuardNT adapter, LUID and address before setting IP_UNICAST_IF on every direct
 client/listener socket. Actual Windows loopback TCP, accepted-socket inheritance,
-replies and ordinary-adapter refusal pass locally; a disposable official-driver
-gate is implemented, with native CI execution still pending. macOS now binds TCP
+replies and ordinary-adapter refusal pass locally. Five official WireGuardNT/SCM
+checks and all 50 configured Windows native CTests pass on candidate c23ed6f in
+run 42482897027; see `wireguard-windows-0.41.json`. macOS now binds TCP
 with IP_BOUND_IF using a public, root-owned authorization published by local
 `vpn up` after live public-key verification. It binds the profile/key/address to
 the actual utun index, boot-session UUID and protected UAPI socket inode/ctime;
 every socket revalidates those values. Ordinary hosts read no private socket or
 mapping file. The authorization disappears on successful `vpn down`; a stopped,
 recycled or re-keyed profile fails the stored identity/generation comparison.
-Actual macOS driver/unprivileged probes are implemented but native execution is
-pending. This is not yet measured macOS driver evidence.
+Five actual macOS driver/unprivileged lifecycle checks and all 50 native CTests
+pass on that same candidate; see `wireguard-macos-0.41.json`. The current Linux
+candidate also passes twelve real-kernel checks with actual managed Syncthing
+profile transport; see `kernel-wireguard-syncthing-linux-0.41.json`.
 
-## Requirements for the implementation
+The real peer payload and overlapping-route spy measurements are Linux evidence.
+Windows IP_UNICAST_IF constrains outgoing TCP/replies; it is not an incoming
+adapter filter. The receiver retains its configured address and pinned source,
+project and secret checks. Windows/macOS cross-host payload and an ordinary-user
+Windows token are not measured by the elevated driver fixture.
+
+## Implemented requirements
 
 - Identify the unique active interface owning the profile's local IPv4 address and
   verify its expected profile-specific name and actual transport type/ownership.
@@ -33,9 +42,9 @@ pending. This is not yet measured macOS driver evidence.
   Requiring a privileged `wg show` for every chunk would regress embedded games.
 - Keep protocol loopback fixtures explicitly local; production VPN configuration
   already rejects loopback. Do not introduce a production environment skip switch.
-- Add actual namespace negatives with the VPN address on a plain veth, including a
+- Actual namespace negatives place the VPN address on a plain veth, including a
   deliberately overlapping route. Assert that no HTTP credentials/payload arrive.
-  Keep real WireGuard positives and add an unprivileged Linux positive where possible.
+  Real WireGuard positives and an unprivileged Linux TCP positive pass.
 
 ## Primary implementation findings
 
@@ -60,7 +69,7 @@ check. The implemented public attestation lives in the protected root-owned
 WireGuard runtime directory with mode 0644, avoiding new root-owned private state
 files that an ordinary preparing user cannot read. The UAPI socket retains its
 original owner-only mode. The boot-session UUID is independent of wall-clock
-adjustments. Actual platform evidence remains pending as stated above.
+adjustments. Actual platform evidence is recorded above.
 
 Sources inspected (interfaces/constants only; no external implementation copied):
 

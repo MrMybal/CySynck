@@ -1,0 +1,77 @@
+{
+  "version": "0.41.0",
+  "c_abi": 1,
+  "unreal_bridge": "0.2.0",
+  "application_source_revision": "c23ed6f9797a9c7ebe885248a9c0d8738ff6e866",
+  "native_ci_run": 42482897027,
+  "license": "MIT",
+  "publication": "Local verified archives; no GitHub binary release published",
+  "packages": [
+    {
+      "platform": "Windows-x64",
+      "path": "Windows-x64/CySynck-0.41.0-win64.zip",
+      "success": true,
+      "version": "0.41.0",
+      "package_source_revision": "c23ed6f9797a9c7ebe885248a9c0d8738ff6e866",
+      "binary_source_revision": "18642105fa67884783324d3bfbe325f60c2b5a00",
+      "package": "CySynck-0.41.0-win64.zip",
+      "sha256": "61bc1030b617204d646fdfb55a0f4898008d66bfb607a9d4bf13d712fbd375a3",
+      "bytes": 5373211,
+      "signed": false,
+      "verified_file_count": 130,
+      "documentation_files_changed_from_tested_candidate": [
+        "CySynck-0.41.0-win64/CySynck-Documentation.zip",
+        "CySynck-0.41.0-win64/Documentation/DocData/data.js",
+        "CySynck-0.41.0-win64/Documentation/DocData/manifest.json"
+      ],
+      "validation": "All non-manual archive paths and SHA-256 contents exactly match the extracted/CLI/C++/C/plugin SDK tested candidate. Every manual file and ZIP matches the newly validated 90-page bilingual export. CPack SHA-256 sidecar matches; the freshly extracted CLI resolves the French network section locally without opening a browser.",
+      "core_sha256": "8b6dc93e1eabb05851dfd763bff73880d580aef462395ee13c39a08791f1e8f7"
+    },
+    {
+      "platform": "Linux-desktop-x64",
+      "path": "Linux-desktop-x64/CySynck-0.41.0-Linux-x86_64.tar.gz",
+      "success": true,
+      "version": "0.41.0",
+      "source_revision": "c23ed6f9797a9c7ebe885248a9c0d8738ff6e866",
+      "ci_run": 42482897027,
+      "artifact_id": 13618028994,
+      "artifact_sha256": "6725897b573dea31f8b893689a438a900fd7244c600c2b2e62d9f55df69973cd",
+      "package": "CySynck-0.41.0-Linux-x86_64.tar.gz",
+      "sha256": "bba683223603aaf9b4f34cf5b7a33b4f3a5f6811a9f482c2fcb205c4b85c8b2d",
+      "bytes": 6508975,
+      "manual_pages": 90,
+      "validation": "Authentic Actions wrapper digest and inner CPack SHA-256 sidecar verified; only root release archive/checksum collected. Version and 45 pages per locale checked locally. Execution and SDK/desktop checks ran on the native CI host, not Windows."
+    },
+    {
+      "platform": "Linux-server-x64",
+      "path": "Linux-server-x64/CySynck-0.41.0-Linux-x86_64-server.tar.gz",
+      "success": true,
+      "version": "0.41.0",
+      "source_revision": "c23ed6f9797a9c7ebe885248a9c0d8738ff6e866",
+      "ci_run": 42482897027,
+      "artifact_id": 13618073539,
+      "artifact_sha256": "c65a5670aacf4e436c37b73bb4faf2c86c0d083cd5f832284464a9bcf725b817",
+      "package": "CySynck-0.41.0-Linux-x86_64-server.tar.gz",
+      "sha256": "110bcd63b3f0e48bc344c8641aedba422a08f7efdb77b7c49e023f02425ef117",
+      "bytes": 3954490,
+      "manual_pages": 90,
+      "validation": "Authentic Actions wrapper digest and inner CPack SHA-256 sidecar verified; only root release archive/checksum collected. Version and 45 pages per locale checked locally. Execution and SDK/desktop checks ran on the native CI host, not Windows."
+    },
+    {
+      "platform": "macOS-arm64",
+      "path": "macOS-arm64/CySynck-0.41.0-Darwin-arm64.zip",
+      "success": true,
+      "version": "0.41.0",
+      "source_revision": "c23ed6f9797a9c7ebe885248a9c0d8738ff6e866",
+      "ci_run": 42482897027,
+      "artifact_id": 13618742474,
+      "artifact_sha256": "8a476921a46244803a9f1556d0995b27576173528d189a420049712c957a2a9f",
+      "package": "CySynck-0.41.0-Darwin-arm64.zip",
+      "sha256": "b6799dcf63d22b7dcbd5bf83af2f707a2bad2057c2a28636c7b26097a440540d",
+      "bytes": 7856085,
+      "manual_pages": 90,
+      "validation": "Authentic Actions wrapper digest and inner CPack SHA-256 sidecar verified; only root release archive/checksum collected. Version and 45 pages per locale checked locally. Execution and SDK/desktop checks ran on the native CI host, not Windows."
+    }
+  ],
+  "scope": "Linux packages were built/executed on Ubuntu 26.04 x64 (GCC 15.2); macOS on macOS 26 ARM64 (AppleClang 21). Other OS/libc/CPU targets require their own compatible build and verification. Windows local binary hash has 53 CTests and real Unreal 5.8.3 Editor/game evidence; native CI Windows independently passes its 50 configured tests and real WireGuardNT."
+}
