@@ -5,7 +5,7 @@ description: Install, update or remove the Windows package; run portable Linux a
 section: Start
 order: 2
 parent: overview
-revision: 2
+revision: 3
 ---
 
 # Windows installation {#installation-windows}
@@ -34,6 +34,24 @@ Quit CySynck and applications using its SDK. Extract the new package, then run i
 Tracked files are SHA-256 checked before replacement. Modified or locked files stop the update.
 Previous copies are retained during replacement for recovery on error. If recovery fails, the backup directory is preserved with its path in a warning.
 Untracked personal files stay intact; a new package file colliding with an untracked file blocks the update.
+
+## Portable Linux and macOS updates {#portable-updates}
+
+Updates on Linux/macOS are manual. Stop the desktop, embedded SDK hosts and any
+CySynck service using the old binaries. Extract the complete new package into a
+new version directory, keeping its libraries, SDK resources, licenses and local
+manual together. On macOS preserve the complete `CySynck.app` bundle as well.
+Start the new executable with the same separate `--state` profile; changing the
+application directory does not migrate or erase that profile.
+
+If a service or login entry points to the old executable, regenerate it for the
+new absolute executable path before restarting it. See [service exports](doc:services)
+and [desktop startup](doc:desktop). Keep the prior application directory until the
+new CLI, desktop, engine connection and local help have been checked on the target.
+An application-file rollback does not roll back the private profile or project
+data: use a core version supporting their stored formats, and keep independent
+recovery copies before a format-changing upgrade. This procedure does not add an
+automatic downloader or require a web server for the local manual.
 
 ## Uninstall {#desinstaller}
 

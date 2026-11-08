@@ -1,11 +1,11 @@
 ---
 id: install
-title: Installation Windows
-description: Utilisation, commandes et limites : Installation Windows.
+title: Installer CySynck
+description: Installer, mettre à jour ou retirer le paquet Windows ; utiliser les paquets portables Linux et macOS.
 section: Démarrer
 order: 2
 parent: overview
-sourceRevision: 2
+sourceRevision: 3
 ---
 
 # Installation Windows {#installation-windows}
@@ -45,6 +45,26 @@ sur place avec un avertissement indiquant son chemin.
 
 Les fichiers personnels non suivis ne sont pas remplacés. Un fichier non suivi qui occupe
 le chemin d'un nouveau fichier du paquet bloque la mise à jour.
+
+## Mise à jour portable Linux et macOS {#portable-updates}
+
+Les mises à jour Linux/macOS sont manuelles. Arrêter le bureau, les hôtes du SDK
+embarqué et les services CySynck utilisant les anciens binaires. Extraire le
+nouveau paquet complet dans un nouveau dossier de version, en conservant ses
+bibliothèques, ressources du SDK, licences et manuel local. Sous macOS, conserver
+aussi le bundle `CySynck.app` complet. Démarrer le nouvel exécutable avec le même
+profil `--state` séparé ; changer le dossier de l’application ne migre ni n’efface
+ce profil.
+
+Si un service ou une inscription au démarrage pointe vers l’ancien exécutable,
+la régénérer avec le nouveau chemin absolu avant de la redémarrer. Voir [les exports
+de services](doc:services) et [le démarrage du bureau](doc:desktop). Conserver l’ancien
+dossier d’application jusqu’à vérification du CLI, du bureau, du moteur et de l’aide
+locale sur la cible. Revenir aux anciens fichiers applicatifs ne restaure pas le
+profil privé ni les données du projet : employer une version du cœur compatible
+avec leurs formats, et garder des copies de récupération indépendantes avant une
+mise à jour changeant les formats. Cette procédure n’ajoute pas de téléchargement
+automatique et ne nécessite aucun serveur web pour le manuel local.
 
 ## Désinstaller {#desinstaller}
 
