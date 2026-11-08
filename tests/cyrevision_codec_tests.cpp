@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
         }
         if (std::string(argv[2]) != "crypto")
             throw std::runtime_error("Unknown test selection");
-        scratch = fs::temp_directory_path() / ("cysynck-cyrevision-codec-" + random_id());
+        scratch = fs::temp_directory_path() / fs::u8path("cysynck-révision-世界-" + random_id());
         require(fs::create_directory(scratch), "Cannot reserve crypto test directory");
         auto inventory_document = inventory_vector.at("document");
         require(cr::verify_inventory(inventory_document,

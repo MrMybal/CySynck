@@ -122,11 +122,10 @@ class Scratch {
         directory_ = parent / (".cr-" + random_id().substr(0, 16));
         if (!fs::create_directory(directory_))
             throw std::runtime_error("Cannot reserve crypto scratch directory");
-#ifndef _WIN32
-        fs::permissions(directory_, fs::perms::owner_all, fs::perm_options::replace);
-#endif
+        secure_state_path(directory_, true);
     }
     fs::path file(const char *name) const { return directory_ / name; }
+    const fs::path &directory() const { return directory_; }
     ~Scratch() {
         std::error_code error;
         for (auto name : {"private.pem", "public.pem", "signature.der"})
@@ -369,8 +368,10 @@ std::string canonical_inventory(const Document &value, bool legacy_windows) {
 std::string fingerprint(const std::string &key) { return sha256(key_bytes(key)); }
 std::string openssl_tool() {
     auto configured = env("CYSYNCK_OPENSSL");
-    if (!configured.empty())
-        return configured;
+    if (!configured.empty()) {
+        auto path = fs::u8path(configured);
+        return path.has_parent_path() ? path_string(fs::absolute(path)) : configured;
+    }
 #ifdef _WIN32
     for (auto suffix : {"/Git/mingw64/bin/openssl.exe", "/Git/usr/bin/openssl.exe"}) {
         auto candidate = fs::u8path(env("ProgramFiles", "C:/Program Files") + suffix);
@@ -390,9 +391,11 @@ void generate_key(const fs::path &private_key) {
         throw std::runtime_error("Preserve the existing CyRevision signing key");
     Scratch scratch(private_key.parent_path());
     auto temporary = scratch.file("private.pem");
+    // Some Windows OpenSSL builds cannot open Unicode argv paths. The OS passes the
+    // working directory in Unicode; tool-visible filenames stay ASCII and relative.
     auto generated = process({openssl_tool(), "genpkey", "-algorithm", "EC", "-pkeyopt",
-                              "ec_paramgen_curve:prime256v1", "-out", path_string(temporary)},
-                             {}, {}, 30);
+                              "ec_paramgen_curve:prime256v1", "-out", "private.pem"},
+                             scratch.directory(), {}, 30);
     if (generated.code)
         throw std::runtime_error("P-256 key generation failed; configure CYSYNCK_OPENSSL");
     atomic_write(private_key, read_file(temporary, 16384), true);
@@ -401,9 +404,8 @@ void generate_key(const fs::path &private_key) {
 std::string public_key(const fs::path &private_key) {
     if (path_is_link(private_key) || !fs::is_regular_file(private_key))
         throw std::runtime_error("CyRevision private key is missing or linked");
-    auto result = process(
-        {openssl_tool(), "pkey", "-in", path_string(private_key), "-pubout", "-outform", "DER"}, {},
-        {}, 30);
+    auto result = process({openssl_tool(), "pkey", "-pubout", "-outform", "DER"}, {},
+                          read_file(private_key, 16384), 30);
     if (result.code)
         throw std::runtime_error("Cannot derive CyRevision signing public key");
     auto key = base64_encode(result.out);
@@ -412,8 +414,10 @@ std::string public_key(const fs::path &private_key) {
 }
 std::string sign(const fs::path &private_key, const std::string &payload) {
     (void)public_key(private_key);
-    auto result = process({openssl_tool(), "dgst", "-sha256", "-sign", path_string(private_key)},
-                          {}, payload, 30);
+    Scratch scratch(private_key.parent_path());
+    atomic_write(scratch.file("private.pem"), read_file(private_key, 16384), true);
+    auto result = process({openssl_tool(), "dgst", "-sha256", "-sign", "private.pem"},
+                          scratch.directory(), payload, 30);
     if (result.code)
         throw std::runtime_error("CyRevision publication signing failed");
     return base64_encode(p1363(result.out));
@@ -430,9 +434,9 @@ bool verify(const std::string &key, const std::string &payload, const std::strin
     pem += "-----END PUBLIC KEY-----\n";
     atomic_write(key_file, pem);
     atomic_write(signature_file, der);
-    auto result = process({openssl_tool(), "dgst", "-sha256", "-verify", path_string(key_file),
-                           "-signature", path_string(signature_file)},
-                          {}, payload, 30);
+    auto result = process(
+        {openssl_tool(), "dgst", "-sha256", "-verify", "public.pem", "-signature", "signature.der"},
+        scratch.directory(), payload, 30);
     return result.code == 0;
 }
 bool verify_bundle(const Document &document, const std::string &expected_key,
