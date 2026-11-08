@@ -1,0 +1,215 @@
+"""Opt-in Linux kernel test. All links, routes and tunnels live in owned namespaces.
+
+Run as root on a disposable Linux runner with iproute2, iputils-ping, wireguard-tools
+and OpenSSL installed. No host route, firewall rule or workstation tunnel is changed.
+Only the sanitized JSON report is retained; ephemeral private keys are removed.
+"""
+import argparse
+import base64
+import hashlib
+import json
+import os
+from pathlib import Path
+import random
+import re
+import secrets
+import selectors
+import shutil
+import subprocess
+import sys
+import time
+import uuid
+
+
+def require(condition, message):
+    if not condition:
+        raise RuntimeError(message)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--cli", type=Path, required=True)
+    parser.add_argument("--work", type=Path, required=True, help="New absolute cysynck-wg-* directory")
+    parser.add_argument("--report", type=Path, required=True)
+    args = parser.parse_args()
+    require(sys.platform == "linux" and os.geteuid() == 0, "Use a disposable Linux runner as root")
+    cli = args.cli.resolve(strict=True)
+    work = args.work
+    require(work.is_absolute() and work.name.startswith("cysynck-wg-") and
+            not work.exists() and not work.is_symlink(), "Reserve a new absolute cysynck-wg-* directory")
+    parent = work.parent.resolve(strict=True)
+    work = parent / work.name
+    work.mkdir(mode=0o700)
+    report = {"kernel": os.uname().release, "checks": [], "success": False}
+    namespaces, children = [], []
+    tag = "csci-" + uuid.uuid4().hex[:10]
+    environment = {k: v for k, v in os.environ.items() if not k.startswith("CYSYNCK_")}
+    environment.update(CYSYNCK_WG=shutil.which("wg") or "wg",
+                       CYSYNCK_WG_QUICK=shutil.which("wg-quick") or "wg-quick",
+                       CYSYNCK_OPENSSL=shutil.which("openssl") or "openssl",
+                       CYSYNCK_MESH_TOKEN=secrets.token_hex(32))
+
+    def run(command, *, namespace=None, check=True, input=None, timeout=90):
+        if namespace:
+            require(namespace in namespaces, "Use only a reserved namespace")
+            command = ["ip", "netns", "exec", namespace] + list(command)
+        result = subprocess.run(list(map(str, command)), input=input, capture_output=True,
+                                text=True, env=environment, timeout=timeout)
+        if check and result.returncode:
+            # Never print stdout: wg genkey and other credential-producing tools use it.
+            raise RuntimeError("Command failed: " + str(command[0]) + ": " + result.stderr[-3000:])
+        return result
+
+    def app(side, *command):
+        result = run([cli, "--state", work / side / "state", *command], namespace=tag + "-" + side)
+        return json.loads(result.stdout)
+
+    def kernel_peer_transfer(side, interface, key):
+        rows = run(["wg", "show", interface, "transfer"], namespace=tag + "-" + side).stdout.splitlines()
+        for row in rows:
+            fields = row.split()
+            if fields[0] == key:
+                return sum(map(int, fields[1:]))
+        raise RuntimeError("Expected kernel peer is missing")
+
+    try:
+        for side in ("a", "b"):
+            namespace = tag + "-" + side
+            run(["ip", "netns", "add", namespace])
+            namespaces.append(namespace)
+            run(["ip", "link", "set", "lo", "up"], namespace=namespace)
+            (work / side / "project").mkdir(parents=True)
+        # Create both ends inside the test namespaces; no temporary host link is used.
+        run(["ip", "-n", namespaces[0], "link", "add", "lan-a", "type", "veth",
+             "peer", "name", "lan-b", "netns", namespaces[1]])
+        profiles = {}
+        for index, side in enumerate(("a", "b"), 1):
+            namespace = tag + "-" + side
+            run(["ip", "address", "add", f"192.0.2.{index}/30", "dev", "lan-" + side], namespace=namespace)
+            run(["ip", "link", "set", "lan-" + side, "up"], namespace=namespace)
+            app(side, "project", "add", "Kernel VPN test", str(work / side / "project"),
+                "--id", "wireguard-ci", "--mode", "backup", "--interval", "0")
+            # The endpoint is this device's externally reachable listener, not the peer's.
+            profiles[side] = app(side, "vpn", "configure", "Kernel-" + side, f"10.77.230.{index}",
+                                 "--endpoint", f"192.0.2.{index}:{51820 + index}",
+                                 "--listen-port", str(51820 + index))
+            app(side, "vpn", "publish", "wireguard-ci")
+        for side, other in (("a", "b"), ("b", "a")):
+            exchange = work / side / "project/.cysynck-network/peers"
+            source = work / other / "project/.cysynck-network/peers"
+            # This test isolates actual WireGuard/app traffic. Existing real Syncthing
+            # tests cover profile transport; the harness copies only public publications.
+            for item in source.glob(profiles[other]["peer_id"] + "*.json"):
+                shutil.copy2(item, exchange / item.name)
+            candidates = app(side, "vpn", "discover", "wireguard-ci")["peers"]
+            candidate = next(c for c in candidates if c["profile"]["peer_id"] == profiles[other]["peer_id"])
+            signer_der = base64.b64decode(profiles[other]["signing_key"], validate=True)
+            fingerprint = hashlib.sha256(signer_der).hexdigest()
+            require(candidate["signing_fingerprint"] == fingerprint, "Independent signer fingerprint differs")
+            app(side, "vpn", "trust", "wireguard-ci", profiles[other]["peer_id"],
+                "--key", profiles[other]["public_key"], "--fingerprint", fingerprint)
+            app(side, "vpn", "up")
+        interfaces = {side: app(side, "vpn", "status")["interface"] for side in ("a", "b")}
+        deadline = time.monotonic() + 20
+        while True:
+            ping = run(["ping", "-n", "-c", "1", "-W", "2", "10.77.230.2"], namespace=namespaces[0], check=False)
+            if ping.returncode == 0:
+                break
+            require(time.monotonic() < deadline, "WireGuard kernel handshake/data did not become reachable")
+        for side in ("a", "b"):
+            status = app(side, "vpn", "status")
+            require(status["tunnel"]["owned"] and any(h["recent"] for h in status["handshakes"]),
+                    "No recent owned kernel WireGuard handshake")
+        report["checks"].append("real-kernel-handshake-and-ping")
+        before = kernel_peer_transfer("a", interfaces["a"], profiles["b"]["public_key"])
+
+        receiver = subprocess.Popen(["ip", "netns", "exec", namespaces[1], str(cli), "--state",
+                                     str(work / "b/state"), "chat", "serve"],
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=environment)
+        children.append(receiver)
+        selector = selectors.DefaultSelector()
+        selector.register(receiver.stdout, selectors.EVENT_READ)
+        ready = selector.select(timeout=15)
+        require(ready and receiver.stdout.readline().startswith("CySynck direct receiver:"),
+                "Direct receiver did not bind to its real VPN address")
+        selector.close()
+        delivered = app("a", "chat", "send", "wireguard-ci", profiles["b"]["peer_id"], "Kernel WireGuard hello")
+        require(delivered["delivered"], "Chat was not delivered through WireGuard")
+        history = app("b", "chat", "history", "wireguard-ci")
+        require(any(m["body"].get("text") == "Kernel WireGuard hello" for m in history), "Receiver chat bytes differ")
+        report["checks"].append("authenticated-chat-over-kernel-wireguard")
+
+        rng, digest = random.Random(20261108), hashlib.sha256()
+        payload = work / "a/project/payload.bin"
+        with payload.open("xb") as stream:
+            for _ in range(16):
+                block = rng.randbytes(1024 * 1024)
+                stream.write(block)
+                digest.update(block)
+        transferred = app("a", "send-file", "wireguard-ci", profiles["b"]["peer_id"], "payload.bin")
+        require(transferred["delivered"], "Real WireGuard file transfer did not finish")
+        received = app("b", "received", "verify", "wireguard-ci", transferred["id"])
+        require(received["ok"] and received["file"]["sha256"] == digest.hexdigest(), "Received kernel-transfer checksum differs")
+        stored = work / "b/state/inbox/wireguard-ci" / (transferred["id"] + ".received")
+        with stored.open("rb") as stream:
+            require(hashlib.file_digest(stream, "sha256").hexdigest() == digest.hexdigest(), "Stored payload bytes differ")
+        growth = kernel_peer_transfer("a", interfaces["a"], profiles["b"]["public_key"]) - before
+        require(growth > payload.stat().st_size, "Payload did not increase the real WireGuard encrypted byte counters")
+        report.update(payload_bytes=payload.stat().st_size, payload_sha256=digest.hexdigest(), wireguard_bytes_growth=growth)
+        report["checks"].append("verified-resumable-protocol-file-over-kernel-wireguard")
+
+        revoked = app("a", "vpn", "revoke", "wireguard-ci", profiles["b"]["peer_id"])
+        require(revoked["tunnel_peer_removed"] and not revoked["requires_restart"], "Live kernel revocation failed")
+        require(not run(["wg", "show", interfaces["a"], "peers"], namespace=namespaces[0]).stdout.strip(), "Revoked peer remains in kernel")
+        config = work / "a/state/vpn" / (interfaces["a"] + ".conf")
+        require(profiles["b"]["public_key"] not in config.read_text(), "Revoked peer remains in restart configuration")
+        app("a", "vpn", "down")
+        app("a", "vpn", "up")
+        require(not run(["wg", "show", interfaces["a"], "peers"], namespace=namespaces[0]).stdout.strip(), "Restart resurrected a revoked peer")
+        require(run(["ping", "-n", "-c", "1", "-W", "1", "10.77.230.2"], namespace=namespaces[0], check=False).returncode != 0,
+                "Revoked peer still exchanges kernel data after restart")
+        report["checks"].append("live-revocation-and-service-restart-preservation")
+
+        app("a", "vpn", "down")
+        run(["ip", "link", "add", interfaces["a"], "type", "wireguard"], namespace=namespaces[0])
+        private_key = run(["wg", "genkey"]).stdout
+        foreign_key = work / "foreign-private.key"
+        foreign_key.write_text(private_key)
+        foreign_key.chmod(0o600)
+        foreign_public = run(["wg", "pubkey"], input=private_key).stdout.strip()
+        run(["wg", "set", interfaces["a"], "private-key", foreign_key], namespace=namespaces[0])
+        refused = run([cli, "--state", work / "a/state", "vpn", "up"], namespace=namespaces[0], check=False)
+        require(refused.returncode != 0, "CySynck activated a foreign kernel tunnel")
+        require(run(["wg", "show", interfaces["a"], "public-key"], namespace=namespaces[0]).stdout.strip() == foreign_public,
+                "CySynck replaced a foreign kernel identity")
+        report["checks"].append("foreign-kernel-interface-preserved")
+        report["success"] = True
+    except Exception as error:
+        report["error"] = str(error)
+    finally:
+        for child in children:
+            if child.poll() is None:
+                child.terminate()
+                try:
+                    child.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    child.kill()
+                    child.wait(timeout=5)
+            child.communicate(timeout=5)
+        for namespace in reversed(namespaces):
+            require(re.fullmatch(re.escape(tag) + r"-[ab]", namespace), "Refuse foreign namespace cleanup")
+            result = run(["ip", "netns", "delete", namespace], check=False)
+            if result.returncode:
+                report["success"] = False
+                report.setdefault("cleanup_errors", []).append(result.stderr[-1000:])
+        require(work.parent == parent and work.name.startswith("cysynck-wg-") and not work.is_symlink(), "Refuse foreign work cleanup")
+        shutil.rmtree(work)
+        args.report.parent.mkdir(parents=True, exist_ok=True)
+        args.report.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        args.report.chmod(0o644)
+    print(json.dumps(report))
+    return 0 if report["success"] else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

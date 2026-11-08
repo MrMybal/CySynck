@@ -39,6 +39,17 @@ not actual driver or router acceptance evidence. Real P-256 tests use Unicode pa
 
 Remaining work:
 
+- `tests/wireguard_integration.py` is now wired into the Linux server CI job. It
+  creates two private network namespaces, a veth pair wholly inside them, real
+  `wg-quick` tunnels and the production direct receiver. It checks recent kernel
+  handshakes, ping, chat, a 16 MiB nonrepeating file with exact checksum/encrypted
+  byte counters, live revoke, restart preservation and foreign-interface refusal.
+  The harness copies only public profiles; it does not claim real Syncthing/NAT
+  transport coverage. Only its sanitized report is uploaded; owned namespaces,
+  data and ephemeral private keys are removed. Execution is pending native CI.
+  Reproduce on a disposable Linux machine with the required tools:
+  `sudo python3 tests/wireguard_integration.py --cli /absolute/build/cysynck --work /tmp/cysynck-wg-UNIQUE --report /absolute/reports/wireguard.json`.
+
 - Support explicit router-mapping consent and gateway selection, mapping renewal,
   expiry, gateway reboot/network change and ownership-bound cleanup. Prefer modern
   PCP for automatic negotiation; RFC 6886 recommends PCP first with NAT-PMP fallback

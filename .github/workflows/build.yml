@@ -63,7 +63,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - run: sudo apt-get update && sudo apt-get install -y syncthing
+      - run: sudo apt-get update && sudo apt-get install -y syncthing wireguard-tools iproute2 iputils-ping openssl
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -72,9 +72,17 @@ jobs:
       - run: npm ci --prefix .CyDocBuild
       - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCYSYNCK_DESKTOP=OFF -DCYSYNCK_TEST_SYNCTHING=/usr/bin/syncthing
       - run: cmake --build build --parallel 3
+      - name: Real Linux kernel WireGuard in isolated network namespaces
+        run: sudo python3 tests/wireguard_integration.py --cli "$GITHUB_WORKSPACE/build/cysynck" --work "$RUNNER_TEMP/cysynck-wg-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --report "$GITHUB_WORKSPACE/build/network-report/wireguard.json"
       - run: ctest --test-dir build --output-on-failure
       - run: cpack --config build/CPackConfig.cmake -B dist/packages
       - run: cmake -DPACKAGE_DIR="${{ github.workspace }}/dist/packages" -DWORK_DIR="${{ github.workspace }}/package-smoke" -P tests/package_smoke.cmake
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: CySynck-Linux-network-report-${{ runner.arch }}
+          if-no-files-found: ignore
+          path: build/network-report/
       - uses: actions/upload-artifact@v4
         with:
           name: CySynck-Linux-server-${{ runner.arch }}
