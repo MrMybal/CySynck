@@ -5,7 +5,7 @@ description: Comprendre les fonctions implémentées et les workflows nécessita
 section: Démarrer
 order: 6
 parent: overview
-sourceRevision: 7
+sourceRevision: 8
 ---
 
 # Disponibilité et limites {#availability-and-limits}
@@ -24,7 +24,7 @@ Les adhésions et rôles restent gérés par CyRevision ; l’autorisation du tr
 ## Conditions réseau {#network-requirements}
 
 WireGuard nécessite des endpoints UDP joignables ou une configuration réseau adaptée. STUN/ICE, le perçage NAT automatique et le relais de paquets WireGuard ne sont pas implémentés.
-La découverte d’adresses signées à durée limitée, les compteurs privés contre le rejeu, les indices LAN/IPv6 directs de Syncthing et l’actualisation automatique optionnelle sont implémentés. Les mises à jour actives et révocations par projet passent les modèles isolés de propriété et d’outils. Un vrai test Linux en espaces réseau passe aussi l’échange de clés, le tchat, les fichiers vérifiés, la révocation/redémarrage et la préservation d’une interface étrangère, avec restauration des règles AppArmor limitées ensuite. Les pilotes Windows/macOS et les essais avec un vrai routeur NAT restent à vérifier. Le consentement explicite PCP/NAT-PMP, les baux privés persistants, leur renouvellement/expiration, la liaison à l’adresse source, le nettoyage limité au bail possédé et la publication signée des adresses passent les tests de protocole, contrôleur et Core. Voir la [configuration réseau](doc:network#automatic-endpoints) et la [redirection du routeur](doc:network#router-mapping).
+La découverte d’adresses signées à durée limitée, les compteurs privés contre le rejeu, les indices LAN/IPv6 directs de Syncthing et l’actualisation automatique optionnelle sont implémentés. Les mises à jour actives et révocations par projet passent les modèles isolés de propriété et d’outils. Un vrai test Linux en espaces réseau passe aussi l’échange de clés, le tchat, les fichiers vérifiés, la révocation/redémarrage et la préservation d’une interface étrangère, avec restauration des règles AppArmor limitées ensuite. Les pilotes Windows/macOS restent à vérifier. Un second vrai test Linux passe deux routeurs NAT miniupnpd indépendants, les baux PCP/NAT-PMP, le renouvellement planifié, la découverte signée, le tchat/fichiers vérifiés et la préservation d’un autre port redirigé. Le consentement explicite PCP/NAT-PMP, les baux privés persistants, leur renouvellement/expiration, la liaison à l’adresse source, le nettoyage limité au bail possédé et la publication signée des adresses passent les tests de protocole, contrôleur et Core. Voir la [configuration réseau](doc:network#automatic-endpoints) et la [redirection du routeur](doc:network#router-mapping).
 La découverte et les relais Syncthing peuvent utiliser une infrastructure. Le tchat et les fichiers directs passent par HTTP authentifié dans le VPN, avec un secret de groupe partagé.
 Il n’existe pas de livraison différée hors ligne ni d’accusé de lecture. Ne pas exposer ce canal applicatif non chiffré hors du tunnel.
 

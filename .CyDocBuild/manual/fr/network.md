@@ -4,7 +4,7 @@ title: Réseau WireGuard et communications directes
 description: Utilisation, commandes et limites : Réseau WireGuard et communications directes.
 section: Réseau
 order: 50
-sourceRevision: 7
+sourceRevision: 8
 ---
 
 # Réseau WireGuard et communications directes {#reseau-wireguard-et-communications-directes}
@@ -173,10 +173,13 @@ incertaine est laissé à l’expiration du routeur pour préserver les autres r
 HTTP et le CLI distant ne peuvent ni activer, ni renouveler, ni désactiver cette fonction.
 
 Les fixtures UDP, le cycle persistant des baux et la publication signée via le Core
-passent leurs tests. Un essai avec deux vrais routeurs NAT reste nécessaire ; le
-test Linux WireGuard existant emploie des pairs directs en espaces réseau. Cette
-fonction ne fournit ni STUN/ICE, ni perçage NAT arbitraire, ni relais de paquets,
-ni garantie de traversée CGNAT.
+passent leurs tests. Un vrai test du noyau Linux avec deux routeurs NAT miniupnpd
+indépendants passe aussi les baux PCP/NAT-PMP, le renouvellement planifié réel, la
+découverte signée, le rejet des publications falsifiées/anciennes, le tchat, un fichier
+de 8 Mio vérifié et la préservation d’un autre port UDP redirigé lors du nettoyage.
+Le banc copie les profils publics ; il ne teste pas le transport Syncthing à travers
+ces routeurs ni les firmwares de routeurs physiques. Cette fonction ne fournit ni
+STUN/ICE, ni perçage NAT arbitraire, ni relais de paquets, ni garantie de traversée CGNAT.
 
 ## Tchat et fichiers directs {#tchat-et-fichiers-directs}
 

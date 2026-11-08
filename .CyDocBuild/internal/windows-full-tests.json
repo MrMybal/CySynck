@@ -1,0 +1,275 @@
+{
+  "success": true,
+  "source_revision": "7835f7b425b8c9537b595224f5fff1385c5fee85",
+  "platform": "Windows x64",
+  "configuration": "Release",
+  "native_version": "0.40.0",
+  "parallel": 2,
+  "tests_passed": 52,
+  "tests_failed": 0,
+  "elapsed_seconds": 987.98,
+  "core_sha256": "0e98cb4ce5555472cc6975f6b852b45059fd2082cae99d4259d6b17666279214",
+  "scope": "Full configured local suite including real Syncthing, desktop background and deployment; the separately measured multi-GiB workload was excluded from this repeat. Later source changes are not retroactively validated by this binary hash.",
+  "tests": [
+    {
+      "name": "cysynck-git-dehydrate",
+      "result": "Passed",
+      "seconds": 82.14
+    },
+    {
+      "name": "cysynck-git-materialize-resume",
+      "result": "Passed",
+      "seconds": 140.99
+    },
+    {
+      "name": "cysynck-git-merge-integrate",
+      "result": "Passed",
+      "seconds": 200.49
+    },
+    {
+      "name": "cysynck-git-merge-resolution",
+      "result": "Passed",
+      "seconds": 176.09
+    },
+    {
+      "name": "cysynck-git-cache",
+      "result": "Passed",
+      "seconds": 80.06
+    },
+    {
+      "name": "cysynck-git-materialize-selection",
+      "result": "Passed",
+      "seconds": 84.59
+    },
+    {
+      "name": "cysynck-git-merge-edited",
+      "result": "Passed",
+      "seconds": 135.18
+    },
+    {
+      "name": "cysynck-git-lfs-integrate",
+      "result": "Passed",
+      "seconds": 99.04
+    },
+    {
+      "name": "cysynck-git-regions",
+      "result": "Passed",
+      "seconds": 77.38
+    },
+    {
+      "name": "cysynck-git-asset-export",
+      "result": "Passed",
+      "seconds": 22.12
+    },
+    {
+      "name": "cysynck-git-materialize",
+      "result": "Passed",
+      "seconds": 108.91
+    },
+    {
+      "name": "cysynck-git-working",
+      "result": "Passed",
+      "seconds": 8.16
+    },
+    {
+      "name": "cysynck-git-blobs",
+      "result": "Passed",
+      "seconds": 26.57
+    },
+    {
+      "name": "cysynck-git-merge-review",
+      "result": "Passed",
+      "seconds": 60.05
+    },
+    {
+      "name": "cysynck-cyrevision-exchange",
+      "result": "Passed",
+      "seconds": 12.55
+    },
+    {
+      "name": "cysynck-nat-pmp",
+      "result": "Passed",
+      "seconds": 9.33
+    },
+    {
+      "name": "cysynck-git-history",
+      "result": "Passed",
+      "seconds": 21.8
+    },
+    {
+      "name": "cysynck-git-extract",
+      "result": "Passed",
+      "seconds": 78.93
+    },
+    {
+      "name": "cysynck-real-sync",
+      "result": "Passed",
+      "seconds": 32.54
+    },
+    {
+      "name": "cysynck-git-lfs",
+      "result": "Passed",
+      "seconds": 16.27
+    },
+    {
+      "name": "cysynck-git-review",
+      "result": "Passed",
+      "seconds": 11.47
+    },
+    {
+      "name": "cysynck-git-onboarding",
+      "result": "Passed",
+      "seconds": 8.11
+    },
+    {
+      "name": "cysynck-cdc-backup",
+      "result": "Passed",
+      "seconds": 4.5
+    },
+    {
+      "name": "cysynck-snapshots",
+      "result": "Passed",
+      "seconds": 1.5
+    },
+    {
+      "name": "cysynck-network-discovery",
+      "result": "Passed",
+      "seconds": 4.11
+    },
+    {
+      "name": "cysynck-cyrevision-crypto",
+      "result": "Passed",
+      "seconds": 2.22
+    },
+    {
+      "name": "cysynck-desktop-background",
+      "result": "Passed",
+      "seconds": 11.42
+    },
+    {
+      "name": "cysynck-deployment",
+      "result": "Passed",
+      "seconds": 9.23
+    },
+    {
+      "name": "cysynck-endpoint-record",
+      "result": "Passed",
+      "seconds": 0.8
+    },
+    {
+      "name": "cysynck-process-stream",
+      "result": "Passed",
+      "seconds": 3.02
+    },
+    {
+      "name": "cysynck-block-backups",
+      "result": "Passed",
+      "seconds": 4.47
+    },
+    {
+      "name": "cysynck-transfers",
+      "result": "Passed",
+      "seconds": 6.95
+    },
+    {
+      "name": "cysynck-vpn-tunnel",
+      "result": "Passed",
+      "seconds": 2.18
+    },
+    {
+      "name": "cysynck-backup-plan",
+      "result": "Passed",
+      "seconds": 0.33
+    },
+    {
+      "name": "cysynck-git-storage",
+      "result": "Passed",
+      "seconds": 4.37
+    },
+    {
+      "name": "cysynck-diffs",
+      "result": "Passed",
+      "seconds": 2.6
+    },
+    {
+      "name": "cysynck-engine-options",
+      "result": "Passed",
+      "seconds": 0.06
+    },
+    {
+      "name": "cysynck-diagnostics",
+      "result": "Passed",
+      "seconds": 1.32
+    },
+    {
+      "name": "cysynck-integration",
+      "result": "Passed",
+      "seconds": 4.0
+    },
+    {
+      "name": "cysynck-plugins",
+      "result": "Passed",
+      "seconds": 0.23
+    },
+    {
+      "name": "cysynck-startup",
+      "result": "Passed",
+      "seconds": 1.68
+    },
+    {
+      "name": "cysynck-embedded-help",
+      "result": "Passed",
+      "seconds": 0.14
+    },
+    {
+      "name": "cysynck-resolutions",
+      "result": "Passed",
+      "seconds": 0.78
+    },
+    {
+      "name": "cysynck-router-lease",
+      "result": "Passed",
+      "seconds": 0.05
+    },
+    {
+      "name": "cysynck-offline-help",
+      "result": "Passed",
+      "seconds": 0.14
+    },
+    {
+      "name": "cysynck-help-http",
+      "result": "Passed",
+      "seconds": 0.14
+    },
+    {
+      "name": "cysynck-inbox",
+      "result": "Passed",
+      "seconds": 0.2
+    },
+    {
+      "name": "cysynck-services",
+      "result": "Passed",
+      "seconds": 0.06
+    },
+    {
+      "name": "cysynck-cyrevision-codec",
+      "result": "Passed",
+      "seconds": 0.03
+    },
+    {
+      "name": "cysynck-desktop-session",
+      "result": "Passed",
+      "seconds": 0.05
+    },
+    {
+      "name": "cysynck-backups",
+      "result": "Passed",
+      "seconds": 0.57
+    },
+    {
+      "name": "cysynck-git-integrate",
+      "result": "Passed",
+      "seconds": 207.91
+    }
+  ]
+}

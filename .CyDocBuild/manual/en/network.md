@@ -4,7 +4,7 @@ title: WireGuard and direct communication
 description: Pair trusted peers, prepare the VPN and use chat or direct files.
 section: Network
 order: 50
-revision: 7
+revision: 8
 ---
 
 # WireGuard and direct communication {#reseau-wireguard-et-communications-directes}
@@ -151,9 +151,13 @@ request is left to router expiry instead of risking deletion of another mapping.
 HTTP and remote CLI cannot enable, renew or disable mappings.
 
 The UDP protocol fixtures, persistent lease lifecycle and signed Core publication
-tests pass. A test with two real NAT routers is still required; the existing real
-Linux WireGuard test uses direct namespace peers. This feature does not provide
-STUN/ICE, arbitrary NAT hole punching, a packet relay or guaranteed CGNAT traversal.
+tests pass. A real Linux kernel test with two independent miniupnpd NAT routers also
+passes PCP/NAT-PMP grants, actual scheduled renewal, signed discovery, forged/stale
+record rejection, chat, a verified 8 MiB file and preservation of an unrelated
+forwarded UDP listener during cleanup. The harness copies public profiles; it does
+not test Syncthing transport across those routers or physical router firmware.
+This feature does not provide STUN/ICE, arbitrary NAT hole punching, a packet relay
+or guaranteed CGNAT traversal.
 
 ## Chat and direct files {#tchat-et-fichiers-directs}
 

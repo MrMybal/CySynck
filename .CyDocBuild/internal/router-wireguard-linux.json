@@ -1,0 +1,45 @@
+{
+  "success": true,
+  "kernel": "7.0.0-1019-azure",
+  "checks": [
+    "independent-pcp-and-nat-pmp-grants-preserve-foreign-port",
+    "real-kernel-handshake-through-two-independent-nat-routers",
+    "real-Core-tick-renewal-and-signed-republication",
+    "forged-and-stale-shared-endpoints-preserve-verified-kernel-peer",
+    "authenticated-chat-and-verified-file-through-mapped-wireguard",
+    "owned-router-cleanup-preserves-foreign-mapping-and-withdraws-sidecar"
+  ],
+  "topology": "two clients, two miniupnpd routers, three veth pairs, no host network changes",
+  "router_version": "miniupnpd 2.3.9 Feb 11 2026",
+  "legacy_dnat_renderer": "unsupported revision; independently payload-probed",
+  "apparmor": {
+    "prepared": true,
+    "profile": "/etc/apparmor.d/wg-quick",
+    "exact_configurations": 2,
+    "permissions": "read-only, no wildcard, no disable/complain mode",
+    "restored": true
+  },
+  "grants": {
+    "a": {
+      "protocol": "pcp",
+      "internal_port": 51821,
+      "external_port": 45001,
+      "external_address": "198.18.50.1",
+      "expires_at": 1794136979
+    },
+    "b": {
+      "protocol": "nat-pmp",
+      "internal_port": 51822,
+      "external_port": 45001,
+      "external_address": "198.18.50.2",
+      "expires_at": 1794136919
+    }
+  },
+  "payload_bytes": 8388608,
+  "payload_sha256": "eac640b5f3238d3f7b0dddf6e09fb3dae21e6c182b40fcad46e30a57e2ea0046",
+  "wireguard_bytes_growth": 9074456,
+  "revision": "af43bc6d3606b61dc3385461ee9d78291ebd331d",
+  "ci_run": 42475158981,
+  "job_id": 128714735441,
+  "scope": "Real kernel WireGuard across two independent miniupnpd NAT routers, PCP and NAT-PMP, public profiles copied by the harness. No real Syncthing transport in this fixture. Interface-binding guards were not yet present in this measured revision."
+}
