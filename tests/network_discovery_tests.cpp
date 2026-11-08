@@ -65,14 +65,18 @@ int model(int argc, char **argv) {
             return 1;
         if (args.at(1) == "interfaces")
             std::cout << world.at("interface").get<std::string>();
-        else if (args.at(2) == "public-key")
-            std::cout << world.at("public_key").get<std::string>();
-        else if (args.at(2) != "latest-handshakes")
-            return 1;
+        else {
+            if (args.at(1) != world.at("interface").get<std::string>())
+                return 1;
+            if (args.at(2) == "public-key")
+                std::cout << world.at("public_key").get<std::string>();
+            else if (args.at(2) != "latest-handshakes")
+                return 1;
+        }
         return 0;
     }
     if (args.at(0) == "set")
-        return world.value("fail_set", false) ? 1 : 0;
+        return world.value("fail_set", false) || args.at(1) != world.at("interface").get<std::string>() ? 1 : 0;
     return 1;
 }
 } // namespace
@@ -174,8 +178,13 @@ int main(int argc, char **argv) {
         atomic_write(core.state() / "registry.json", registry.dump());
         auto tool = path_string(fs::absolute(fs::u8path(argv[0])));
         auto world_file = root / "world.json";
+        auto logical = "cs-" + sha256(local.at("peer_id").get<std::string>()).substr(0, 12);
+        auto mappings = root / "mappings";
+        fs::create_directories(mappings);
+        atomic_write(mappings / (logical + ".name"), "utun42\n");
+        environment("CYSYNCK_WG_RUNTIME_DIRECTORY", path_string(mappings));
         Json world = {
-            {"interface", "cs-" + sha256(local.at("peer_id").get<std::string>()).substr(0, 12)},
+            {"interface", "utun42"},
             {"public_key", local.at("public_key")},
             {"private_public", local.at("public_key")},
             {"calls", Json::array()}};
@@ -212,7 +221,8 @@ int main(int argc, char **argv) {
         world = Json::parse(read_file(world_file));
         bool applied = false;
         for (const auto &call : world.at("calls"))
-            if (call.at(0) == "set" && call.dump().find("198.18.0.8:45001") != std::string::npos)
+            if (call.at(0) == "set" && call.at(1) == "utun42" &&
+                call.dump().find("198.18.0.8:45001") != std::string::npos)
                 applied = true;
         check(applied, "Refresh did not update the owned live tunnel through wg set");
         check(read_file(config).find("Endpoint = 198.18.0.8:45001") != std::string::npos,

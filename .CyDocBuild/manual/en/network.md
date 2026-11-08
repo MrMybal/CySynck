@@ -4,7 +4,7 @@ title: WireGuard and direct communication
 description: Pair trusted peers, prepare the VPN and use chat or direct files.
 section: Network
 order: 50
-revision: 4
+revision: 5
 ---
 
 # WireGuard and direct communication {#reseau-wireguard-et-communications-directes}
@@ -19,6 +19,10 @@ Syncthing discovery may use discovery/relay services; this does not promise infr
 
 Install official WireGuard tools and OpenSSL (P-256 endpoint signatures). Put `wg` on PATH or select `CYSYNCK_WG`; select an OpenSSL executable with `CYSYNCK_OPENSSL` when needed.
 Windows can use `CYSYNCK_WIREGUARD` for `wireguard.exe`; Linux/macOS can select `wg-quick` with `CYSYNCK_WG_QUICK`.
+macOS resolves logical names through `/var/run/wireguard/<name>.name`. A local tool
+wrapper can select a separate absolute, unlinked directory with
+`CYSYNCK_WG_RUNTIME_DIRECTORY`; this still requires the live interface public key
+to match the profile before any update or removal.
 Assign a **different** address in `10.77.0.0/16` to each device, avoiding existing network conflicts. This subnet is not configurable yet.
 
 ```sh

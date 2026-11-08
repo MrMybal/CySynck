@@ -4,7 +4,7 @@ title: Réseau WireGuard et communications directes
 description: Utilisation, commandes et limites : Réseau WireGuard et communications directes.
 section: Réseau
 order: 50
-sourceRevision: 4
+sourceRevision: 5
 ---
 
 # Réseau WireGuard et communications directes {#reseau-wireguard-et-communications-directes}
@@ -26,6 +26,10 @@ Installer les outils officiels WireGuard et OpenSSL (signatures P-256 des adress
 `CYSYNCK_OPENSSL` peut sélectionner l’exécutable OpenSSL. `wg` doit être dans le PATH, ou être
 sélectionné par `CYSYNCK_WG`. Sous Windows, `CYSYNCK_WIREGUARD` peut préciser le chemin de
 `wireguard.exe`. Sous Linux/macOS, `CYSYNCK_WG_QUICK` peut préciser `wg-quick`.
+macOS résout les noms logiques via `/var/run/wireguard/<nom>.name`. Un adaptateur
+local des outils peut sélectionner un autre dossier absolu, sans lien, avec
+`CYSYNCK_WG_RUNTIME_DIRECTORY` ; la clé publique de l'interface active doit toujours
+correspondre au profil avant toute mise à jour ou suppression.
 Attribuer une adresse **différente** de `10.77.0.0/16` à chaque appareil, en évitant un
 conflit avec les réseaux déjà utilisés. Ce sous-réseau n'est pas encore paramétrable.
 

@@ -39,6 +39,15 @@ void logical_name(const std::string &value) {
 std::string runtime_name(const std::string &logical, const fs::path &mapping_directory) {
     if (!mapping_directory.empty())
         return vpn_mapped_interface(logical, mapping_directory);
+    // Local tool wrappers can have a private runtime directory. The mapping only
+    // selects a candidate: inspect() still verifies the live interface public key.
+    auto configured = env("CYSYNCK_WG_RUNTIME_DIRECTORY");
+    if (!configured.empty()) {
+        auto directory = fs::u8path(configured);
+        if (!directory.is_absolute() || !fs::is_directory(directory) || path_is_link(directory))
+            throw std::runtime_error("WireGuard runtime directory must be an absolute, unlinked directory");
+        return vpn_mapped_interface(logical, directory);
+    }
 #ifdef __APPLE__
     return vpn_mapped_interface(logical, "/var/run/wireguard");
 #else
