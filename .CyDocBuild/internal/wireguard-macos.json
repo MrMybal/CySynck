@@ -1,0 +1,18 @@
+{
+  "success": true,
+  "driver": "official wireguard-go / macOS utun",
+  "checks": [
+    "real-wg-quick-Unicode-profile-and-verified-utun-mapping",
+    "unprivileged-actual-utun-interface-bound-TCP-socket",
+    "stale-boot-socket-index-and-changed-key-authorization-refused",
+    "foreign-live-WireGuard-identity-preserved",
+    "owned-utun-and-authorization-removal"
+  ],
+  "owned_cleanup_complete": true,
+  "revision": "4c49066beb16cb3167e6554a3e05a595c2f9d33e",
+  "native_version": "0.40.0",
+  "ci_run": 42480496157,
+  "job_id": 128731167690,
+  "ctest_passed": 50,
+  "scope": "Actual official wireguard-go/wg-quick on a disposable macOS host. One own utun with a Unicode private profile, an ordinary-user IP_BOUND_IF TCP socket, root authorization boot/socket/index/key negatives, foreign live key preservation and owned cleanup. Loopback TCP/reply inheritance and ordinary-adapter refusal are in the native CTest suite. No peer-to-peer macOS traffic, physical network, notarization or Unreal macOS claim."
+}

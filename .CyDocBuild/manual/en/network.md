@@ -4,7 +4,7 @@ title: WireGuard and direct communication
 description: Pair trusted peers, prepare the VPN and use chat or direct files.
 section: Network
 order: 50
-revision: 9
+revision: 10
 ---
 
 # WireGuard and direct communication {#reseau-wireguard-et-communications-directes}
@@ -105,6 +105,11 @@ Compact sequence/hash floors also survive revocation and re-pairing of the same
 project/device/key tuple. They do not preserve authorization or restore a revoked
 endpoint. This private history admits at most 4096 new identity tuples; reaching
 the limit refuses new records without silently discarding replay protection.
+
+The direct-LAN native gate uses two real managed Syncthing engines to transport
+the public profiles without manual copies. It verifies automatic LAN hints keep
+the pinned WireGuard UDP ports, then exercises real kernel handshake, authenticated
+chat, verified files and revocation. This is separate from the dual-router NAT gate.
 
 ## Opt-in router mapping {#router-mapping}
 

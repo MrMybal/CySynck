@@ -4,7 +4,7 @@ title: Réseau WireGuard et communications directes
 description: Utilisation, commandes et limites : Réseau WireGuard et communications directes.
 section: Réseau
 order: 50
-sourceRevision: 9
+sourceRevision: 10
 ---
 
 # Réseau WireGuard et communications directes {#reseau-wireguard-et-communications-directes}
@@ -123,6 +123,12 @@ réappairage du même ensemble projet/appareil/clés. Ils ne conservent aucune
 autorisation et ne rétablissent pas une adresse révoquée. Cet historique privé
 admet au maximum 4096 nouveaux ensembles d’identités ; une fois plein, il refuse
 les nouveaux enregistrements sans effacer silencieusement la protection contre le rejeu.
+
+Le test natif LAN direct emploie deux vrais moteurs Syncthing gérés pour transporter
+les profils publics sans copie manuelle. Il vérifie que les indices LAN automatiques
+conservent les ports UDP WireGuard épinglés, puis exerce le vrai échange de clés noyau,
+le tchat authentifié, les fichiers vérifiés et la révocation. Sa portée est distincte
+du test NAT avec deux routeurs.
 
 ## Redirection du routeur sur consentement {#router-mapping}
 
