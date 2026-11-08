@@ -156,6 +156,13 @@ std::string read_file(const fs::path &path, size_t limit) {
 }
 void atomic_write(const fs::path &path, const std::string &bytes, bool secret) {
     fs::create_directories(path.parent_path());
+#ifndef _WIN32
+    struct stat previous{};
+    // A sudo tunnel command must not make an existing user's registry unreadable.
+    // Inspect the entry itself; never follow a destination link for ownership.
+    bool preserve_owner = geteuid() == 0 && lstat(path.c_str(), &previous) == 0 &&
+                          S_ISREG(previous.st_mode);
+#endif
     auto temp = path;
     temp += fs::u8path(".part-" + random_id());
     try {
@@ -175,9 +182,13 @@ void atomic_write(const fs::path &path, const std::string &bytes, bool secret) {
                          MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
             throw std::runtime_error("Atomic file replacement failed");
 #else
-        int fd = open(temp.c_str(), O_RDONLY);
+        int fd = open(temp.c_str(), O_RDONLY | O_NOFOLLOW);
         if (fd < 0)
             throw std::runtime_error("Cannot flush file");
+        if (preserve_owner && fchown(fd, previous.st_uid, previous.st_gid) != 0) {
+            close(fd);
+            throw std::runtime_error("Cannot preserve the existing file owner during privileged replacement");
+        }
         auto flushed = fsync(fd);
         close(fd);
         if (flushed)

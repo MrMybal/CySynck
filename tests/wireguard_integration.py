@@ -195,6 +195,20 @@ raise SystemExit(result.returncode)
                                  "--endpoint", f"192.0.2.{index}:{51820 + index}",
                                  "--listen-port", str(51820 + index))
             app(side, "vpn", "publish", "wireguard-ci")
+        # A privileged local tunnel action must preserve a prepared user's registry
+        # ownership and mode, rather than leaving a root-owned 0600 replacement.
+        user_uid = int(os.environ.get("SUDO_UID", str(cli.stat().st_uid)))
+        user_gid = int(os.environ.get("SUDO_GID", str(cli.stat().st_gid)))
+        if user_uid != 0:
+            for side in ("a", "b"):
+                registry_file = work / side / "state/registry.json"
+                require(registry_file.is_file() and not registry_file.is_symlink(), "Refuse foreign ownership fixture")
+                os.chown(registry_file, user_uid, user_gid)
+                app(side, "vpn", "status")
+                owner = registry_file.stat()
+                require((owner.st_uid, owner.st_gid) == (user_uid, user_gid) and stat.S_IMODE(owner.st_mode) == 0o600,
+                        "Privileged tunnel request changed the prepared user's registry ownership or private mode")
+            report["checks"].append("privileged-state-write-preserves-existing-owner")
         for side, other in (("a", "b"), ("b", "a")):
             exchange = work / side / "project/.cysynck-network/peers"
             source = work / other / "project/.cysynck-network/peers"
