@@ -2,7 +2,11 @@
   "kernel": "7.0.0-1019-azure",
   "checks": [
     "privileged-state-write-preserves-existing-owner",
+    "plain-veth-direct-credentials-blocked",
+    "spoofed-WireGuard-name-veth-credentials-blocked",
     "real-kernel-handshake-and-ping",
+    "overlapping-physical-routes-do-not-leak-direct-credentials",
+    "unprivileged-interface-bound-TCP-over-kernel-WireGuard",
     "authenticated-chat-over-kernel-wireguard",
     "verified-resumable-protocol-file-over-kernel-wireguard",
     "live-revocation-and-service-restart-preservation",
@@ -18,9 +22,9 @@
   },
   "payload_bytes": 16777216,
   "payload_sha256": "fbc6902d90c21d903b46d2d126f82cc6484a0c108b1bc4bdf0b4425dc588ca99",
-  "wireguard_bytes_growth": 17957532,
-  "revision": "ed1545d85f3d6f62bed8315955c99d53d337659c",
-  "ci_run": 42471087011,
-  "job_id": 128701741196,
-  "scope": "Linux kernel WireGuard over two isolated direct veth namespaces; manual endpoints. Public profiles copied by the harness. No NAT router or real Syncthing profile transport in this test."
+  "wireguard_bytes_growth": 17939408,
+  "revision": "641f89bd550423e6f2d0380d9c844f66ac224950",
+  "ci_run": 42477753274,
+  "job_id": 128722770465,
+  "scope": "Linux kernel WireGuard over two isolated direct veth namespaces, including plain/spoofed interfaces, overlapping physical routes and an unprivileged production socket probe. Manual endpoints; public profiles copied by the harness. No real Syncthing profile transport in this test."
 }

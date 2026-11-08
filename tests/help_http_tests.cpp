@@ -38,7 +38,9 @@ int main(int argc, char **argv) {
             auto response = client.Get("/api/help/archive");
             require(response && response->status == 401,
                     "Help archives must require authentication");
-            response = client.Post("/api/help", "{}", "application/json");
+            // Authentication precedes body parsing. Keep this exact-status probe
+            // bodyless so Windows cannot reset a connection with unread POST bytes.
+            response = client.Post("/api/help", "", "application/json");
             require(response && response->status == 401,
                     "Help locations must require authentication");
             response = client.Post("/api/help", auth, R"({"context":"Backups","language":"fr"})",

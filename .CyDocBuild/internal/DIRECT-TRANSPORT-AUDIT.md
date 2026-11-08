@@ -7,9 +7,13 @@ do not by themselves establish that a TCP socket uses WireGuard when an ordinary
 interface also owns an overlapping address/route. A Linux implementation now checks
 the address/interface inventory and Netlink WireGuard type before binding every
 TCP socket with SO_BINDTODEVICE. Actual plain-veth/spoofed-name, overlapping-route
-and unprivileged kernel probes are being added to its native gate. Until that gate
-passes, do not report this source implementation as a verified guard. Windows and
-macOS interface binding remain implementation work.
+and unprivileged kernel probes passed in native run 42477753274 (ten real-driver
+checks; see `kernel-wireguard-linux.json`). Windows now validates the official
+WireGuardNT adapter, LUID and address before setting IP_UNICAST_IF on every direct
+client/listener socket. Actual Windows loopback TCP, accepted-socket inheritance,
+replies and ordinary-adapter refusal pass locally; a disposable official-driver
+gate is implemented, with native CI execution still pending. macOS binding remains
+implementation work.
 
 ## Requirements for the implementation
 

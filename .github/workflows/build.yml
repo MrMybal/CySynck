@@ -27,6 +27,12 @@ jobs:
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
         run: cmake --build build --config Release --parallel 3
+      - name: Install verified WireGuard on disposable Windows runner
+        if: runner.os == 'Windows'
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/install_wireguard_ci.ps1 -DisposableHost
+      - name: Real Windows WireGuardNT and service ownership
+        if: runner.os == 'Windows'
+        run: python tests/wireguard_windows.py --disposable-host --cli build/Release/cysynck.exe --direct-probe build/Release/cysynck-windows-direct-socket-tests.exe --work "${{ runner.temp }}/cysynck-wg-win-${{ github.run_id }}-${{ github.run_attempt }}" --report build/network-report/wireguard-windows.json
       - name: Test
         run: ctest --test-dir build -C Release --parallel 2 --output-on-failure
       - name: Install
@@ -52,6 +58,7 @@ jobs:
           if-no-files-found: ignore
           path: |
             build/Testing/Temporary/LastTest.log
+            build/network-report/
             package-smoke/desktop-*.bmp
       - uses: actions/upload-artifact@v4
         with:
