@@ -4,7 +4,7 @@ title: C++ architecture and local API
 description: Understand the shared core, private state and routes used by application integrations.
 section: Developers
 order: 70
-revision: 1
+revision: 2
 ---
 
 # C++ architecture {#architecture-c}
@@ -118,8 +118,23 @@ Extensions are trusted native code with process permissions, not automatically d
 
 After `cmake --install`, build `examples/consumer` using `-DCMAKE_PREFIX_PATH=/path/to/dist`.
 Prefer `c_api.h` for another toolchain/compiler ABI.
-For Unreal copy `integrations/unreal/CySynck` into project `Plugins/`, then install the native library into `Plugins/CySynck/ThirdParty/CySynck` using `cmake --install --prefix`.
-The module checks ABI, loads C functions and exposes `Open`, `Request`, `Close` to Blueprints.
-It has no CyUI dependency and adds no second ImGui instance inside Unreal.
-Run backup/diff/network operations in an appropriate task, not the rendering tick.
-The bridge is synchronous, without asynchronous Blueprint nodes or automatic scheduler; compile/validate with the target Unreal version before shipping.
+The Unreal bridge 0.2.0 is distributed under `share/cysynck/integrations/unreal/` in the SDK.
+Use its `StageCySynck.cmake` helper with absolute `CYSYNCK_PREFIX` and a new
+`UNREAL_PLUGIN_DIR` to copy the source plugin, matching core, headers, notices and this
+offline manual into a project's `Plugins/CySynck`. Existing destinations are refused.
+Enable the plugin and compile that project against its installed engine.
+
+The module checks C ABI 1 and exposes `Open`, synchronous `Request`, `Close` and
+**CySynck Request Async** to Blueprints. Open an explicit absolute private profile on
+the game thread. Async requests run serially in FIFO order on a worker; **Completed**
+returns success/JSON on the game thread. At most 64 requests may be outstanding.
+The proxy stays alive until completion; an expired context suppresses its event.
+Close cancels queued work that has not started and waits for the active operation
+before releasing the native handle. Closing can block; it does not interrupt writes.
+Module shutdown drains its worker before unloading the library; dynamic reload is disabled.
+There is no CyUI dependency or second ImGui instance inside Unreal.
+
+The repository's `scripts/test-unreal.ps1` stages a new isolated test project, builds
+with an installed Windows engine without changing engine sources, and runs NullRHI
+automation. Windows Development Editor builds/automation pass with Unreal 5.7.4 and 5.8.3; other
+engine versions, Linux/macOS Unreal hosts and packaged games need their own checks.

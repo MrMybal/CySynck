@@ -5,7 +5,7 @@ description: Lier le SDK, gérer les chaînes UTF-8 et préparer une intégratio
 section: Développement
 order: 71
 parent: architecture
-sourceRevision: 1
+sourceRevision: 2
 ---
 
 # Intégrer le cœur C++ ou l’ABI C {#integrate-the-c-core-or-c-abi}
@@ -80,7 +80,9 @@ cmake --build build-c-consumer --config Release
 Sous Windows, garder la DLL à côté de l’exécutable ; l’exemple la copie.
 Sur POSIX les exemples utilisent l’emplacement enregistré par CMake.
 Votre distribution exige sa stratégie de chargement/déploiement et des essais sur le vrai système cible.
-Le pont `integrations/unreal/CySynck` nécessite encore une compilation/exécution réelle dans Unreal ; voir [les consignes Unreal](doc:architecture#autres-applications-c-et-unreal).
+Le pont Unreal comprend des requêtes Blueprint FIFO asynchrones et un script de préparation ;
+voir [les consignes Unreal](doc:architecture#autres-applications-c-et-unreal) pour la durée
+de vie, la file, l’arrêt et les validations nécessaires par cible.
 
 Les opérations suivantes restent accessibles via la même requête JSON, ABI version 1 :
 

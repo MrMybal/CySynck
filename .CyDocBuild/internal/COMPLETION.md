@@ -16,7 +16,9 @@ and evidence; a passing compile is not a target-device or Internet-network test.
 
 - [ ] macOS renderer compatibility; packaged rendering tests must remain enabled.
 - [ ] Native Windows/Linux/macOS core, SDK, plugin and package CI on the final revision.
-- [ ] Unreal asynchronous Blueprint requests, deterministic shutdown and actual engine build/test.
+- [x] Unreal asynchronous Blueprint requests, deterministic shutdown and actual Windows
+  Development Editor build/test in UE 5.7.4 and 5.8.3 (five tests each).
+- [ ] Unreal packaged-game and other target-host validation.
 - [ ] CyRevision interoperation against its real formats, signatures and trust model.
 - [ ] WireGuard endpoint discovery/rendezvous and network tests; distinguish direct connectivity,
   NAT capabilities and required discovery/relay infrastructure without promising universal traversal.
@@ -29,3 +31,17 @@ and evidence; a passing compile is not a target-device or Internet-network test.
 
 The development branch is `codex/finalize-release`. Local commits remain the default;
 push the branch when remote target CI is necessary to advance the requested completion.
+
+## Evidence added
+
+- `3b0b904`: GLFW software pixel format fallback, OpenGL 2 backend, graphics diagnostics;
+  package smoke renders both backends and rejects flat/truncated framebuffers.
+- Windows complete extracted-package CLI/C++/C ABI/plugin/Git/LFS checks pass, including
+  Unreal staging/refusal of an existing plugin and both French desktop captures.
+- The real Unreal tests cover Unicode ABI profiles, FIFO/game-thread callbacks and proxy
+  lifetime, Close with active/queued work, queue saturation and shutdown/join/reload.
+  The worker is owned and joined before unloading native code; a ready result alone is
+  not used as an unload barrier.
+- Reproduction: `scripts/test-unreal.ps1` with an installed engine, complete installed SDK
+  and a new isolated absolute work directory. Build/runtime logs and JSON reports remain
+  in that test directory. Native CI stages the integration but does not install Unreal.

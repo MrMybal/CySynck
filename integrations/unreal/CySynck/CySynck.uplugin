@@ -1,9 +1,9 @@
 {
   "FileVersion": 3,
-  "Version": 1,
-  "VersionName": "0.1.0",
+  "Version": 2,
+  "VersionName": "0.2.0",
   "FriendlyName": "CySynck",
-  "Description": "Local CySynck C++ core bridge through its versioned C ABI.",
+  "Description": "Local CySynck C ABI bridge with queued asynchronous Blueprint requests.",
   "Category": "Tools",
   "CanContainContent": false,
   "Modules": [{"Name": "CySynck", "Type": "Runtime", "LoadingPhase": "Default", "PlatformAllowList": ["Win64", "Linux", "Mac"]}]

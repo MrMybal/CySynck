@@ -13,7 +13,7 @@
     </td>
     <td width="300" align="right" valign="top">
       <p><sub>Application license</sub><br><a href="LICENSE"><strong>MIT</strong></a></p>
-      <p><sub>Source version</sub><br><a href="VERSION.md"><strong>0.40.0</strong></a><br><strong>IN DEVELOPMENT</strong></p>
+      <p><sub>Source versions</sub><br><a href="VERSION.md"><strong>Application 0.40.0</strong><br>Unreal bridge 0.2.0</a><br><strong>IN DEVELOPMENT</strong></p>
     </td>
   </tr>
 </table>
@@ -24,7 +24,7 @@ Synchronize projects, keep versioned backups and review file changes from one ap
 
 > **IN DEVELOPMENT · 0.40.0**
 >
-> This is the current source version; no downloadable application release is published yet. Windows x64 has local runtime validation. Native Linux/macOS and Unreal integration still need target validation. Read the [version notes and documented limitations](VERSION.md).
+> This is the current source version; no downloadable application release is published yet. Development builds require validation for your target workflow. Read the [version notes and documented limitations](VERSION.md).
 
 [![CySynck 0.40.0 desktop on Windows, showing the empty project overview, navigation and contextual Help button](assets/screenshots/desktop-0.40.0.png)](assets/screenshots/desktop-0.40.0.png)
 
@@ -42,7 +42,7 @@ The desktop, CLI and Web/API console share one core. The core can also be embedd
 - **Git and LFS:** verified bundle exchange, branch/commit/three-way review, reviewed merges, separate extraction, cache management, materialization, pointer restoration and export of preserved assets.
 - **Direct networking:** WireGuard pairing, chat and verified resumable file transfers through an authenticated channel inside the VPN.
 - **Desktop and operations:** tray integration, per-profile login startup, diagnostics and reviewed systemd/LaunchAgent service export.
-- **Integration:** C++20 core, C ABI v1 using UTF-8 JSON, typed plugin options and buildable C/C++/plugin examples. A synchronous Unreal/Blueprint example is supplied for target validation.
+- **Integration:** C++20 core, C ABI v1 using UTF-8 JSON, typed plugin options and buildable C/C++/plugin examples. The [Unreal bridge](integrations/unreal/README.md) provides queued asynchronous Blueprint requests and SDK staging.
 
 ## Offline manual
 
@@ -72,9 +72,9 @@ There are currently **no published binary downloads**. Build from the sources be
 | Target | Availability | Start after installing into `dist/` |
 | --- | --- | --- |
 | Windows x64 | Source build; desktop, CLI and package validated locally | `dist/bin/cysynck-desktop.exe` |
-| Linux desktop | Source target; native runtime validation remains necessary | `dist/bin/cysynck-desktop` |
-| Linux server | Headless source target; cross-compilation checked, native runtime validation remains necessary | `dist/bin/cysynck serve` |
-| macOS | Source target; native build/runtime validation remains necessary | `open dist/CySynck.app` |
+| Linux desktop | Native CI build/package/runtime checks passed; hardware and service checks remain | `dist/bin/cysynck-desktop` |
+| Linux server | Native CI and real Syncthing peer tests passed; host service/tunnel checks remain | `dist/bin/cysynck serve` |
+| macOS | Native core/SDK checks passed; packaged desktop graphics validation in progress | `open dist/CySynck.app` |
 
 Install **Syncthing**, **Git** and **WireGuard** separately for the workflows that need them; Git LFS tracking tools are also external. CySynck does not bundle these programs. WireGuard requires suitable privileges and reachable UDP endpoints; peer discovery alone does not create connectivity through every NAT.
 

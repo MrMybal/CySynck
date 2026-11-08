@@ -5,7 +5,7 @@ description: Comprendre les fonctions implémentées et les workflows nécessita
 section: Démarrer
 order: 6
 parent: overview
-sourceRevision: 1
+sourceRevision: 2
 ---
 
 # Disponibilité et limites {#availability-and-limits}
@@ -26,9 +26,9 @@ Il n’existe pas de livraison différée hors ligne ni d’accusé de lecture. 
 
 ## Plateformes et intégrations {#platform-and-integration-scope}
 
-Windows est la plateforme disponible pour les validations d’exécution locales. Les builds natifs Linux/macOS et leurs tests relèvent de la CI et de la validation sur les machines cibles.
-La compilation croisée d’un serveur Linux ne valide pas son desktop, ses permissions, l’activation du tunnel ou son comportement en cas de coupure.
-Le pont Unreal fourni est synchrone et doit être compilé et validé avec la version d’Unreal choisie ; aucun ordonnanceur automatique de Blueprints asynchrones n’est fourni.
+Windows est la plateforme de validation d’exécution locale. La CI Linux native passe aussi les tests desktop/serveur, paquets/SDK et vrais pairs Syncthing.
+Les contrôles cœur/SDK macOS passent ; la validation graphique du paquet est en cours. CI et compilation croisée ne valident pas le matériel graphique, l’activation des services de l’hôte, les permissions des tunnels ou le comportement en cas de coupure.
+Le pont Unreal fournit les requêtes Blueprint FIFO asynchrones. Compilation/tests Windows Development Editor 5.7.4 et 5.8.3 réussis ; autres versions/hôtes Unreal et jeux empaquetés nécessitent leurs propres validations. Close attend l’opération active et peut bloquer.
 Git, les outils de suivi Git LFS, Syncthing et WireGuard s’installent séparément selon les besoins.
 
 ## Conserver des copies de récupération indépendantes {#preserve-independent-recovery-copies}

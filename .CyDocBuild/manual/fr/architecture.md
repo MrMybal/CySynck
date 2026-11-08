@@ -4,7 +4,7 @@ title: Architecture C++
 description: Utilisation, commandes et limites : Architecture C++.
 section: Développement
 order: 70
-sourceRevision: 1
+sourceRevision: 2
 ---
 
 # Architecture C++ {#architecture-c}
@@ -170,15 +170,27 @@ Après `cmake --install`, `examples/consumer` peut être compilé avec
 `-DCMAKE_PREFIX_PATH=/path/to/dist`. Pour une intégration compilée avec un autre outil ou
 une autre version du compilateur, privilégier `c_api.h` et l'ABI C.
 
-Pour Unreal : copier `integrations/unreal/CySynck` dans `Plugins/` du projet, puis installer
-la bibliothèque native dans `Plugins/CySynck/ThirdParty/CySynck` avec `cmake --install --prefix`.
-Le module vérifie l'ABI, charge les fonctions C et expose `Open`, `Request`, `Close` aux Blueprints.
-Il ne dépend pas de CyUI et n'embarque pas une seconde instance ImGui dans Unreal.
+Le pont Unreal 0.2.0 est distribué dans `share/cysynck/integrations/unreal/` du SDK.
+Utiliser son script `StageCySynck.cmake` avec `CYSYNCK_PREFIX` absolu et un nouveau
+`UNREAL_PLUGIN_DIR` pour copier l’extension source, le cœur adapté, les en-têtes,
+notices et ce manuel hors ligne dans `Plugins/CySynck` d’un projet. Les destinations
+existantes sont refusées. Activer l’extension et compiler avec le moteur installé.
 
-Les requêtes de sauvegarde, diff et réseau doivent être exécutées dans une tâche appropriée,
-pas sur le tick de rendu. Le pont fourni est synchrone ; il ne fournit pas encore de nœud
-Blueprint asynchrone ni de scheduler automatique. Il doit être compilé et validé avec
-la version d'Unreal visée avant intégration à un produit.
+Le module vérifie l’ABI C 1 et expose `Open`, `Request` synchrone, `Close` et
+**CySynck Request Async** aux Blueprints. Ouvrir un profil privé absolu explicite sur
+le thread de jeu. Les requêtes asynchrones s’exécutent en série dans l’ordre FIFO sur
+un travailleur ; **Completed** renvoie succès/JSON sur le thread de jeu. Au plus 64
+requêtes peuvent être en cours ou en attente. Le proxy reste vivant jusqu’à la fin ;
+un contexte expiré supprime son événement. Close annule les requêtes non commencées
+et attend l’opération active avant de libérer le handle natif. La fermeture peut bloquer ;
+elle n’interrompt pas les écritures. L’arrêt du module attend le travailleur avant de
+libérer la bibliothèque ; son rechargement dynamique est désactivé.
+Il ne dépend pas de CyUI et n’embarque pas de seconde instance ImGui dans Unreal.
+
+Le script `scripts/test-unreal.ps1` du dépôt prépare un projet de test isolé, compile
+avec un moteur Windows installé sans changer ses sources et lance les tests en NullRHI.
+Compilation/tests Windows Development Editor réussis avec Unreal 5.7.4 et 5.8.3 ; les autres
+versions, hôtes Unreal Linux/macOS et jeux empaquetés nécessitent leurs propres contrôles.
 
 Le périmètre des sauvegardes utilise POST `/api/projects/ID/backup-preview` et PUT
 `/api/projects/ID/backup-excludes`. POST `backup` accepte le plan de l'aperçu des règles

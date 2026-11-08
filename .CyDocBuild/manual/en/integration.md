@@ -5,7 +5,7 @@ description: Usage, commands and limits for Integrate the C++ core or C ABI.
 section: Developers
 order: 71
 parent: architecture
-revision: 1
+revision: 2
 ---
 
 # Integrate the C++ core or C ABI {#integrate-the-c-core-or-c-abi}
@@ -83,6 +83,10 @@ cmake --build build-c-consumer --config Release
 Keep the core DLL beside the executable on Windows; the example copies it automatically.
 POSIX examples use the library location recorded by CMake. Distribution of your own app
 still needs its own library loading/deployment strategy. Test against the actual target OS.
+
+The Unreal bridge includes asynchronous FIFO Blueprint requests and a staging helper;
+see [Unreal integration](doc:architecture#autres-applications-c-et-unreal) for lifetime,
+queue, shutdown and target-validation requirements.
 
 Reviewed first-import and fast-forward branch integration uses the same request interface; see
 [Git integration](doc:git-integration) for preview tokens, working-tree restrictions and receipts.

@@ -5,7 +5,7 @@ description: Understand the implemented scope and workflows requiring external t
 section: Start
 order: 6
 parent: overview
-revision: 1
+revision: 2
 ---
 
 # Availability and limits {#availability-and-limits}
@@ -26,9 +26,9 @@ There is no offline store-and-forward delivery or read receipt. Do not expose th
 
 ## Platform and integration scope {#platform-and-integration-scope}
 
-Windows is the locally available runtime validation platform. Native Linux and macOS builds and platform tests belong to CI and target-machine validation.
-Cross-compiling a Linux server does not prove desktop, permissions, tunnel activation or power-loss behavior on Linux.
-The supplied Unreal bridge is synchronous and must be compiled and validated against the chosen Unreal version; automatic asynchronous Blueprint scheduling is not supplied.
+Windows is the locally available runtime validation platform. Native Linux CI also passes desktop/server, package/SDK and real Syncthing peer tests.
+macOS core/SDK checks pass; packaged graphics validation is being completed. CI and cross-compilation do not prove physical graphics, host service activation, tunnel permissions or power-loss behavior.
+The Unreal bridge provides asynchronous FIFO Blueprint requests. Windows Development Editor 5.7.4 and 5.8.3 build/automation passes; other Unreal versions/hosts and packaged games need their own validation. Close waits for active work and can block.
 Git, Git LFS tracking tools, Syncthing and WireGuard remain separately installed where required.
 
 ## Preserve independent recovery copies {#preserve-independent-recovery-copies}

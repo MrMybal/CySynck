@@ -13,7 +13,7 @@
     </td>
     <td width="300" align="right" valign="top">
       <p><sub>Licence de l’application</sub><br><a href="LICENSE"><strong>MIT</strong></a></p>
-      <p><sub>Version des sources</sub><br><a href="VERSION.fr.md"><strong>0.40.0</strong></a><br><strong>EN DÉVELOPPEMENT</strong></p>
+      <p><sub>Versions des sources</sub><br><a href="VERSION.fr.md"><strong>Application 0.40.0</strong><br>Pont Unreal 0.2.0</a><br><strong>EN DÉVELOPPEMENT</strong></p>
     </td>
   </tr>
 </table>
@@ -24,7 +24,7 @@ Synchronisez vos projets, conservez des sauvegardes versionnées et examinez les
 
 > **EN DÉVELOPPEMENT · 0.40.0**
 >
-> Il s’agit de la version actuelle des sources ; aucune version binaire téléchargeable n’est encore publiée. Windows x64 a été validé localement à l’exécution. Linux/macOS natifs et l’intégration Unreal nécessitent encore une validation sur leurs cibles. Consulter les [notes de version et limites documentées](VERSION.fr.md).
+> Il s’agit de la version actuelle des sources ; aucune version binaire téléchargeable n’est encore publiée. Les versions de développement nécessitent une validation de votre usage cible. Consulter les [notes de version et limites documentées](VERSION.fr.md).
 
 [![Application CySynck 0.40.0 sous Windows, avec la vue d’ensemble sans projet, la navigation et le bouton d’aide contextuelle ; interface en anglais](assets/screenshots/desktop-0.40.0.png)](assets/screenshots/desktop-0.40.0.png)
 
@@ -42,7 +42,7 @@ L’application native, le CLI et la console Web/API partagent un même cœur. C
 - **Git et LFS** : échanges de bundles vérifiés, revue de branches/commits/trois versions, intégrations après revue, extraction séparée, gestion du cache, matérialisation, restauration des pointeurs et export des assets préservés.
 - **Réseau direct** : appairage WireGuard, tchat et transferts de fichiers vérifiés avec reprise par un canal authentifié à l’intérieur du VPN.
 - **Application et exploitation** : icône de notification, démarrage à la connexion par profil, diagnostics et export de services systemd/LaunchAgent après revue.
-- **Intégration** : cœur C++20, ABI C v1 utilisant du JSON UTF-8, options d’extensions typées et exemples C/C++/extensions compilables. Un exemple Unreal/Blueprint synchrone est fourni pour validation sur sa cible.
+- **Intégration** : cœur C++20, ABI C v1 utilisant du JSON UTF-8, options d’extensions typées et exemples C/C++/extensions compilables. Le [pont Unreal](integrations/unreal/README.fr.md) fournit les requêtes Blueprint asynchrones en file et la préparation du SDK.
 
 ## Manuel hors ligne
 
@@ -72,9 +72,9 @@ Il n’existe actuellement **aucun téléchargement binaire publié**. Compilez 
 | Cible | Disponibilité | Lancement après installation dans `dist/` |
 | --- | --- | --- |
 | Windows x64 | Compilation depuis les sources ; application, CLI et paquet validés localement | `dist/bin/cysynck-desktop.exe` |
-| Linux avec interface | Cible de compilation ; validation à l’exécution sur Linux natif encore nécessaire | `dist/bin/cysynck-desktop` |
-| Serveur Linux | Cible sans interface ; compilation croisée vérifiée, validation à l’exécution sur Linux natif encore nécessaire | `dist/bin/cysynck serve` |
-| macOS | Cible de compilation ; compilation et exécution natives encore à valider | `open dist/CySynck.app` |
+| Linux avec interface | Contrôles natifs CI de compilation/paquet/exécution réussis ; matériel et services à vérifier | `dist/bin/cysynck-desktop` |
+| Serveur Linux | CI native et tests de vrais pairs Syncthing réussis ; services/tunnels sur l’hôte à vérifier | `dist/bin/cysynck serve` |
+| macOS | Cœur/SDK natifs validés ; validation graphique du paquet en cours | `open dist/CySynck.app` |
 
 Installez **Syncthing**, **Git** et **WireGuard** séparément pour les fonctions qui en ont besoin ; les outils de suivi Git LFS sont également externes. CySynck ne fournit pas ces programmes. WireGuard exige les privilèges adaptés et des points de terminaison UDP joignables ; la découverte des pairs ne suffit pas à traverser tous les NAT.
 

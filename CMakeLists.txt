@@ -444,6 +444,9 @@ if(WIN32 AND CYSYNCK_DESKTOP)
   install(FILES deploy/Install-CySynck.ps1 DESTINATION .)
 endif()
 install(FILES LICENSE THIRD_PARTY.md DESTINATION share/cysynck)
+install(DIRECTORY integrations/unreal DESTINATION share/cysynck/integrations
+  PATTERN Binaries EXCLUDE PATTERN Intermediate EXCLUDE PATTERN ThirdParty EXCLUDE
+  PATTERN Saved EXCLUDE PATTERN .vs EXCLUDE)
 install(FILES .CyDocBuild/distribution/README.md .CyDocBuild/distribution/README.fr.md DESTINATION .)
 install(DIRECTORY "${cysynck_documentation}/" DESTINATION Documentation PATTERN ".cysynck-generated" EXCLUDE)
 install(FILES "${cysynck_documentation_archive}" DESTINATION .)

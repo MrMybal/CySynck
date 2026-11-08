@@ -90,6 +90,29 @@ file(SHA256 "${prefix}/share/cysynck/licenses/CySynck.txt" notice_sha)
 if(NOT license_sha STREQUAL notice_sha)
   message(FATAL_ERROR "Installed CySynck license differs from its license notice")
 endif()
+# Stage the real Unreal source bridge and matching native runtime without an
+# engine installation. The engine-specific build/automation uses test-unreal.ps1.
+set(unreal_stage "${prefix}/share/cysynck/integrations/unreal/StageCySynck.cmake")
+set(unreal_plugin "${WORK_DIR}/Unreal Host/Plugins/CySynck")
+execute_process(COMMAND "${CMAKE_COMMAND}" "-DCYSYNCK_PREFIX=${prefix}" "-DUNREAL_PLUGIN_DIR=${unreal_plugin}"
+  -P "${unreal_stage}" RESULT_VARIABLE result)
+if(NOT result EQUAL 0)
+  message(FATAL_ERROR "Packaged Unreal bridge cannot be staged from its installed SDK")
+endif()
+foreach(required IN ITEMS CySynck.uplugin Source/CySynck/Public/CySynckAsyncRequest.h
+    ThirdParty/CySynck/include/cysynck/c_api.h ThirdParty/CySynck/LICENSE
+    ThirdParty/CySynck/Documentation/Documentation.html)
+  if(NOT EXISTS "${unreal_plugin}/${required}")
+    message(FATAL_ERROR "Staged Unreal integration is missing ${required}")
+  endif()
+endforeach()
+file(SHA256 "${unreal_plugin}/CySynck.uplugin" unreal_before)
+execute_process(COMMAND "${CMAKE_COMMAND}" "-DCYSYNCK_PREFIX=${prefix}" "-DUNREAL_PLUGIN_DIR=${unreal_plugin}"
+  -P "${unreal_stage}" RESULT_VARIABLE result OUTPUT_QUIET ERROR_QUIET)
+file(SHA256 "${unreal_plugin}/CySynck.uplugin" unreal_after)
+if(result EQUAL 0 OR NOT unreal_before STREQUAL unreal_after)
+  message(FATAL_ERROR "Unreal staging must preserve existing plugins")
+endif()
 # Build and execute an independent consumer against the extracted SDK.
 execute_process(COMMAND "${CMAKE_COMMAND}" -S "${prefix}/share/cysynck/examples/consumer"
   -B "${WORK_DIR}/sdk" "-DCMAKE_PREFIX_PATH=${prefix}" -DCMAKE_BUILD_TYPE=Release
