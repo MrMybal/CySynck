@@ -13,6 +13,7 @@ from pathlib import Path
 import random
 import re
 import secrets
+import shlex
 import shutil
 import subprocess
 import sys
@@ -38,6 +39,7 @@ def main():
     work.mkdir(mode=0o700)
     tag = "csnat-" + uuid.uuid4().hex[:10]
     spaces, children, streams = [], [], []
+    nat_rules = {}
     apparmor = None
     report = {"success": False, "kernel": os.uname().release, "checks": [],
               "topology": "two clients, two miniupnpd routers, three veth pairs, no host network changes"}
@@ -109,8 +111,18 @@ def main():
 
     def foreign_rule(side):
         rules = firewall(side, "-t", "nat", "-S", "MINIUPNPD").stdout
-        return any("--dport 45000 " in line and f"192.168.{61 if side == 'a' else 62}.2:60000" in line
-                   for line in rules.splitlines())
+        nat_rules[side] = rules
+        for line in rules.splitlines():
+            words = shlex.split(line)
+            if "--dport" not in words or "--to-destination" not in words:
+                continue
+            port = words[words.index("--dport") + 1]
+            target = words[words.index("--to-destination") + 1]
+            if port in ("45000", "45000:45000") and target in (
+                    f"192.168.{61 if side == 'a' else 62}.2:60000",
+                    f"192.168.{61 if side == 'a' else 62}.2:60000-60000"):
+                return True
+        return False
 
     def publication(side):
         path = work / side / "project/.cysynck-network/peers" / (profiles[side]["peer_id"] + ".endpoint.json")
@@ -328,15 +340,17 @@ print(json.dumps({'reserved':True}))
         # them with the work directory. Export only bounded error lines with all
         # long hex/base64 tokens removed, never packet dumps or complete logs.
         report["child_exit_codes"] = [child.poll() for child in children]
+        def redact(text):
+            text = re.sub(r"[0-9a-fA-F]{24,}", "<private-token>", text)
+            return re.sub(r"[A-Za-z0-9+/]{42,}={0,2}", "<private-token>", text)
+        report["nat_rule_diagnostics"] = {side: redact(text)[:2000] for side, text in nat_rules.items()}
         messages = []
         for side in ("a", "b"):
             path = work / (side + "-router.log")
             if path.exists():
                 for line in path.read_text(errors="replace").splitlines():
                     if re.search(r"error|unknown|invalid|failed|permission|denied|cannot", line, re.I):
-                        line = re.sub(r"[0-9a-fA-F]{24,}", "<private-token>", line)
-                        line = re.sub(r"[A-Za-z0-9+/]{42,}={0,2}", "<private-token>", line)
-                        messages.append(line[:400])
+                        messages.append(redact(line)[:400])
         report["router_errors"] = messages[-8:]
     finally:
         for child in reversed(children):
