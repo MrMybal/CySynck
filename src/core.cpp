@@ -702,6 +702,13 @@ Json Core::diff(const Json &p, const Json &data) {
     return result;
 }
 Json Core::request(const std::string &method, const std::string &path, const Json &data) {
+    if (path == "/api/maintenance/tick") {
+        if (method != "POST") throw std::runtime_error("Method not allowed");
+        if (!data.is_object() || !data.empty()) throw std::runtime_error("Maintenance tick accepts an empty JSON object");
+        // tick() owns its locks. Keep this outside the request lock, as for transfers.
+        tick();
+        return {{"maintained", true}};
+    }
     if (path == "/api/network/transfer-resume") {
         if (method != "POST")
             throw std::runtime_error("Method not allowed");

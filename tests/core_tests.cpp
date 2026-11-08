@@ -307,6 +307,13 @@ int main(int argc, char **argv) {
               "C ABI request succeeds");
         check(Json::parse(result)["version"] == version, "C ABI returns valid JSON");
         cysynck_free(result);
+        check(cysynck_request(handle, "POST", "/api/maintenance/tick", "{}", &result) == 0 &&
+                  Json::parse(result).at("maintained") == true,
+              "C ABI hosts can maintain scheduled work without a new binary ABI");
+        cysynck_free(result);
+        check(cysynck_request(handle, "GET", "/api/maintenance/tick", "{}", &result) == 1,
+              "Maintenance requires an explicit POST");
+        cysynck_free(result);
         check(cysynck_request(handle, "POST", "/invalid", "{", &result) == 1,
               "C ABI contains parsing exceptions");
         cysynck_free(result);

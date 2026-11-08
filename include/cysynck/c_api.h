@@ -17,6 +17,9 @@
  * returning the plugin catalog on success; it requires core 0.30+ and executes trusted native code.
  * `cysynck_abi_version()` returns 1. `cysynck_free(char*)` releases every returned string.
  * `cysynck_close(handle)` destroys the instance; finish all calls before closing it.
+ * Hosts that need scheduled backups, engine supervision or opted-in VPN endpoint maintenance
+ * periodically request `POST /api/maintenance/tick` with `{}` from a worker, not a render tick.
+ * This calls the C++ `Core::tick()` and preserves C ABI version 1.
  *
  * ## Ownership {#ownership}
  * Keep the library loaded until all handles and returned strings are released.
@@ -44,6 +47,9 @@
  * le cœur 0.30+ et exécute du code natif de confiance. `cysynck_abi_version()` renvoie 1.
  * `cysynck_free(char*)` libère toutes les chaînes retournées. `cysynck_close(handle)` détruit
  * l'instance ; terminer tous les appels avant la fermeture.
+ * Pour les sauvegardes planifiées, la supervision du moteur ou l'entretien VPN activé, demander
+ * périodiquement `POST /api/maintenance/tick` avec `{}` depuis un travailleur, hors du rendu.
+ * Cette route appelle `Core::tick()` en C++ et conserve la version 1 de l'ABI C.
  *
  * ## Propriété mémoire {#ownership}
  * Garder la bibliothèque chargée jusqu'à la libération de tous les handles et chaînes retournées.

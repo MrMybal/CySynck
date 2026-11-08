@@ -5,7 +5,7 @@ description: Lier le SDK, gérer les chaînes UTF-8 et préparer une intégratio
 section: Développement
 order: 71
 parent: architecture
-sourceRevision: 3
+sourceRevision: 4
 ---
 
 # Intégrer le cœur C++ ou l’ABI C {#integrate-the-c-core-or-c-abi}
@@ -29,6 +29,10 @@ auto help = core.request("POST", "/api/help/location",
 ```
 
 La méthode, le chemin et le corps sont identiques via l’ABI C v1. Les pages/sections inconnues et exports incomplets sont refusés ; une langue non prise en charge revient à l’anglais. Distribuer le dossier `Documentation` complet et ses licences comme fichiers accessibles directement. L’hôte décide quand ouvrir l’URL retournée dans son interface.
+
+## Entretien par l’hôte {#host-maintenance}
+
+Le serveur CLI et le bureau assurent déjà l’entretien planifié. Un hôte C++ embarqué appelle périodiquement `Core::tick()` depuis un travailleur. Les hôtes ABI C et Unreal peuvent utiliser `POST /api/maintenance/tick` avec un corps vide `{}` via la fonction de requête existante ou le nœud Blueprint asynchrone. Le planifier environ toutes les 15 secondes lorsque la supervision du moteur, les sauvegardes planifiées ou l’actualisation VPN activée sont nécessaires. Cet appel peut effectuer du travail disque/réseau et doit rester hors du thread de rendu. Le ticker du pont Unreal distribue les callbacks de fin ; l’hôte planifie les requêtes d’entretien. Examiner les événements et l’état réseau pour les échecs individuels. Aucun nouveau symbole d’ABI C n’est nécessaire.
 
 ## C++20 {#c20}
 
