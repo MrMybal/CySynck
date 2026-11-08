@@ -22,6 +22,14 @@ if (-not $dotnet -or -not (Test-Path -LiteralPath $uat) -or -not (Test-Path -Lit
 function Write-Utf8([string]$Path, [string]$Content) {
     [IO.File]::WriteAllText($Path, $Content, (New-Object Text.UTF8Encoding($false)))
 }
+function Get-Sha256([string]$Path) {
+    # Hashing must work in both Windows PowerShell and pwsh even when their
+    # module auto-loading paths differ. OpenRead also preserves Unicode paths.
+    $stream = [IO.File]::OpenRead($Path)
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try { return [BitConverter]::ToString($algorithm.ComputeHash($stream)).Replace('-','').ToLowerInvariant() }
+    finally { $algorithm.Dispose(); $stream.Dispose() }
+}
 function Assert-Automation([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path)) { throw "Unreal did not write $Path" }
     $report = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
@@ -139,7 +147,7 @@ MapsToCook=(FilePath="/Engine/Maps/Entry")
             $relative = $file.FullName.Substring($sourceNative.Length+1)
             $staged = Join-Path $nativeRoot $relative
             if (-not (Test-Path -LiteralPath $staged) -or
-                (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $staged -Algorithm SHA256).Hash) {
+                (Get-Sha256 $file.FullName) -ne (Get-Sha256 $staged)) {
                 throw "Runtime resource missing or changed in packaged game: $relative"
             }
             $verified++
@@ -148,7 +156,7 @@ MapsToCook=(FilePath="/Engine/Maps/Entry")
     foreach ($name in @('LICENSE','THIRD_PARTY.md','version.json')) {
         $staged = Join-Path $nativeRoot $name
         if (-not (Test-Path -LiteralPath $staged) -or
-            (Get-FileHash -LiteralPath (Join-Path $sourceNative $name) -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $staged -Algorithm SHA256).Hash) {
+            (Get-Sha256 (Join-Path $sourceNative $name)) -ne (Get-Sha256 $staged)) {
             throw "Missing or changed packaged resource: $name"
         }
         $verified++
@@ -186,7 +194,7 @@ MapsToCook=(FilePath="/Engine/Maps/Entry")
     } finally { $gameProcess.Dispose() }
     $gameTests = Assert-Automation (Join-Path $gameReport 'index.json')
     $result = @{success=$true;editor_tests=$editorTests;game_tests=$gameTests;verified_runtime_files=$verified;
-        game=$games[0].FullName;native_sha256=(Get-FileHash -LiteralPath $nativeLibraries[0].FullName -Algorithm SHA256).Hash}
+        game=$games[0].FullName;native_sha256=(Get-Sha256 $nativeLibraries[0].FullName)}
     Write-Utf8 (Join-Path $testDirectory 'result.json') ($result | ConvertTo-Json -Depth 5)
     Write-Output ("PASS real packaged Unreal game: $gameTests automation tests; $verified runtime resource hashes; $testDirectory/result.json")
 }

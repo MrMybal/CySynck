@@ -27,6 +27,11 @@ tool models and actual driver/router evidence have separate scope.
   kernel checks including sudo owner preservation, ordinary/spoofed interface
   refusal, overlapping physical routes, unprivileged bound TCP, handshake, chat,
   16 MiB verified/encrypted file traffic, revoke/restart and foreign-interface refusal.
+- `kernel-wireguard-syncthing-linux.json`: revision dc630a5, run 42480683084,
+  twelve successful real-kernel checks. Two actual managed Syncthing engines carry
+  public profiles without a manual copy; connected LAN hints retain the pinned
+  WireGuard UDP listener rather than adopting the observed TCP sync port. The
+  complete guarded handshake/chat/file/revoke workflow then passes.
 - `router-wireguard-linux.json`: revision af43bc6, run 42475158981, two independent
   miniupnpd 2.3.9 routers and two clients in four owned namespaces. Real PCP/NAT-PMP
   grants, occupied-port preservation, scheduled Core::tick renewal, signed records,
@@ -41,19 +46,16 @@ tool models and actual driver/router evidence have separate scope.
 - Revision ed1545d passes all four native CI jobs (Windows, Linux desktop/server,
   macOS), including relocated SDK/app execution and software OpenGL captures.
 
-The network fixtures above copy only public profiles; they do not establish actual
-Syncthing profile transport inside their namespaces. Existing real Syncthing tests
-provide separate engine/folder transport coverage. They do not prove physical
-router firmware, arbitrary CGNAT or Windows/macOS driver activation.
+The dual-router fixture copies public profiles to isolate NAT forwarding. The
+new direct-LAN kernel fixture establishes actual Syncthing profile transport and
+automatic LAN endpoint discovery separately. These do not prove physical router
+firmware, arbitrary CGNAT or Windows/macOS driver activation.
 
 ## Required work before the final candidate
 
 - Record the pending native Windows/macOS driver gates and final CTests. Their
   socket-interface ownership/lifecycle implementations and disposable driver
   fixtures are present. See `DIRECT-TRANSPORT-AUDIT.md` for measured scope.
-- Record the pending production Syncthing public-profile bootstrap gate, now
-  using two actual managed engines in the owned Linux network namespaces. Keep
-  its evidence separate from NAT forwarding.
 - Produce the coherent final version, fresh packages/SDK/checksums, portable update
   validation and final native checks. Keep historical report hashes unchanged.
 

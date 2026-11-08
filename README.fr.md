@@ -26,7 +26,7 @@ Synchronisez vos projets, conservez des sauvegardes versionnées et examinez les
 >
 > Il s’agit de la version actuelle des sources ; aucune version binaire téléchargeable n’est encore publiée. Les versions de développement nécessitent une validation de votre usage cible. Consulter les [notes de version et limites documentées](VERSION.fr.md).
 
-[![Application CySynck 0.40.0 sous Windows, avec la vue d’ensemble sans projet, la navigation et le bouton d’aide contextuelle ; interface en anglais](assets/screenshots/desktop-0.40.0.png)](assets/screenshots/desktop-0.40.0.png)
+[![Application CySynck 0.41.0 sous Windows, avec la vue d’ensemble sans projet, la navigation et le bouton d’aide contextuelle ; interface en anglais](assets/screenshots/desktop-0.41.0.png)](assets/screenshots/desktop-0.41.0.png)
 
 ## À propos de CySynck
 

@@ -1,0 +1,41 @@
+{
+  "kernel": "7.0.0-1019-azure",
+  "checks": [
+    "real-Syncthing-public-profile-transport-without-manual-copy",
+    "privileged-state-write-preserves-existing-owner",
+    "real-connected-Syncthing-LAN-hint-preserves-WireGuard-UDP-port",
+    "plain-veth-direct-credentials-blocked",
+    "spoofed-WireGuard-name-veth-credentials-blocked",
+    "real-kernel-handshake-and-ping",
+    "overlapping-physical-routes-do-not-leak-direct-credentials",
+    "unprivileged-interface-bound-TCP-over-kernel-WireGuard",
+    "authenticated-chat-over-kernel-wireguard",
+    "verified-resumable-protocol-file-over-kernel-wireguard",
+    "live-revocation-and-service-restart-preservation",
+    "foreign-kernel-interface-preserved"
+  ],
+  "success": true,
+  "bootstrap": {
+    "transport": "real managed Syncthing over isolated static LAN TCP",
+    "public_profile_sha256": {
+      "a": "0435bf00acc8443f796784a8453bcb7b2ccd2d63028e82281a2375d95db2922f",
+      "b": "d3fde4f608397526e634b8be9465ebed70d70718d748f0e19026f5ef989d387f"
+    },
+    "manual_profile_copy": false
+  },
+  "apparmor": {
+    "prepared": true,
+    "profile": "/etc/apparmor.d/wg-quick",
+    "exact_configurations": 2,
+    "permissions": "read-only, no wildcard, no disable/complain mode",
+    "restored": true
+  },
+  "payload_bytes": 16777216,
+  "payload_sha256": "fbc6902d90c21d903b46d2d126f82cc6484a0c108b1bc4bdf0b4425dc588ca99",
+  "wireguard_bytes_growth": 17974340,
+  "revision": "dc630a5721d8cc4f034d9b82bb7566f2d6293bdd",
+  "native_version": "0.40.0",
+  "ci_run": 42480683084,
+  "job_id": 128731728190,
+  "scope": "Twelve actual Linux kernel checks after two managed Syncthing engines carry the public VPN profiles over an isolated static LAN. No manual profile copy or endpoint. Real connected LAN hints preserve the pinned WireGuard UDP ports. Includes authenticated chat, a verified 16 MiB file, interface/route guards, unprivileged TCP and revocation. NAT forwarding is measured separately."
+}

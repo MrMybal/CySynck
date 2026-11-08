@@ -26,7 +26,7 @@ Synchronize projects, keep versioned backups and review file changes from one ap
 >
 > This is the current source version; no downloadable application release is published yet. Development builds require validation for your target workflow. Read the [version notes and documented limitations](VERSION.md).
 
-[![CySynck 0.40.0 desktop on Windows, showing the empty project overview, navigation and contextual Help button](assets/screenshots/desktop-0.40.0.png)](assets/screenshots/desktop-0.40.0.png)
+[![CySynck 0.41.0 desktop on Windows, showing the empty project overview, navigation and contextual Help button](assets/screenshots/desktop-0.41.0.png)](assets/screenshots/desktop-0.41.0.png)
 
 ## About CySynck
 

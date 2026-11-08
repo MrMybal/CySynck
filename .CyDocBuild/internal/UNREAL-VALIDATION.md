@@ -4,12 +4,14 @@ The plugin uses C ABI 1 and an owned FIFO worker. The application core and bridg
 versions are separate; these are development-source validations, not published
 application binaries or an Epic certification.
 
-`unreal-packaged-windows.json` records the complete successful Windows x64 run with
+`unreal-packaged-windows-0.41.json` records the complete successful Windows x64 run
+with the actual 0.41.0 SDK and
 Unreal 5.8.3: five Development Editor tests and five tests in the real Development
 game after cook/stage/archive. The script also verifies 34 native/CRT, license and
 offline-reader files against their staged SDK sources using SHA-256. Its native DLL
 hash and bridge/script source hashes identify the measured artifact. Subsequent
-additive core RPCs do not retroactively change that recorded binary hash.
+core changes do not retroactively change that recorded binary hash.
+`unreal-packaged-windows.json` retains the separate earlier 0.40.0 artifact evidence.
 
 ```powershell
 ./scripts/test-unreal-packaged.ps1 -EngineRoot 'G:/UnrealEngine/UE_5.8' `
@@ -31,8 +33,9 @@ without changing the host's working directory or global documentation environmen
 No browser is launched. Runtime dependencies use loose NonUFS resources so the
 local file reader and loader can access them outside the PAK.
 
-The updated bridge also builds and passes all five tests in **5.7.4 Windows
-Development Editor** through `scripts/test-unreal.ps1`. The 5.8.3 script completed
+The bridge also builds and passes all five tests in **5.7.4 Windows
+Development Editor** with the earlier 0.40.0 core through `scripts/test-unreal.ps1`.
+The fresh 0.41.0 SDK's 5.8.3 script completed
 the same Editor checks before the packaged game checks. The normal native CI
 validates SDK staging without requiring Epic's installed engines.
 
