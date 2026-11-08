@@ -22,11 +22,36 @@ function panel(respond) {
     return respond(request);
   };
   window.eval(i18n);
-  window.eval(app+'\nglobalThis.panelTest={select:(id)=>{selected=id;resetCyRevision();},skipGitReload:()=>{loadGitExchange=async()=>{};}};');
+  window.eval(app+'\nglobalThis.panelTest={select:(id)=>{selected=id;resetCyRevision();},skipGitReload:()=>{loadGitExchange=async()=>{};},runSafe:safe};');
   window.panelTest.select('fixture');
   return {window,calls,$:id=>window.document.getElementById(id)};
 }
 const ok = result => ({ok:true,json:async()=>result});
+
+test('French API errors translate known messages and preserve unknown prototype names as literal text',async()=>{
+  for(const [message,expected] of [
+    ['Tool not found','Outil introuvable'],
+    ['constructor','constructor'],
+    ['__proto__','__proto__'],
+    ['<img src=x onerror="globalThis.errorMarkupExecuted=true">','<img src=x onerror="globalThis.errorMarkupExecuted=true">']
+  ]) {
+    const {window,$}=panel(()=>({ok:false,json:async()=>({error:message})}));
+    try {
+      window.eval('CySynckI18n.setLanguage("fr")');
+      $('cyrevision-inbox').click();await settle();
+      assert.equal($('error').textContent,expected);
+      assert.equal($('error').children.length,0);
+      assert.equal(window.errorMarkupExecuted,undefined);
+      window.eval('CySynckI18n.setLanguage("en")');
+      assert.equal($('error').textContent,message);
+      window.eval('CySynckI18n.setLanguage("fr")');
+      assert.equal($('error').textContent,expected);
+      await window.panelTest.runSafe(async()=>{});
+      window.eval('CySynckI18n.setLanguage("en")');
+      assert.equal($('error').textContent,'');
+    } finally {await window.happyDOM.close();}
+  }
+});
 test('CyRevision panel sends explicit project association and independent pinned fingerprint',async()=>{
   const {window,calls,$}=panel(request=>ok(request.url.endsWith('configure')?{project_id:request.body.project_id,signature_format:request.body.signature_format,devices:{}}:{}));
   try {

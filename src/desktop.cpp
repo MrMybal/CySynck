@@ -75,6 +75,29 @@ static void localize() {
     c::registerTranslations(
         "fr",
         {{"CyRevision exchange", "Échange CyRevision"},
+         {"Invalid VPN/mesh port", "Port VPN/de réception invalide"},
+         {"Choose a unique VPN address inside 10.77.0.0/16", "Choisissez une adresse VPN unique dans 10.77.0.0/16"},
+         {"Endpoint must be host:UDP-port, IPv6 in brackets", "L’adresse doit être hôte:port-UDP, avec l’IPv6 entre crochets"},
+         {"Router mapping requires this profile's owned live WireGuard tunnel", "La redirection nécessite le tunnel WireGuard actif appartenant à ce profil"},
+         {"Clear the manual UDP endpoint before enabling router mapping", "Effacez l’adresse UDP manuelle avant d’activer la redirection du routeur"},
+         {"Disable router mapping before reconfiguring the VPN identity", "Désactivez la redirection du routeur avant de reconfigurer l’identité VPN"},
+         {"The live WireGuard UDP port differs from its published profile; restart the owned tunnel first", "Le port UDP WireGuard actif diffère du profil publié ; redémarrez d’abord le tunnel du profil"},
+         {"The gateway-facing address or WireGuard listener changed; enable locally to consent again", "L’adresse vers la passerelle ou le port WireGuard a changé ; activez à nouveau en local pour confirmer votre accord"},
+         {"Enable router mapping locally before renewing it", "Activez la redirection en local avant de la renouveler"},
+         {"Choose a canonical IPv4 gateway address", "Choisissez une adresse IPv4 canonique pour la passerelle"},
+         {"Choose a usable canonical IPv4 gateway address", "Choisissez une adresse IPv4 canonique utilisable pour la passerelle"},
+         {"Choose a 60..3600 second router lease and a 0..65535 preferred port", "Choisissez un bail de 60 à 3600 secondes et un port préféré de 0 à 65535"},
+         {"Port-mapping gateway did not respond within the operation deadline", "La passerelle de redirection n’a pas répondu avant la limite de temps"},
+         {"The consented gateway-facing IPv4 address is no longer available", "L’adresse IPv4 locale autorisée vers la passerelle n’est plus disponible"},
+         {"The gateway route no longer uses the consented local address", "La route vers la passerelle n’utilise plus l’adresse locale autorisée"},
+         {"The VPN address must belong to one active direct interface", "L’adresse VPN doit appartenir à une seule interface directe active"},
+         {"The VPN address is not on this profile's WireGuard interface", "L’adresse VPN n’est pas sur l’interface WireGuard de ce profil"},
+         {"Direct traffic requires this profile's actual WireGuard interface, not an ordinary interface with the same address", "Le trafic direct nécessite l’interface WireGuard réelle de ce profil ; une interface ordinaire avec la même adresse ne suffit pas"},
+         {"Cannot bind direct TCP to its verified interface; this kernel may require CAP_NET_RAW", "Impossible de lier le TCP direct à son interface vérifiée ; ce noyau peut nécessiter CAP_NET_RAW"},
+         {"The direct transport interface changed before binding", "L’interface de transport direct a changé avant la liaison"},
+         {"The direct transport interface changed during binding", "L’interface de transport direct a changé pendant la liaison"},
+         {"Pinned peer identity changed; revoke and pair again", "L’identité épinglée du pair a changé ; révoquez puis refaites l’appairage"},
+         {"Independently confirm the endpoint signing fingerprint before pairing", "Confirmez indépendamment l’empreinte de signature des adresses avant l’appairage"},
          {"Router port mapping", "Redirection de port du routeur"},
          {"Router IPv4 address", "Adresse IPv4 du routeur"},
          {"Mapping protocol", "Protocole de redirection"},
@@ -1415,7 +1438,7 @@ class App {
                 (void)help_pending.get();
             } catch (const std::exception &e) {
                 error = e.what();
-                c::notify(error.c_str(), c::Tone::error, 8);
+                c::notify(c::tr(error.c_str()).c_str(), c::Tone::error, 8);
             }
         }
         if (pending.valid() &&
@@ -1427,7 +1450,7 @@ class App {
                     done(result);
             } catch (const std::exception &e) {
                 error = e.what();
-                c::notify(error.c_str(), c::Tone::error, 8);
+                c::notify(c::tr(error.c_str()).c_str(), c::Tone::error, 8);
             }
         }
         if (!busy() && std::chrono::steady_clock::now() - refreshed >
@@ -1498,7 +1521,7 @@ class App {
                          : !p.is_null() && view != "Overview" ? p["name"].get<std::string>().c_str()
                                                               : c::tr("Projects").c_str());
         if (!error.empty())
-            c::callout(c::Tone::error, error.c_str());
+            c::callout(c::Tone::error, c::tr(error.c_str()).c_str());
         c::badge(c::tr(busy() ? "Working..." : "Ready").c_str(),
                  busy() ? c::Tone::info : c::Tone::success);
         c::space(8);

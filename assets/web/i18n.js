@@ -502,7 +502,8 @@ globalThis.CySynckI18n = (() => {
   };
   let language = "en";
   function t(key, values = {}) {
-    const template = language === "fr" ? french[key] || key : key;
+    key = String(key);
+    const template = language === "fr" && Object.hasOwn(french, key) ? french[key] : key;
     return template.replace(/\{([a-z_]+)\}/g, (match, name) =>
       Object.hasOwn(values, name) ? String(values[name]) : match);
   }

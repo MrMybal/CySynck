@@ -552,7 +552,7 @@ async function api(path, method = "GET", data) {
 }
 function text(tag, content, className) { const node = document.createElement(tag); node.textContent = content; if (className) node.className = className; return node; }
 function label(tag, key, values = {}, className) { return translated(text(tag, "", className), key, values); }
-async function safe(fn) { $("error").textContent = ""; try { await fn(); } catch (error) { $("error").textContent = error.message; } }
+async function safe(fn) { translated($("error"), ""); try { await fn(); } catch (error) { translated($("error"), error.message || String(error)); } }
 async function diagnostics(probe) {
   const result = await api("doctor", probe ? "POST" : "GET", probe ? {probe_tools: true, probe_engine: true} : undefined);
   $("doctor-output").replaceChildren(label("p", "{errors} errors · {warnings} warnings", result));
