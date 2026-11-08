@@ -1,0 +1,101 @@
+[
+  {
+    "document": {
+      "manifest": {
+        "transactionId": "00000001-0002-4003-8004-000000000005",
+        "projectId": "12345678-1234-4234-8234-123456789abc",
+        "author": {
+          "userId": "11111111-2222-4333-8444-555555555555",
+          "deviceId": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          "displayName": "Alice \u003C\u00E9\u003E \u002B \u0026 \u0060 \u0022\uD83D\uDE00\u0022\n",
+          "syncthingDeviceId": "",
+          "signingPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEclzStXhYT5lPjAyCHcNHIcEV11KYdkTfm7ySUkRh\u002BWRfIPCSjThhGf7Jq\u002B3IGNtoE/L5YTZTtyadn95\u002BveqZjQ=="
+        },
+        "createdAt": "2026-11-08T05:06:07.1234567+00:00",
+        "bundleFileName": "repository.bundle",
+        "bundleHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "branches": {
+          "main": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "feature/\u00E9\u002B\u0026": "cccccccccccccccccccccccccccccccccccccccc"
+        }
+      },
+      "signature": "poYBJGOejr\u002B0kIUHGgBHbaNO8ld5hz6ShYVmL46dcuQYHPIP6AxpCipFAhcGHIj/WdIarw\u002BvzFVJIt8/ygr3iA=="
+    },
+    "canonical": "ew0KICAidHJhbnNhY3Rpb25JZCI6ICIwMDAwMDAwMS0wMDAyLTQwMDMtODAwNC0wMDAwMDAwMDAwMDUiLA0KICAicHJvamVjdElkIjogIjEyMzQ1Njc4LTEyMzQtNDIzNC04MjM0LTEyMzQ1Njc4OWFiYyIsDQogICJhdXRob3IiOiB7DQogICAgInVzZXJJZCI6ICIxMTExMTExMS0yMjIyLTQzMzMtODQ0NC01NTU1NTU1NTU1NTUiLA0KICAgICJkZXZpY2VJZCI6ICJhYWFhYWFhYS1iYmJiLTRjY2MtOGRkZC1lZWVlZWVlZWVlZWUiLA0KICAgICJkaXNwbGF5TmFtZSI6ICJBbGljZSBcdTAwM0NcdTAwRTlcdTAwM0UgXHUwMDJCIFx1MDAyNiBcdTAwNjAgXHUwMDIyXHVEODNEXHVERTAwXHUwMDIyXG4iLA0KICAgICJzeW5jdGhpbmdEZXZpY2VJZCI6ICIiLA0KICAgICJzaWduaW5nUHVibGljS2V5IjogIk1Ga3dFd1lIS29aSXpqMENBUVlJS29aSXpqMERBUWNEUWdBRWNselN0WGhZVDVsUGpBeUNIY05ISWNFVjExS1lka1RmbTd5U1VrUmhcdTAwMkJXUmZJUENTalRoaEdmN0pxXHUwMDJCM0lHTnRvRS9MNVlUWlR0eWFkbjk1XHUwMDJCdmVxWmpRPT0iDQogIH0sDQogICJjcmVhdGVkQXQiOiAiMjAyNi0xMS0wOFQwNTowNjowNy4xMjM0NTY3KzAwOjAwIiwNCiAgImJ1bmRsZUZpbGVOYW1lIjogInJlcG9zaXRvcnkuYnVuZGxlIiwNCiAgImJ1bmRsZUhhc2giOiAiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSIsDQogICJicmFuY2hlcyI6IHsNCiAgICAibWFpbiI6ICJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiIiwNCiAgICAiZmVhdHVyZS9cdTAwRTlcdTAwMkJcdTAwMjYiOiAiY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjYyINCiAgfQ0KfQ=="
+  },
+  {
+    "document": {
+      "manifest": {
+        "transactionId": "00000001-0002-4003-8004-000000000005",
+        "projectId": "12345678-1234-4234-8234-123456789abc",
+        "author": {
+          "userId": "11111111-2222-4333-8444-555555555555",
+          "deviceId": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          "displayName": "Alice \u003C\u00E9\u003E \u002B \u0026 \u0060 \u0022\uD83D\uDE00\u0022\n",
+          "syncthingDeviceId": "",
+          "signingPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEclzStXhYT5lPjAyCHcNHIcEV11KYdkTfm7ySUkRh\u002BWRfIPCSjThhGf7Jq\u002B3IGNtoE/L5YTZTtyadn95\u002BveqZjQ=="
+        },
+        "createdAt": "2024-02-29T23:59:59.12-05:30",
+        "bundleFileName": "repository.bundle",
+        "bundleHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "branches": {
+          "main": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "feature/\u00E9\u002B\u0026": "cccccccccccccccccccccccccccccccccccccccc"
+        },
+        "sequence": 1
+      },
+      "signature": "AqjbEIw8MBlL3bv4yIygB0bAsuY6ylmUCCcpPnP2DrSxm6f/mxBW0bSBKZ\u002BrMQKXzoQyxrCh1Yifn9iUHDpVqA=="
+    },
+    "canonical": "ew0KICAidHJhbnNhY3Rpb25JZCI6ICIwMDAwMDAwMS0wMDAyLTQwMDMtODAwNC0wMDAwMDAwMDAwMDUiLA0KICAicHJvamVjdElkIjogIjEyMzQ1Njc4LTEyMzQtNDIzNC04MjM0LTEyMzQ1Njc4OWFiYyIsDQogICJhdXRob3IiOiB7DQogICAgInVzZXJJZCI6ICIxMTExMTExMS0yMjIyLTQzMzMtODQ0NC01NTU1NTU1NTU1NTUiLA0KICAgICJkZXZpY2VJZCI6ICJhYWFhYWFhYS1iYmJiLTRjY2MtOGRkZC1lZWVlZWVlZWVlZWUiLA0KICAgICJkaXNwbGF5TmFtZSI6ICJBbGljZSBcdTAwM0NcdTAwRTlcdTAwM0UgXHUwMDJCIFx1MDAyNiBcdTAwNjAgXHUwMDIyXHVEODNEXHVERTAwXHUwMDIyXG4iLA0KICAgICJzeW5jdGhpbmdEZXZpY2VJZCI6ICIiLA0KICAgICJzaWduaW5nUHVibGljS2V5IjogIk1Ga3dFd1lIS29aSXpqMENBUVlJS29aSXpqMERBUWNEUWdBRWNselN0WGhZVDVsUGpBeUNIY05ISWNFVjExS1lka1RmbTd5U1VrUmhcdTAwMkJXUmZJUENTalRoaEdmN0pxXHUwMDJCM0lHTnRvRS9MNVlUWlR0eWFkbjk1XHUwMDJCdmVxWmpRPT0iDQogIH0sDQogICJjcmVhdGVkQXQiOiAiMjAyNC0wMi0yOVQyMzo1OTo1OS4xMi0wNTozMCIsDQogICJidW5kbGVGaWxlTmFtZSI6ICJyZXBvc2l0b3J5LmJ1bmRsZSIsDQogICJidW5kbGVIYXNoIjogImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLA0KICAiYnJhbmNoZXMiOiB7DQogICAgIm1haW4iOiAiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYiIsDQogICAgImZlYXR1cmUvXHUwMEU5XHUwMDJCXHUwMDI2IjogImNjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2MiDQogIH0sDQogICJzZXF1ZW5jZSI6IDENCn0="
+  },
+  {
+    "document": {
+      "manifest": {
+        "transactionId": "00000001-0002-4003-8004-000000000005",
+        "projectId": "12345678-1234-4234-8234-123456789abc",
+        "author": {
+          "userId": "11111111-2222-4333-8444-555555555555",
+          "deviceId": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          "displayName": "Alice \u003C\u00E9\u003E \u002B \u0026 \u0060 \u0022\uD83D\uDE00\u0022\n",
+          "syncthingDeviceId": "",
+          "signingPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEclzStXhYT5lPjAyCHcNHIcEV11KYdkTfm7ySUkRh\u002BWRfIPCSjThhGf7Jq\u002B3IGNtoE/L5YTZTtyadn95\u002BveqZjQ=="
+        },
+        "createdAt": "0001-01-01T00:00:00+00:00",
+        "bundleFileName": "repository.bundle",
+        "bundleHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "branches": {
+          "main": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "feature/\u00E9\u002B\u0026": "cccccccccccccccccccccccccccccccccccccccc"
+        },
+        "sequence": 2
+      },
+      "signature": "yokv6ebvYJYByE0eUaUeEBpT2sazmFVhH1NYUAdV0H5p83NEutCcloP5m6dV3BmPUaMmyt7dbxZqkGUn4d7W3w=="
+    },
+    "canonical": "ew0KICAidHJhbnNhY3Rpb25JZCI6ICIwMDAwMDAwMS0wMDAyLTQwMDMtODAwNC0wMDAwMDAwMDAwMDUiLA0KICAicHJvamVjdElkIjogIjEyMzQ1Njc4LTEyMzQtNDIzNC04MjM0LTEyMzQ1Njc4OWFiYyIsDQogICJhdXRob3IiOiB7DQogICAgInVzZXJJZCI6ICIxMTExMTExMS0yMjIyLTQzMzMtODQ0NC01NTU1NTU1NTU1NTUiLA0KICAgICJkZXZpY2VJZCI6ICJhYWFhYWFhYS1iYmJiLTRjY2MtOGRkZC1lZWVlZWVlZWVlZWUiLA0KICAgICJkaXNwbGF5TmFtZSI6ICJBbGljZSBcdTAwM0NcdTAwRTlcdTAwM0UgXHUwMDJCIFx1MDAyNiBcdTAwNjAgXHUwMDIyXHVEODNEXHVERTAwXHUwMDIyXG4iLA0KICAgICJzeW5jdGhpbmdEZXZpY2VJZCI6ICIiLA0KICAgICJzaWduaW5nUHVibGljS2V5IjogIk1Ga3dFd1lIS29aSXpqMENBUVlJS29aSXpqMERBUWNEUWdBRWNselN0WGhZVDVsUGpBeUNIY05ISWNFVjExS1lka1RmbTd5U1VrUmhcdTAwMkJXUmZJUENTalRoaEdmN0pxXHUwMDJCM0lHTnRvRS9MNVlUWlR0eWFkbjk1XHUwMDJCdmVxWmpRPT0iDQogIH0sDQogICJjcmVhdGVkQXQiOiAiMDAwMS0wMS0wMVQwMDowMDowMCswMDowMCIsDQogICJidW5kbGVGaWxlTmFtZSI6ICJyZXBvc2l0b3J5LmJ1bmRsZSIsDQogICJidW5kbGVIYXNoIjogImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLA0KICAiYnJhbmNoZXMiOiB7DQogICAgIm1haW4iOiAiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYiIsDQogICAgImZlYXR1cmUvXHUwMEU5XHUwMDJCXHUwMDI2IjogImNjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2MiDQogIH0sDQogICJzZXF1ZW5jZSI6IDINCn0="
+  },
+  {
+    "document": {
+      "manifest": {
+        "transactionId": "00000001-0002-4003-8004-000000000005",
+        "projectId": "12345678-1234-4234-8234-123456789abc",
+        "author": {
+          "userId": "11111111-2222-4333-8444-555555555555",
+          "deviceId": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          "displayName": "Alice \u003C\u00E9\u003E \u002B \u0026 \u0060 \u0022\uD83D\uDE00\u0022\n",
+          "syncthingDeviceId": "",
+          "signingPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEclzStXhYT5lPjAyCHcNHIcEV11KYdkTfm7ySUkRh\u002BWRfIPCSjThhGf7Jq\u002B3IGNtoE/L5YTZTtyadn95\u002BveqZjQ=="
+        },
+        "createdAt": "9999-12-31T23:59:59.9999999+00:00",
+        "bundleFileName": "repository.bundle",
+        "bundleHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "branches": {
+          "main": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "feature/\u00E9\u002B\u0026": "cccccccccccccccccccccccccccccccccccccccc"
+        },
+        "sequence": 3
+      },
+      "signature": "mync7Go/2v0mQJm8DJ7ywdXrv1MjFqgkvSwxC1lQ13jiP264yDsRSB98j970cRmB5H5CGqVthIBr1FJNF1qR5A=="
+    },
+    "canonical": "ew0KICAidHJhbnNhY3Rpb25JZCI6ICIwMDAwMDAwMS0wMDAyLTQwMDMtODAwNC0wMDAwMDAwMDAwMDUiLA0KICAicHJvamVjdElkIjogIjEyMzQ1Njc4LTEyMzQtNDIzNC04MjM0LTEyMzQ1Njc4OWFiYyIsDQogICJhdXRob3IiOiB7DQogICAgInVzZXJJZCI6ICIxMTExMTExMS0yMjIyLTQzMzMtODQ0NC01NTU1NTU1NTU1NTUiLA0KICAgICJkZXZpY2VJZCI6ICJhYWFhYWFhYS1iYmJiLTRjY2MtOGRkZC1lZWVlZWVlZWVlZWUiLA0KICAgICJkaXNwbGF5TmFtZSI6ICJBbGljZSBcdTAwM0NcdTAwRTlcdTAwM0UgXHUwMDJCIFx1MDAyNiBcdTAwNjAgXHUwMDIyXHVEODNEXHVERTAwXHUwMDIyXG4iLA0KICAgICJzeW5jdGhpbmdEZXZpY2VJZCI6ICIiLA0KICAgICJzaWduaW5nUHVibGljS2V5IjogIk1Ga3dFd1lIS29aSXpqMENBUVlJS29aSXpqMERBUWNEUWdBRWNselN0WGhZVDVsUGpBeUNIY05ISWNFVjExS1lka1RmbTd5U1VrUmhcdTAwMkJXUmZJUENTalRoaEdmN0pxXHUwMDJCM0lHTnRvRS9MNVlUWlR0eWFkbjk1XHUwMDJCdmVxWmpRPT0iDQogIH0sDQogICJjcmVhdGVkQXQiOiAiOTk5OS0xMi0zMVQyMzo1OTo1OS45OTk5OTk5KzAwOjAwIiwNCiAgImJ1bmRsZUZpbGVOYW1lIjogInJlcG9zaXRvcnkuYnVuZGxlIiwNCiAgImJ1bmRsZUhhc2giOiAiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSIsDQogICJicmFuY2hlcyI6IHsNCiAgICAibWFpbiI6ICJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiIiwNCiAgICAiZmVhdHVyZS9cdTAwRTlcdTAwMkJcdTAwMjYiOiAiY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjYyINCiAgfSwNCiAgInNlcXVlbmNlIjogMw0KfQ=="
+  }
+]

@@ -24,6 +24,7 @@
 #include "git_materialize.hpp"
 #include "git_cache.hpp"
 #include "git_storage.hpp"
+#include "cyrevision_exchange.hpp"
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
@@ -704,6 +705,10 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
     load();
     if (!data.is_object())
         throw std::runtime_error("Expected a JSON object");
+    if (path == "/api/cyrevision/identity") {
+        if (method != "GET" && method != "POST") throw std::runtime_error("Method not allowed");
+        return cyrevision_action(state_, nullptr, "identity", method == "GET" ? Json::object() : data);
+    }
     if (path == "/api/doctor" && (method == "GET" || method == "POST"))
         return diagnostics(method == "GET" ? Json::object() : data);
     if (method == "POST" && (path == "/api/service/plan" || path == "/api/service/export"))
@@ -907,6 +912,17 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
     auto action = suffix.substr(slash + 1);
     auto &p = project(projectId);
     Json result;
+    if (action.starts_with("cyrevision-")) {
+        auto operation = action.substr(11);
+        bool read = operation == "status" || operation == "inbox";
+        if (method != (read ? "GET" : "POST")) throw std::runtime_error("Method not allowed");
+        auto result = cyrevision_action(state_, p, operation, data);
+        if (!read) {
+            event(projectId, "git", "CyRevision " + operation + " completed");
+            save();
+        }
+        return result;
+    }
     if (action == "mode-options") {
         auto config = mode_configuration(p);
         if (method == "GET")

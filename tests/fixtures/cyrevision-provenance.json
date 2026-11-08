@@ -1,0 +1,10 @@
+{
+  "source": "https://github.com/MrMybal/CyRevision",
+  "sourceVersion": "0.1.34",
+  "sourceCommit": "9332a13d88e9c1ea939af8eef4f779ec52116fb3",
+  "generator": "tests/interop/CyRevisionHarness/Program.cs",
+  "framework": ".NET 8 System.Text.Json, Web defaults, WriteIndented=true",
+  "generationPlatform": "Windows x64",
+  "canonicalNewlines": "CRLF",
+  "contents": "Public P-256 SPKI keys, public signatures, typed canonical payloads and JSON escaping vectors. Generated private keys were not retained."
+}

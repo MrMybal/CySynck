@@ -5,7 +5,7 @@ description: Comprendre les fonctions implémentées et les workflows nécessita
 section: Démarrer
 order: 6
 parent: overview
-sourceRevision: 2
+sourceRevision: 3
 ---
 
 # Disponibilité et limites {#availability-and-limits}
@@ -17,6 +17,9 @@ la restauration sélective, les différences bornées, la résolution contrôlé
 la revue d’historique, l’extraction séparée, les intégrations en avance rapide ou divergentes après revue, le rechargement local du cache LFS,
 la matérialisation et sa reprise, la restauration des pointeurs et l’export des assets préservés. Chaque guide donne les limites et conditions de refus exactes.
 Les extensions natives utilisent un contrat C versionné. Le cœur C++ et l’ABI C s’utilisent sans le desktop.
+L’[adaptateur de transport CyRevision](doc:cyrevision) ajoute les publications Git/LFS signées
+et les appareils de publication approuvés par empreinte, avec de vrais tests dans les deux sens.
+Les adhésions et rôles restent gérés par CyRevision ; l’autorisation du transport ne vaut pas admission au groupe.
 
 ## Conditions réseau {#network-requirements}
 
@@ -27,7 +30,7 @@ Il n’existe pas de livraison différée hors ligne ni d’accusé de lecture. 
 ## Plateformes et intégrations {#platform-and-integration-scope}
 
 Windows est la plateforme de validation d’exécution locale. La CI Linux native passe aussi les tests desktop/serveur, paquets/SDK et vrais pairs Syncthing.
-Les contrôles cœur/SDK macOS passent ; la validation graphique du paquet est en cours. CI et compilation croisée ne valident pas le matériel graphique, l’activation des services de l’hôte, les permissions des tunnels ou le comportement en cas de coupure.
+Les contrôles natifs macOS cœur/SDK/paquets passent, dont les captures OpenGL 3 et OpenGL 2 en rendu logiciel. CI et compilation croisée ne valident pas le matériel graphique, l’activation des services de l’hôte, les permissions des tunnels ou le comportement en cas de coupure.
 Le pont Unreal fournit les requêtes Blueprint FIFO asynchrones. Compilation/tests Windows Development Editor 5.7.4 et 5.8.3 réussis ; autres versions/hôtes Unreal et jeux empaquetés nécessitent leurs propres validations. Close attend l’opération active et peut bloquer.
 Git, les outils de suivi Git LFS, Syncthing et WireGuard s’installent séparément selon les besoins.
 

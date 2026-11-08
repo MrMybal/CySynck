@@ -14,12 +14,15 @@ and evidence; a passing compile is not a target-device or Internet-network test.
 
 ## Acceptance work
 
-- [ ] macOS renderer compatibility; packaged rendering tests must remain enabled.
+- [x] macOS renderer compatibility, verified by native CI 42440677786 at `3b0b904`;
+  both OpenGL 3/2 captures use Apple's software renderer. Packaged tests stay enabled.
 - [ ] Native Windows/Linux/macOS core, SDK, plugin and package CI on the final revision.
 - [x] Unreal asynchronous Blueprint requests, deterministic shutdown and actual Windows
   Development Editor build/test in UE 5.7.4 and 5.8.3 (five tests each).
 - [ ] Unreal packaged-game and other target-host validation.
 - [ ] CyRevision interoperation against its real formats, signatures and trust model.
+  Signed Git/LFS transport and actual .NET/C++ roundtrips now pass locally; native
+  Windows/Unix canonical signatures are verified. Group admission UI is separate.
 - [ ] WireGuard endpoint discovery/rendezvous and network tests; distinguish direct connectivity,
   NAT capabilities and required discovery/relay infrastructure without promising universal traversal.
 - [ ] Large transfer/recovery and content-defined storage workloads with reproducible measurements.

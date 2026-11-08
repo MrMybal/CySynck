@@ -1,0 +1,522 @@
+[
+  {
+    "value": "\u0000",
+    "encoded": "\u0022\\u0000\u0022"
+  },
+  {
+    "value": "\u0001",
+    "encoded": "\u0022\\u0001\u0022"
+  },
+  {
+    "value": "\u0002",
+    "encoded": "\u0022\\u0002\u0022"
+  },
+  {
+    "value": "\u0003",
+    "encoded": "\u0022\\u0003\u0022"
+  },
+  {
+    "value": "\u0004",
+    "encoded": "\u0022\\u0004\u0022"
+  },
+  {
+    "value": "\u0005",
+    "encoded": "\u0022\\u0005\u0022"
+  },
+  {
+    "value": "\u0006",
+    "encoded": "\u0022\\u0006\u0022"
+  },
+  {
+    "value": "\u0007",
+    "encoded": "\u0022\\u0007\u0022"
+  },
+  {
+    "value": "\b",
+    "encoded": "\u0022\\b\u0022"
+  },
+  {
+    "value": "\t",
+    "encoded": "\u0022\\t\u0022"
+  },
+  {
+    "value": "\n",
+    "encoded": "\u0022\\n\u0022"
+  },
+  {
+    "value": "\u000B",
+    "encoded": "\u0022\\u000B\u0022"
+  },
+  {
+    "value": "\f",
+    "encoded": "\u0022\\f\u0022"
+  },
+  {
+    "value": "\r",
+    "encoded": "\u0022\\r\u0022"
+  },
+  {
+    "value": "\u000E",
+    "encoded": "\u0022\\u000E\u0022"
+  },
+  {
+    "value": "\u000F",
+    "encoded": "\u0022\\u000F\u0022"
+  },
+  {
+    "value": "\u0010",
+    "encoded": "\u0022\\u0010\u0022"
+  },
+  {
+    "value": "\u0011",
+    "encoded": "\u0022\\u0011\u0022"
+  },
+  {
+    "value": "\u0012",
+    "encoded": "\u0022\\u0012\u0022"
+  },
+  {
+    "value": "\u0013",
+    "encoded": "\u0022\\u0013\u0022"
+  },
+  {
+    "value": "\u0014",
+    "encoded": "\u0022\\u0014\u0022"
+  },
+  {
+    "value": "\u0015",
+    "encoded": "\u0022\\u0015\u0022"
+  },
+  {
+    "value": "\u0016",
+    "encoded": "\u0022\\u0016\u0022"
+  },
+  {
+    "value": "\u0017",
+    "encoded": "\u0022\\u0017\u0022"
+  },
+  {
+    "value": "\u0018",
+    "encoded": "\u0022\\u0018\u0022"
+  },
+  {
+    "value": "\u0019",
+    "encoded": "\u0022\\u0019\u0022"
+  },
+  {
+    "value": "\u001A",
+    "encoded": "\u0022\\u001A\u0022"
+  },
+  {
+    "value": "\u001B",
+    "encoded": "\u0022\\u001B\u0022"
+  },
+  {
+    "value": "\u001C",
+    "encoded": "\u0022\\u001C\u0022"
+  },
+  {
+    "value": "\u001D",
+    "encoded": "\u0022\\u001D\u0022"
+  },
+  {
+    "value": "\u001E",
+    "encoded": "\u0022\\u001E\u0022"
+  },
+  {
+    "value": "\u001F",
+    "encoded": "\u0022\\u001F\u0022"
+  },
+  {
+    "value": " ",
+    "encoded": "\u0022 \u0022"
+  },
+  {
+    "value": "!",
+    "encoded": "\u0022!\u0022"
+  },
+  {
+    "value": "\u0022",
+    "encoded": "\u0022\\u0022\u0022"
+  },
+  {
+    "value": "#",
+    "encoded": "\u0022#\u0022"
+  },
+  {
+    "value": "$",
+    "encoded": "\u0022$\u0022"
+  },
+  {
+    "value": "%",
+    "encoded": "\u0022%\u0022"
+  },
+  {
+    "value": "\u0026",
+    "encoded": "\u0022\\u0026\u0022"
+  },
+  {
+    "value": "\u0027",
+    "encoded": "\u0022\\u0027\u0022"
+  },
+  {
+    "value": "(",
+    "encoded": "\u0022(\u0022"
+  },
+  {
+    "value": ")",
+    "encoded": "\u0022)\u0022"
+  },
+  {
+    "value": "*",
+    "encoded": "\u0022*\u0022"
+  },
+  {
+    "value": "\u002B",
+    "encoded": "\u0022\\u002B\u0022"
+  },
+  {
+    "value": ",",
+    "encoded": "\u0022,\u0022"
+  },
+  {
+    "value": "-",
+    "encoded": "\u0022-\u0022"
+  },
+  {
+    "value": ".",
+    "encoded": "\u0022.\u0022"
+  },
+  {
+    "value": "/",
+    "encoded": "\u0022/\u0022"
+  },
+  {
+    "value": "0",
+    "encoded": "\u00220\u0022"
+  },
+  {
+    "value": "1",
+    "encoded": "\u00221\u0022"
+  },
+  {
+    "value": "2",
+    "encoded": "\u00222\u0022"
+  },
+  {
+    "value": "3",
+    "encoded": "\u00223\u0022"
+  },
+  {
+    "value": "4",
+    "encoded": "\u00224\u0022"
+  },
+  {
+    "value": "5",
+    "encoded": "\u00225\u0022"
+  },
+  {
+    "value": "6",
+    "encoded": "\u00226\u0022"
+  },
+  {
+    "value": "7",
+    "encoded": "\u00227\u0022"
+  },
+  {
+    "value": "8",
+    "encoded": "\u00228\u0022"
+  },
+  {
+    "value": "9",
+    "encoded": "\u00229\u0022"
+  },
+  {
+    "value": ":",
+    "encoded": "\u0022:\u0022"
+  },
+  {
+    "value": ";",
+    "encoded": "\u0022;\u0022"
+  },
+  {
+    "value": "\u003C",
+    "encoded": "\u0022\\u003C\u0022"
+  },
+  {
+    "value": "=",
+    "encoded": "\u0022=\u0022"
+  },
+  {
+    "value": "\u003E",
+    "encoded": "\u0022\\u003E\u0022"
+  },
+  {
+    "value": "?",
+    "encoded": "\u0022?\u0022"
+  },
+  {
+    "value": "@",
+    "encoded": "\u0022@\u0022"
+  },
+  {
+    "value": "A",
+    "encoded": "\u0022A\u0022"
+  },
+  {
+    "value": "B",
+    "encoded": "\u0022B\u0022"
+  },
+  {
+    "value": "C",
+    "encoded": "\u0022C\u0022"
+  },
+  {
+    "value": "D",
+    "encoded": "\u0022D\u0022"
+  },
+  {
+    "value": "E",
+    "encoded": "\u0022E\u0022"
+  },
+  {
+    "value": "F",
+    "encoded": "\u0022F\u0022"
+  },
+  {
+    "value": "G",
+    "encoded": "\u0022G\u0022"
+  },
+  {
+    "value": "H",
+    "encoded": "\u0022H\u0022"
+  },
+  {
+    "value": "I",
+    "encoded": "\u0022I\u0022"
+  },
+  {
+    "value": "J",
+    "encoded": "\u0022J\u0022"
+  },
+  {
+    "value": "K",
+    "encoded": "\u0022K\u0022"
+  },
+  {
+    "value": "L",
+    "encoded": "\u0022L\u0022"
+  },
+  {
+    "value": "M",
+    "encoded": "\u0022M\u0022"
+  },
+  {
+    "value": "N",
+    "encoded": "\u0022N\u0022"
+  },
+  {
+    "value": "O",
+    "encoded": "\u0022O\u0022"
+  },
+  {
+    "value": "P",
+    "encoded": "\u0022P\u0022"
+  },
+  {
+    "value": "Q",
+    "encoded": "\u0022Q\u0022"
+  },
+  {
+    "value": "R",
+    "encoded": "\u0022R\u0022"
+  },
+  {
+    "value": "S",
+    "encoded": "\u0022S\u0022"
+  },
+  {
+    "value": "T",
+    "encoded": "\u0022T\u0022"
+  },
+  {
+    "value": "U",
+    "encoded": "\u0022U\u0022"
+  },
+  {
+    "value": "V",
+    "encoded": "\u0022V\u0022"
+  },
+  {
+    "value": "W",
+    "encoded": "\u0022W\u0022"
+  },
+  {
+    "value": "X",
+    "encoded": "\u0022X\u0022"
+  },
+  {
+    "value": "Y",
+    "encoded": "\u0022Y\u0022"
+  },
+  {
+    "value": "Z",
+    "encoded": "\u0022Z\u0022"
+  },
+  {
+    "value": "[",
+    "encoded": "\u0022[\u0022"
+  },
+  {
+    "value": "\\",
+    "encoded": "\u0022\\\\\u0022"
+  },
+  {
+    "value": "]",
+    "encoded": "\u0022]\u0022"
+  },
+  {
+    "value": "^",
+    "encoded": "\u0022^\u0022"
+  },
+  {
+    "value": "_",
+    "encoded": "\u0022_\u0022"
+  },
+  {
+    "value": "\u0060",
+    "encoded": "\u0022\\u0060\u0022"
+  },
+  {
+    "value": "a",
+    "encoded": "\u0022a\u0022"
+  },
+  {
+    "value": "b",
+    "encoded": "\u0022b\u0022"
+  },
+  {
+    "value": "c",
+    "encoded": "\u0022c\u0022"
+  },
+  {
+    "value": "d",
+    "encoded": "\u0022d\u0022"
+  },
+  {
+    "value": "e",
+    "encoded": "\u0022e\u0022"
+  },
+  {
+    "value": "f",
+    "encoded": "\u0022f\u0022"
+  },
+  {
+    "value": "g",
+    "encoded": "\u0022g\u0022"
+  },
+  {
+    "value": "h",
+    "encoded": "\u0022h\u0022"
+  },
+  {
+    "value": "i",
+    "encoded": "\u0022i\u0022"
+  },
+  {
+    "value": "j",
+    "encoded": "\u0022j\u0022"
+  },
+  {
+    "value": "k",
+    "encoded": "\u0022k\u0022"
+  },
+  {
+    "value": "l",
+    "encoded": "\u0022l\u0022"
+  },
+  {
+    "value": "m",
+    "encoded": "\u0022m\u0022"
+  },
+  {
+    "value": "n",
+    "encoded": "\u0022n\u0022"
+  },
+  {
+    "value": "o",
+    "encoded": "\u0022o\u0022"
+  },
+  {
+    "value": "p",
+    "encoded": "\u0022p\u0022"
+  },
+  {
+    "value": "q",
+    "encoded": "\u0022q\u0022"
+  },
+  {
+    "value": "r",
+    "encoded": "\u0022r\u0022"
+  },
+  {
+    "value": "s",
+    "encoded": "\u0022s\u0022"
+  },
+  {
+    "value": "t",
+    "encoded": "\u0022t\u0022"
+  },
+  {
+    "value": "u",
+    "encoded": "\u0022u\u0022"
+  },
+  {
+    "value": "v",
+    "encoded": "\u0022v\u0022"
+  },
+  {
+    "value": "w",
+    "encoded": "\u0022w\u0022"
+  },
+  {
+    "value": "x",
+    "encoded": "\u0022x\u0022"
+  },
+  {
+    "value": "y",
+    "encoded": "\u0022y\u0022"
+  },
+  {
+    "value": "z",
+    "encoded": "\u0022z\u0022"
+  },
+  {
+    "value": "{",
+    "encoded": "\u0022{\u0022"
+  },
+  {
+    "value": "|",
+    "encoded": "\u0022|\u0022"
+  },
+  {
+    "value": "}",
+    "encoded": "\u0022}\u0022"
+  },
+  {
+    "value": "~",
+    "encoded": "\u0022~\u0022"
+  },
+  {
+    "value": "\u007F",
+    "encoded": "\u0022\\u007F\u0022"
+  },
+  {
+    "value": "\u00E9 \u2615 \uD83D\uDE00 \u003C\u0026\u003E\u002B\u0060\u0022\u0027\\",
+    "encoded": "\u0022\\u00E9 \\u2615 \\uD83D\\uDE00 \\u003C\\u0026\\u003E\\u002B\\u0060\\u0022\\u0027\\\\\u0022"
+  },
+  {
+    "value": "\u2028\u2029\uE000\uFFFF",
+    "encoded": "\u0022\\u2028\\u2029\\uE000\\uFFFF\u0022"
+  }
+]

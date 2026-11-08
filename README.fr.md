@@ -46,7 +46,7 @@ L’application native, le CLI et la console Web/API partagent un même cœur. C
 
 ## Manuel hors ligne
 
-Le manuel **CyDoc** complet contient 44 sujets par langue, dont les tutoriels et références publiques C++/C/extensions. Recherche, favoris, notes et positions de lecture fonctionnent localement. La lecture ne nécessite ni serveur, ni CDN, ni Node.js, ni connexion Internet.
+Le manuel **CyDoc** complet contient 45 sujets par langue, dont les tutoriels et références publiques C++/C/extensions. Recherche, favoris, notes et positions de lecture fonctionnent localement. La lecture ne nécessite ni serveur, ni CDN, ni Node.js, ni connexion Internet.
 
 Après compilation des sources ou extraction d’un paquet complet de l’application, ouvrez la route du lecteur correspondant dans un navigateur :
 
@@ -74,7 +74,7 @@ Il n’existe actuellement **aucun téléchargement binaire publié**. Compilez 
 | Windows x64 | Compilation depuis les sources ; application, CLI et paquet validés localement | `dist/bin/cysynck-desktop.exe` |
 | Linux avec interface | Contrôles natifs CI de compilation/paquet/exécution réussis ; matériel et services à vérifier | `dist/bin/cysynck-desktop` |
 | Serveur Linux | CI native et tests de vrais pairs Syncthing réussis ; services/tunnels sur l’hôte à vérifier | `dist/bin/cysynck serve` |
-| macOS | Cœur/SDK natifs validés ; validation graphique du paquet en cours | `open dist/CySynck.app` |
+| macOS | CI native cœur/SDK/paquets validée, dont les captures desktop en rendu logiciel | `open dist/CySynck.app` |
 
 Installez **Syncthing**, **Git** et **WireGuard** séparément pour les fonctions qui en ont besoin ; les outils de suivi Git LFS sont également externes. CySynck ne fournit pas ces programmes. WireGuard exige les privilèges adaptés et des points de terminaison UDP joignables ; la découverte des pairs ne suffit pas à traverser tous les NAT.
 
@@ -159,4 +159,4 @@ Ce tableau indexe les principaux composants. Conservez les [notices tierces comp
 - [Dépôt des sources](https://github.com/MrMybal/CySynck) · [Suivi des problèmes](https://github.com/MrMybal/CySynck/issues) · [Versions](https://github.com/MrMybal/CySynck/releases).
 - [Génération documentaire et traductions](.CyDocBuild/README.md) · [En-têtes publics du SDK](include/cysynck) · [Exemples d’intégration](examples).
 - [Syncthing](https://github.com/syncthing/syncthing) · [CyUI](https://github.com/MrMybal/CyUI) · [CyDoc](https://github.com/MrMybal/CyDoc) · [WireGuard](https://www.wireguard.com/).
-- [SyncTrayzor](https://github.com/GermanCoding/SyncTrayzor) et [CyRevision](https://github.com/MrMybal/CyRevision) sont des références fonctionnelles ; leurs sources ne sont pas incorporées et l’interopérabilité du protocole CyRevision n’est pas implémentée.
+- [SyncTrayzor](https://github.com/GermanCoding/SyncTrayzor) est une référence fonctionnelle. Le transport Git/LFS signé de [CyRevision](https://github.com/MrMybal/CyRevision) 0.1.34 dispose d’un adaptateur C++ avec identités explicitement approuvées et tests réels dans les deux sens. Les admissions de groupe restent gérées par CyRevision. Leurs implémentations ne sont pas incorporées dans l’application ; voir le [guide d’interopérabilité](.CyDocBuild/manual/fr/cyrevision.md).

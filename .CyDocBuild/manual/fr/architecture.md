@@ -4,7 +4,7 @@ title: Architecture C++
 description: Utilisation, commandes et limites : Architecture C++.
 section: Développement
 order: 70
-sourceRevision: 2
+sourceRevision: 3
 ---
 
 # Architecture C++ {#architecture-c}
@@ -41,6 +41,10 @@ les objets `objects/<sha256>`, le jeton `api-token`, l'identité privée `vpn/` 
 reçus `inbox/`. Le registre est remplacé atomiquement. Les opérations sont sérialisées
 par un mutex et un verrou de fichier entre processus. Les transferts sortants relâchent
 ces verrous pendant les communications afin de permettre la réception simultanée.
+Le dossier facultatif `cyrevision/` contient la clé de signature privée, l’identité
+publique, les projets/appareils approuvés, les séquences et les intentions/reçus d’import.
+Il reste dans le profil privé. Seules les publications signées et les inventaires publics
+entrent dans le dossier d’échange. Voir [l’API CyRevision](doc:cyrevision#interfaces-api-and-limits).
 
 `engine/api-key` conserve la clé REST privée ; `engine/syncthing/` contient les certificats
 et la configuration du moteur géré. Le dossier d'état est limité à son propriétaire

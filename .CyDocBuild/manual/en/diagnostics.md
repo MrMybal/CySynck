@@ -4,7 +4,7 @@ title: Diagnostics
 description: Usage, commands and limits for Diagnostics.
 section: Operations
 order: 61
-revision: 1
+revision: 2
 ---
 
 # Diagnostics {#diagnostics}
@@ -12,11 +12,13 @@ revision: 1
 `cysynck doctor` inspects the selected state profile, available tools, project directories,
 Git mode and pending recovery. Missing tools are errors when a configured feature needs
 them; otherwise they are optional warnings. Backup-only projects do not require Syncthing.
+Configured CyRevision transports also require the external OpenSSL signing tool;
+use `CYSYNCK_OPENSSL` to select it. Plain Git exchange does not require that tool.
 An external Syncthing connection does not require a local Syncthing executable.
 
 The default inspection does not execute tools, contact Syncthing, start an engine, change
 projects or activate a VPN. Run `cysynck doctor --probe true` to explicitly test Git,
-Syncthing and WireGuard tool versions and the configured Syncthing API. Version probes
+Syncthing, WireGuard and OpenSSL tool versions and the configured Syncthing API. Version probes
 are limited to five seconds each and the connection test uses a short timeout. Activation
 tools are located without executing them. Reports omit keys and raw process output.
 

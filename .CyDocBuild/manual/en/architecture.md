@@ -4,7 +4,7 @@ title: C++ architecture and local API
 description: Understand the shared core, private state and routes used by application integrations.
 section: Developers
 order: 70
-revision: 2
+revision: 3
 ---
 
 # C++ architecture {#architecture-c}
@@ -28,6 +28,9 @@ The interface owns presentation state and asynchronous calls. Linux servers buil
 
 The profile contains `registry.json`, `snapshots/<project>/<id>.json`, `objects/<sha256>`, block objects, `api-token`, private `vpn/` identity and `inbox/` payloads.
 Registry writes are atomic. A mutex and disk lock serialize operations across processes; outgoing transfers release locks during networking to allow simultaneous reception.
+The optional `cyrevision/` directory holds its private signing key, public identity, pinned
+project/device settings, publication sequences and import intents/receipts. These stay in
+the private profile. Only signed publications and public inventories enter the exchange.
 `engine/api-key` stores the private REST key and `engine/syncthing/` holds managed certificates/configuration.
 State is owner-private, plus SYSTEM/Administrators on Windows.
 `engine/owner.lock` is held for the child's lifetime and prevents two controllers starting it.
@@ -59,6 +62,7 @@ The server may start/stop its preconfigured managed engine. Status omits its RES
 | `/api/projects/ID/compare`, `conflicts`, `conflict-diff` | POST read-only comparisons |
 | `/api/projects/ID/resolution-plan`, `resolve-conflict`, `resolutions`, `resolution-export`, `resolution-acknowledge` | POST |
 | `/api/projects/ID/git-status`, `export`, `inbox`, `import` | POST |
+| `/api/cyrevision/identity`, `/api/projects/ID/cyrevision-*` | Signed transport, settings and checked recovery; see [CyRevision API](doc:cyrevision#interfaces-api-and-limits) |
 | `/api/projects/ID/git-merge-review`, `git-merge-file` | POST read-only three-way proposals/region composition |
 | `/api/projects/ID/git-setup`, `git-extract`, `git-integrate`, `git-merge` | POST; explicit preview/apply workflows |
 | `/api/projects/ID/git-integrations`, `git-integration-check`, `git-integration-acknowledge` | POST receipt history/check/review |

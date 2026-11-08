@@ -10,6 +10,7 @@
   "Backup storage": "block-backups#choose-a-policy",
   "Backup scope": "backup-scope#rules-and-pruning",
   "Git exchange": "git-setup",
+  "CyRevision exchange": "cyrevision#connect-a-project",
   "LFS cache": "git-cache#inspect-and-verify",
   "Engine": "engine",
   "Network": "network#preparer-deux-appareils",

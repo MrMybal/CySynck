@@ -198,6 +198,29 @@
       <label><input type="checkbox" id="git-lfs" checked><span data-i18n>Include Git LFS history</span></label>
       <button id="git-export" data-i18n>Export committed branch</button>
       <button id="git-refresh" data-i18n>Refresh Git exchange</button>
+      <details id="cyrevision-panel" data-help-context="CyRevision exchange">
+        <summary data-i18n>CyRevision exchange</summary>
+        <button class="context-help" data-help-topic="CyRevision exchange" data-i18n>Help</button>
+        <label><span data-i18n>Publishing name</span><input id="cyrevision-name" maxlength="160"></label>
+        <button id="cyrevision-identity" data-i18n>Create or show public identity</button>
+        <label><span data-i18n>CyRevision project GUID</span><input id="cyrevision-guid" maxlength="36"></label>
+        <label><input type="checkbox" id="cyrevision-legacy"><span data-i18n>Legacy Windows signatures</span></label>
+        <p data-i18n>Use legacy signatures for an unmodified Windows CyRevision receiver. Updated receivers accept LF and legacy Windows signatures.</p>
+        <button id="cyrevision-configure" data-i18n>Configure CyRevision exchange</button>
+        <button id="cyrevision-status" data-i18n>Load CyRevision settings</button>
+        <p data-i18n>Verify the key fingerprint through a separate trusted channel. Private signing keys stay in the profile.</p>
+        <label><span data-i18n>Public identity JSON</span><textarea id="cyrevision-public" rows="5"></textarea></label>
+        <label><span data-i18n>Verified key fingerprint</span><input id="cyrevision-fingerprint" maxlength="64"></label>
+        <button id="cyrevision-trust" data-i18n>Trust publishing device</button>
+        <label><span data-i18n>Publishing device GUID</span><input id="cyrevision-device" maxlength="36"></label>
+        <button id="cyrevision-revoke" data-i18n>Revoke publishing device</button>
+        <button id="cyrevision-export" data-i18n>Export to CyRevision</button>
+        <button id="cyrevision-inbox" data-i18n>Refresh CyRevision publications</button>
+        <div id="cyrevision-publications" aria-live="polite"></div>
+        <button id="cyrevision-recover" data-i18n>Preview interrupted import recovery</button>
+        <button id="cyrevision-recover-apply" disabled data-i18n>Apply import recovery</button>
+        <pre id="cyrevision-result" aria-live="polite"></pre>
+      </details>
       <details><summary data-i18n>Local LFS assets</summary>
         <label><input id="git-lfs-dehydrate" type="checkbox"><span data-i18n>Prepare pointers for Git updates</span></label>
         <p id="git-lfs-dehydrate-help" hidden data-i18n>Preserve unchanged expanded assets in recovery storage and restore their committed pointers before Git integration.</p>

@@ -57,6 +57,12 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   register ID | sync ID | status ID | pause ID | resume ID
   git status|export|inbox ID  (export: --lfs true includes Git LFS branch history)
   git import ID PEER_ID BUNDLE_ID
+  cyrevision identity [--name DISPLAY_NAME]  (public identity only; private key stays in the profile)
+  cyrevision status|inbox|export ID
+  cyrevision configure ID PROJECT_GUID [--signature-format lf|windows-legacy]
+  cyrevision trust ID PUBLIC_IDENTITY_JSON --fingerprint SHA256
+  cyrevision revoke ID DEVICE_GUID | cyrevision import ID TRANSACTION_GUID
+  cyrevision recover ID DEVICE_GUID [--apply true --plan PREVIEW_TOKEN]
   git setup ID [--branch main --object-format sha1|sha256] [--apply true --plan PREVIEW_TOKEN]
   git integrate ID PEER_ID BRANCH [--lfs-policy reject|pointers] [--apply true --plan PREVIEW_TOKEN]
       [--base COMMIT|unborn --head COMMIT --local-ref REF]  (clean tracked files; unrelated local files preserved)

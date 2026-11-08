@@ -1,4 +1,5 @@
 #include <cysynck/core.hpp>
+#include "cyrevision_codec.hpp"
 #include <algorithm>
 #include <cctype>
 #include <regex>
@@ -111,6 +112,12 @@ Json Core::diagnostics(const Json &data) {
          R"(syncthing v([0-9][0-9A-Za-z.+_-]{0,63}))");
     tool("tool.git", "Git", "git", git_mode, "Install Git and add it to PATH.",
          R"(git version ([0-9][0-9A-Za-z.+_-]{0,63}))");
+    bool cyrevision = false;
+    for (const auto &project : registry_["projects"])
+        cyrevision |= fs::exists(project_child(state_, "cyrevision/projects/" + project.at("id").get<std::string>() + "/settings.json"));
+    tool("tool.openssl", "OpenSSL signing tool", cysynck::cyrevision::openssl_tool(), cyrevision,
+         "Install OpenSSL with P-256 support or configure CYSYNCK_OPENSSL.",
+         R"(OpenSSL ([0-9][0-9A-Za-z.+_-]{0,63}))");
     tool("tool.wg", "WireGuard tools", env("CYSYNCK_WG", "wg"), vpn,
          "Install WireGuard tools or configure CYSYNCK_WG.",
          R"(wireguard-tools v([0-9][0-9A-Za-z.+_-]{0,63}))");

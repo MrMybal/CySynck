@@ -5,7 +5,7 @@ description: Understand the implemented scope and workflows requiring external t
 section: Start
 order: 6
 parent: overview
-revision: 2
+revision: 3
 ---
 
 # Availability and limits {#availability-and-limits}
@@ -17,6 +17,9 @@ selective restoration, bounded diffs, reviewed conflict resolution with preserve
 history review, separate extraction, reviewed fast-forward/divergent merges, offline LFS cache refill,
 materialization/resume, pointer restoration and export of preserved assets. Their guides state exact limits and refusal conditions.
 Native plugins use a versioned C contract. The C++ core and C ABI can be used without the desktop.
+The [CyRevision transport adapter](doc:cyrevision) adds signed Git/LFS publications and pinned
+publishing devices, with actual bidirectional reference tests. CyRevision group membership and roles
+remain managed by CyRevision; transport authorization does not grant group admission.
 
 ## Network requirements {#network-requirements}
 
@@ -27,7 +30,7 @@ There is no offline store-and-forward delivery or read receipt. Do not expose th
 ## Platform and integration scope {#platform-and-integration-scope}
 
 Windows is the locally available runtime validation platform. Native Linux CI also passes desktop/server, package/SDK and real Syncthing peer tests.
-macOS core/SDK checks pass; packaged graphics validation is being completed. CI and cross-compilation do not prove physical graphics, host service activation, tunnel permissions or power-loss behavior.
+Native macOS core/SDK/package checks pass, including OpenGL 3 and OpenGL 2 software-renderer captures. CI and cross-compilation do not prove physical graphics, host service activation, tunnel permissions or power-loss behavior.
 The Unreal bridge provides asynchronous FIFO Blueprint requests. Windows Development Editor 5.7.4 and 5.8.3 build/automation passes; other Unreal versions/hosts and packaged games need their own validation. Close waits for active work and can block.
 Git, Git LFS tracking tools, Syncthing and WireGuard remain separately installed where required.
 

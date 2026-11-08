@@ -40,6 +40,7 @@ int main(int argc, char **argv) {
         Core core(run / "state");
         environment("PATH", "");
         environment("CYSYNCK_WG", path_string(run / "missing-wg"));
+        environment("CYSYNCK_OPENSSL", path_string(run / "missing-openssl"));
         environment("CYSYNCK_WIREGUARD", path_string(run / "missing-tunnel"));
         environment("CYSYNCK_WG_QUICK", path_string(run / "missing-tunnel"));
         environment("CYSYNCK_MESH_TOKEN", "private-doctor-test-value");
@@ -77,6 +78,13 @@ int main(int argc, char **argv) {
         report = cli(core, {"doctor"});
         check(item(report, "tool.git").at("status") == "error",
               "Git is required for Git exchange projects");
+        auto cyrevision = core.state() / "cyrevision/projects/team";
+        fs::create_directories(cyrevision);
+        atomic_write(cyrevision / "settings.json", "{}");
+        report = cli(core, {"doctor"});
+        check(item(report, "tool.openssl").at("status") == "error",
+              "A configured CyRevision transport requires an available ECDSA signing tool");
+        fs::remove(cyrevision / "settings.json");
         check(item(report, "engine.configuration").at("status") == "error",
               "A synchronization project needs an engine connection");
         auto bin = run / "Tools with spaces";

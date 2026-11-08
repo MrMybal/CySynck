@@ -73,7 +73,28 @@ static void field(const char *label, std::string &value) {
 static void localize() {
     c::registerTranslations(
         "fr",
-        {{"LFS cache", "Cache LFS"},
+        {{"CyRevision exchange", "Échange CyRevision"},
+         {"Publishing name", "Nom de publication"},
+         {"Create or show public identity", "Créer ou afficher l’identité publique"},
+         {"CyRevision project GUID", "GUID du projet CyRevision"},
+         {"Legacy Windows signatures", "Signatures Windows historiques"},
+         {"Configure CyRevision exchange", "Configurer l’échange CyRevision"},
+         {"Load CyRevision settings", "Charger les paramètres CyRevision"},
+         {"Public identity JSON", "Identité publique JSON"},
+         {"Verified key fingerprint", "Empreinte de clé vérifiée"},
+         {"Trust publishing device", "Approuver l’appareil de publication"},
+         {"Publishing device GUID", "GUID de l’appareil de publication"},
+         {"Revoke publishing device", "Révoquer l’appareil de publication"},
+         {"Export to CyRevision", "Exporter vers CyRevision"},
+         {"Refresh CyRevision publications", "Actualiser les publications CyRevision"},
+         {"Import signed publication", "Importer la publication signée"},
+         {"Preview interrupted import recovery", "Prévisualiser la reprise d’import interrompu"},
+         {"Apply import recovery", "Appliquer la reprise d’import"},
+         {"Verify the key fingerprint through a separate trusted channel. Private signing keys stay in the profile.",
+          "Vérifiez l’empreinte de clé par un canal de confiance distinct. Les clés privées restent dans le profil."},
+         {"Use legacy signatures for an unmodified Windows CyRevision receiver. Updated receivers accept LF and legacy Windows signatures.",
+          "Utilisez les signatures historiques pour un récepteur CyRevision Windows non corrigé. Les récepteurs corrigés acceptent LF et les anciennes signatures Windows."},
+         {"LFS cache", "Cache LFS"},
          {"View recovery receipt", "Voir le reçu de récupération"},
          {"Recovery receipt", "Reçu de récupération"},
          {"Verify recovery objects", "Vérifier les objets récupérés"},
@@ -993,6 +1014,9 @@ class App {
     bool history_loaded = false;
     bool received_loaded = false;
     bool git_loaded = false, git_setup_requested = false;
+    Json cyrevision_state, cyrevision_incoming, cyrevision_recovery;
+    std::string cyrevision_name, cyrevision_guid, cyrevision_public_json, cyrevision_fingerprint, cyrevision_device;
+    bool cyrevision_legacy_windows = false;
     int backup_policy = 0;
     static const char *backup_policy_value(int index) {
         return index == 1 ? "whole" : index == 2 ? "cdc" : "auto";
@@ -1195,6 +1219,8 @@ class App {
         diff = nullptr;
         incoming = Json::array();
         git_loaded = false;
+        cyrevision_state = cyrevision_incoming = cyrevision_recovery = nullptr;
+        cyrevision_guid.clear(); cyrevision_public_json.clear(); cyrevision_fingerprint.clear(); cyrevision_device.clear();
         messages = Json::array();
         received_state = nullptr;
         transfer_state = nullptr;
@@ -2298,10 +2324,10 @@ class App {
         });
 #endif
     }
-    void open_help() {
+    void open_help(const std::string &context = "") {
         if (help_pending.valid())
             return;
-        auto topic = view;
+        auto topic = context.empty() ? view : context;
         auto locale = language;
         help_pending = std::async(std::launch::async, [topic, locale] {
             auto target = cysynck::help::context(topic, locale);
@@ -3810,6 +3836,85 @@ class App {
         }
         c::endCard();
     }
+    void cyrevision_request(const std::string &operation, Json data = Json::object()) {
+        auto id = selected;
+        submit([this, id, operation, data] {
+            return core.request(operation == "status" || operation == "inbox" ? "GET" : "POST",
+                                "/api/projects/" + id + "/cyrevision-" + operation, data);
+        }, [this, id, operation](const Json &result) {
+            if (id != selected) return;
+            output = result.dump(2);
+            if (operation == "inbox") cyrevision_incoming = result;
+            else if (operation == "recover") cyrevision_recovery = result;
+            else if (operation == "status" || operation == "configure") {
+                cyrevision_state = result;
+                cyrevision_guid = result.value("project_id", "");
+                cyrevision_legacy_windows = result.value("signature_format", "lf") == "windows-legacy";
+            } else if (operation == "import") { git_branches = nullptr; git_loaded = false; }
+            if (operation == "trust" || operation == "revoke" || operation == "export") cyrevision_incoming = nullptr;
+        });
+    }
+    void cyrevision_view() {
+        if (!ImGui::CollapsingHeader(c::tr("CyRevision exchange").c_str())) return;
+        if (button("Help")) open_help("CyRevision exchange");
+        ImGui::BeginDisabled(busy());
+        if (c::beginProperties("cyrevision-settings")) {
+            field("Publishing name", cyrevision_name);
+            field("CyRevision project GUID", cyrevision_guid);
+            c::endProperties();
+        }
+        if (button("Create or show public identity")) {
+            auto name = cyrevision_name;
+            submit([this, name] { return core.request(name.empty() ? "GET" : "POST", "/api/cyrevision/identity",
+                name.empty() ? Json::object() : Json{{"name", name}}); }, [this](const Json &result) { output = result.dump(2); });
+        }
+        ImGui::Checkbox(c::trLabel("Legacy Windows signatures").c_str(), &cyrevision_legacy_windows);
+        ImGui::TextWrapped("%s", c::tr("Use legacy signatures for an unmodified Windows CyRevision receiver. Updated receivers accept LF and legacy Windows signatures.").c_str());
+        if (button("Configure CyRevision exchange")) {
+            cyrevision_incoming = cyrevision_recovery = nullptr;
+            cyrevision_request("configure", {{"project_id", cyrevision_guid}, {"signature_format", cyrevision_legacy_windows ? "windows-legacy" : "lf"}});
+        }
+        ImGui::SameLine();
+        if (button("Load CyRevision settings")) cyrevision_request("status");
+        ImGui::TextWrapped("%s", c::tr("Verify the key fingerprint through a separate trusted channel. Private signing keys stay in the profile.").c_str());
+        ImGui::TextUnformatted(c::tr("Public identity JSON").c_str());
+        ImGui::InputTextMultiline("##cyrevision-identity", &cyrevision_public_json, ImVec2(-1, 100));
+        if (c::beginProperties("cyrevision-pin")) {
+            field("Verified key fingerprint", cyrevision_fingerprint);
+            if (ImGui::InputText(c::trLabel("Publishing device GUID").c_str(), &cyrevision_device)) cyrevision_recovery = nullptr;
+            c::endProperties();
+        }
+        if (button("Trust publishing device")) {
+            try {
+                auto identity = Json::parse(cyrevision_public_json);
+                if (identity.contains("identity")) identity = identity.at("identity");
+                cyrevision_request("trust", {{"identity", identity}, {"fingerprint", cyrevision_fingerprint}});
+            } catch (const std::exception &e) { error = e.what(); }
+        }
+        ImGui::SameLine();
+        if (button("Revoke publishing device")) cyrevision_request("revoke", {{"device", cyrevision_device}});
+        if (button("Export to CyRevision", true)) cyrevision_request("export");
+        ImGui::SameLine();
+        if (button("Refresh CyRevision publications")) cyrevision_request("inbox");
+        if (!cyrevision_incoming.is_null()) {
+            for (const auto &publication : cyrevision_incoming.at("publications")) {
+                auto transaction = publication.at("transactionId").get<std::string>();
+                ImGui::PushID(transaction.c_str());
+                text(publication.at("author").at("displayName").get<std::string>() + " / " + publication.at("createdAt").get<std::string>());
+                text(transaction);
+                if (button("Import signed publication")) cyrevision_request("import", {{"transaction", transaction}});
+                ImGui::PopID();
+            }
+            if (!cyrevision_incoming.at("rejected").empty()) text(cyrevision_incoming.at("rejected").dump(2));
+        }
+        if (button("Preview interrupted import recovery")) cyrevision_request("recover", {{"device", cyrevision_device}});
+        if (!cyrevision_recovery.is_null()) {
+            text(cyrevision_recovery.dump(2));
+            if (cyrevision_recovery.value("can_recover", false) && !cyrevision_recovery.value("applied", false) && button("Apply import recovery"))
+                cyrevision_request("recover", {{"device", cyrevision_device}, {"apply", true}, {"plan", cyrevision_recovery.at("plan")}});
+        }
+        ImGui::EndDisabled();
+    }
     void git_view() {
         if (project()["mode"] != "git-bundles") {
             c::callout(c::Tone::info, c::tr("Use Git exchange mode for this view.").c_str());
@@ -3870,6 +3975,7 @@ class App {
             return;
         }
         git_materialize_view();
+        cyrevision_view();
         c::callout(
             c::Tone::info,
             c::tr("Git and LFS imports preserve the working tree. Review and merge using Git.")

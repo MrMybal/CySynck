@@ -67,6 +67,12 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   register ID | sync ID | status ID | pause ID | resume ID
   git status|export|inbox ID  (export: --lfs true includes Git LFS branch history)
   git import ID PEER_ID BUNDLE_ID
+  cyrevision identity [--name DISPLAY_NAME]  (public identity only; private key stays in the profile)
+  cyrevision status|inbox|export ID
+  cyrevision configure ID PROJECT_GUID [--signature-format lf|windows-legacy]
+  cyrevision trust ID PUBLIC_IDENTITY_JSON --fingerprint SHA256
+  cyrevision revoke ID DEVICE_GUID | cyrevision import ID TRANSACTION_GUID
+  cyrevision recover ID DEVICE_GUID [--apply true --plan PREVIEW_TOKEN]
   git setup ID [--branch main --object-format sha1|sha256] [--apply true --plan PREVIEW_TOKEN]
   git integrate ID PEER_ID BRANCH [--lfs-policy reject|pointers] [--apply true --plan PREVIEW_TOKEN]
       [--base COMMIT|unborn --head COMMIT --local-ref REF]  (clean tracked files; unrelated local files preserved)
@@ -118,6 +124,38 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
 Desktop: cysynck-desktop [--state DIR] [--plugin LIBRARY] [--background|--foreground] [--no-tray]
 Secrets: CYSYNCK_SYNCTHING_API_KEY, CYSYNCK_API_TOKEN, CYSYNCK_MESH_TOKEN.
 VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
+    if (args[0] == "cyrevision") {
+        if (args.size() < 2) throw std::runtime_error("Choose a CyRevision command; use cysynck help");
+        auto command = args[1];
+        if (command == "identity") {
+            require(2);
+            return core.request(flags.contains("--name") ? "POST" : "GET", "/api/cyrevision/identity",
+                                flags.contains("--name") ? Json{{"name", flags.at("--name")}} : Json::object());
+        }
+        Json data = Json::object();
+        if (command == "configure") {
+            require(4); data = {{"project_id", args[3]}, {"signature_format", flags.contains("--signature-format") ? flags.at("--signature-format") : "lf"}};
+        } else if (command == "trust") {
+            require(4);
+            if (!flags.contains("--fingerprint")) throw std::runtime_error("Supply the independently verified --fingerprint SHA256");
+            auto identity = Json::parse(read_file(fs::u8path(args[3]), 4096));
+            if (identity.contains("identity")) identity = identity.at("identity");
+            data = {{"identity", identity}, {"fingerprint", flags.at("--fingerprint")}};
+        } else if (command == "revoke" || command == "import" || command == "recover") {
+            require(4); data[command == "revoke" ? "device" : "transaction"] = args[3];
+            if (command == "recover") {
+                data = {{"device", args[3]}};
+                if (flags.contains("--apply")) {
+                    if (flags.at("--apply") != "true" && flags.at("--apply") != "false") throw std::runtime_error("Choose --apply true|false");
+                    data["apply"] = flags.at("--apply") == "true";
+                }
+                if (flags.contains("--plan")) data["plan"] = flags.at("--plan");
+            }
+        } else if (command == "status" || command == "inbox" || command == "export") require(3);
+        else throw std::runtime_error("Unknown CyRevision command");
+        return core.request(command == "status" || command == "inbox" ? "GET" : "POST",
+                            "/api/projects/" + args[2] + "/cyrevision-" + command, data);
+    }
     if (args[0] == "service") {
         if (args.size() < 2 || (args[1] != "plan" && args[1] != "export"))
             throw std::runtime_error("Use service plan|export");

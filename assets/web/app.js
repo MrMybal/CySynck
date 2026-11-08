@@ -610,6 +610,7 @@ async function select(project) {
     $("git-integrations-records").replaceChildren(); ++gitReceiptsLoad;
     resetMaterialization();
     $("git-result").replaceChildren();
+    resetCyRevision();
     $("git-branches").replaceChildren(); clearGitReview();
     resetGitStorage();
     invalidateGitSetup(); $("git-setup-branch").value="main"; $("git-setup-format").value="sha1";
@@ -1315,6 +1316,57 @@ async function loadGitCommit(project,review,oid,details,files,historyRequest,par
   back.addEventListener("click",()=>{details.replaceChildren();showGitFiles(project,review,review,files);});
   details.append(back); showGitFiles(project,review,result,files);
 }
+let cyrevisionGeneration=0, cyrevisionRecovery=null;
+function resetCyRevision() {
+  ++cyrevisionGeneration; cyrevisionRecovery=null;
+  for(const id of ["cyrevision-guid","cyrevision-public","cyrevision-fingerprint","cyrevision-device"]) $(id).value="";
+  $("cyrevision-legacy").checked=false;
+  $("cyrevision-publications").replaceChildren();$("cyrevision-result").textContent="";
+  cyrevisionControls(false);
+}
+function cyrevisionControls(busy) {
+  $("cyrevision-panel").querySelectorAll("button,input,textarea").forEach(control=>{control.disabled=busy;});
+  $("cyrevision-recover-apply").disabled=busy || !cyrevisionRecovery?.can_recover || cyrevisionRecovery.applied;
+}
+async function cyrevisionRequest(operation, data={}) {
+  const project=selected,generation=cyrevisionGeneration;
+  if(!project) return;
+  cyrevisionControls(true);
+  try {
+    const result=operation==="identity"?await api("cyrevision/identity",data.name?"POST":"GET",data):
+      await api("projects/"+project+"/cyrevision-"+operation,["status","inbox"].includes(operation)?"GET":"POST",data);
+    if(project!==selected || generation!==cyrevisionGeneration) return;
+    $("cyrevision-result").textContent=JSON.stringify(result,null,2);
+    if(["status","configure"].includes(operation)) {
+      $("cyrevision-guid").value=result.project_id||"";$("cyrevision-legacy").checked=result.signature_format==="windows-legacy";
+    }
+    if(["configure","trust","revoke","export"].includes(operation)) $("cyrevision-publications").replaceChildren();
+    if(operation==="recover") cyrevisionRecovery={...result,device:data.device};
+    if(operation==="inbox") {
+      $("cyrevision-publications").replaceChildren();
+      for(const publication of result.publications) {
+        const card=text("div","","snapshot"),importButton=label("button","Import signed publication");
+        card.append(text("h4",publication.author.displayName),text("p",publication.createdAt),text("p",publication.transactionId),importButton);
+        importButton.addEventListener("click",()=>safe(()=>cyrevisionRequest("import",{transaction:publication.transactionId})));
+        $("cyrevision-publications").append(card);
+      }
+    }
+    if(operation==="import") await loadGitExchange();
+  } finally {if(project===selected && generation===cyrevisionGeneration) cyrevisionControls(false);}
+}
+$("cyrevision-identity").addEventListener("click",()=>safe(()=>cyrevisionRequest("identity",$("cyrevision-name").value?{name:$("cyrevision-name").value}:{})));
+$("cyrevision-configure").addEventListener("click",()=>safe(()=>cyrevisionRequest("configure",{project_id:$("cyrevision-guid").value,signature_format:$("cyrevision-legacy").checked?"windows-legacy":"lf"})));
+for(const operation of ["status","export","inbox"]) $("cyrevision-"+operation).addEventListener("click",()=>safe(()=>cyrevisionRequest(operation)));
+$("cyrevision-trust").addEventListener("click",()=>safe(()=>{
+  let identity=JSON.parse($("cyrevision-public").value);identity=identity.identity||identity;
+  return cyrevisionRequest("trust",{identity,fingerprint:$("cyrevision-fingerprint").value});
+}));
+$("cyrevision-revoke").addEventListener("click",()=>safe(()=>cyrevisionRequest("revoke",{device:$("cyrevision-device").value})));
+$("cyrevision-device").addEventListener("input",()=>{cyrevisionRecovery=null;$("cyrevision-recover-apply").disabled=true;});
+$("cyrevision-recover").addEventListener("click",()=>safe(()=>cyrevisionRequest("recover",{device:$("cyrevision-device").value})));
+$("cyrevision-recover-apply").addEventListener("click",()=>safe(()=>{
+  if(cyrevisionRecovery?.can_recover) return cyrevisionRequest("recover",{device:cyrevisionRecovery.device,apply:true,plan:cyrevisionRecovery.plan});
+}));
 $("git-refresh").addEventListener("click", () => safe(loadGitExchange));
 $("git-export").addEventListener("click", () => safe(async () => {
   const project = selected, lfs = $("git-lfs").checked;
