@@ -49,13 +49,14 @@ def main():
     active = False
     cleanup_ok = True
 
-    def run(command, *, input=None, check=True, timeout=60):
+    def run(command, *, input=None, check=True, timeout=60, cwd=None):
         result = subprocess.run(list(map(str, command)), input=input, capture_output=True,
                                 text=True, encoding='utf-8', errors='replace', env=environment,
-                                timeout=timeout, creationflags=subprocess.CREATE_NO_WINDOW)
+                                timeout=timeout, cwd=cwd, creationflags=subprocess.CREATE_NO_WINDOW)
         if check:
             # Deliberately no stdout/stderr: tool diagnostics may include credentials.
-            require(result.returncode == 0, 'A disposable driver command failed: ' + Path(command[0]).name)
+            diagnostic = re.sub(r'[A-Za-z0-9+/]{43}=', '<redacted-key>', result.stderr[-500:])
+            require(result.returncode == 0, 'A disposable driver command failed: ' + Path(command[0]).name + ': ' + diagnostic)
         return result
 
     def app(*command, check=True):
@@ -87,8 +88,8 @@ def main():
         run(['sc.exe', 'delete', 'WireGuardTunnel$' + logical])
         dummy_service = False
         report['checks'].append('real-SCM-foreign-service-preserved')
-        app('vpn', 'up')
         active = True
+        app('vpn', 'up')
         deadline = time.monotonic() + 30
         while True:
             status = app('vpn', 'status')
@@ -108,7 +109,10 @@ def main():
         foreign_file.write_text(private + '\n', encoding='ascii')
         public = run([wg, 'pubkey'], input=private + '\n').stdout.strip()
         del private
-        run([wg, 'set', logical, 'private-key', foreign_file])
+        # wg.exe's narrow filename parser need not support a Unicode absolute
+        # filename. Keep the file private in the Unicode profile, select that cwd
+        # through CreateProcessW, and pass an ASCII relative basename.
+        run([wg, 'set', logical, 'private-key', foreign_file.name], cwd=foreign_file.parent)
         foreign_file.unlink()
         for action in ('up', 'down'):
             require(app('vpn', action, check=False).returncode != 0,
@@ -118,7 +122,7 @@ def main():
             require(service_present() and hashlib.sha256(configuration.read_bytes()).hexdigest() == before,
                     'Tunnel control modified foreign service/configuration state')
         report['checks'].append('real-WireGuardNT-foreign-key-preserved')
-        run([wg, 'set', logical, 'private-key', state / 'vpn/private.key'])
+        run([wg, 'set', logical, 'private-key', 'private.key'], cwd=state / 'vpn')
         app('vpn', 'down')
         active = False
         require(not service_present(), 'Owned service cleanup left its service installed')
@@ -135,7 +139,7 @@ def main():
             if active:
                 # Restore only this test's known key, then let production ownership
                 # checks authorize removal. Never uninstall an unverified service.
-                run([wg, 'set', logical, 'private-key', state / 'vpn/private.key'])
+                run([wg, 'set', logical, 'private-key', 'private.key'], cwd=state / 'vpn')
                 app('vpn', 'down')
             if logical:
                 require(not service_present(), 'The disposable tunnel service remains installed')

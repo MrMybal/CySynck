@@ -4,7 +4,7 @@ title: Command-line reference
 description: Canonical command syntax, profiles and remote API access.
 section: Reference
 order: 80
-revision: 1
+revision: 2
 ---
 
 # Command-line reference {#cli}
@@ -17,7 +17,7 @@ The standalone executable and the native command panel share Core commands and t
 The launchers are not remote Core commands. The desktop Help button also opens the current topic.
 
 ```text
-CySynck 0.40 (C++20)
+CySynck 0.41 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | plugins | events | api-token
   docs [PAGE] [--language en|fr] [--section ID] [--print]  (local offline manual)

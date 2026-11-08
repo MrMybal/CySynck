@@ -5,14 +5,14 @@ description: Comprendre les fonctions implémentées et les workflows nécessita
 section: Démarrer
 order: 6
 parent: overview
-sourceRevision: 8
+sourceRevision: 9
 ---
 
 # Disponibilité et limites {#availability-and-limits}
 
 ## Fonctions implémentées {#implemented-workflows}
 
-CySynck 0.40 comprend les modes par projet, Syncthing supervisé ou connecté, les sauvegardes entières/par blocs fixes/CDC,
+CySynck 0.41 comprend les modes par projet, Syncthing supervisé ou connecté, les sauvegardes entières/par blocs fixes/CDC,
 la restauration sélective, les différences bornées, la résolution contrôlée des conflits avec conservation des copies, l’échange Git/LFS explicite,
 la revue d’historique, l’extraction séparée, les intégrations en avance rapide ou divergentes après revue, le rechargement local du cache LFS,
 la matérialisation et sa reprise, la restauration des pointeurs et l’export des assets préservés. Chaque guide donne les limites et conditions de refus exactes.

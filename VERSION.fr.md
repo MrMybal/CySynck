@@ -2,14 +2,20 @@
 
 [Retour au README](README.fr.md) · [English](VERSION.md)
 
-**Version des sources du cœur, du CLI et de l’application native : 0.40.0**<br>
+**Version des sources du cœur, du CLI et de l’application native : 0.41.0**<br>
 **Version des sources du pont Unreal : 0.2.0**<br>
 **Statut : EN DÉVELOPPEMENT**<br>
 **Binaires de l’application publiés : aucun**
 
 Ces notes décrivent les sources actuelles, pas une version binaire publiée. L’ABI C reste en version 1. La documentation fournie utilise le lecteur CyDoc 0.1.0 ; cette version de dépendance est distincte de celle de CySynck.
 
-## Changements de la version 0.40.0 et des sources actuelles
+## Changements de la version 0.41.0
+
+- Liaison des clients et récepteurs TCP directs à des interfaces WireGuard vérifiées sous Linux, Windows et macOS, avec refus des adaptateurs ordinaires et identités périmées. Les vrais tests noyau Linux passent pour interfaces ordinaires/usurpées, routes physiques superposées et hôte sans privilèges. Les tests TCP Windows locaux et d’héritage de liaison des sockets acceptés passent ; les essais des vrais pilotes Windows/macOS sont intégrés et attendent les résultats de la CI native.
+- Conservation des compteurs contre le rejeu après révocation/nouvel appairage. Entretien des baux PCP/NAT-PMP explicitement activés et publication signée des véritables adresses du routeur, avec tests Linux indépendants de deux routeurs et de préservation d’une autre redirection.
+- Ajout des essais reproductibles d’amorçage des profils publics avec de vrais moteurs, des pilotes officiels en CI et des instructions de mise à jour des paquets portables. La portée des validations et les prérequis externes de signature restent précisés ci-dessous.
+
+## Travaux antérieurs et base de la version 0.40.0
 
 - Noms de tunnels WireGuard propres à chaque profil, contrôle des clés et de l’appartenance des services Windows avant action, résolution des noms macOS et préservation des tunnels étrangers/historiques. Modèles isolés d’outils/services et vrai test Linux en espaces réseau réussis ; les pilotes Windows/macOS restent à vérifier ; le vrai test NAT Linux à deux routeurs réussit.
 - Publications d’adresses VPN signées à durée limitée, confirmation indépendante de l’empreinte, compteurs privés contre le rejeu, indices LAN/IPv6 directs de Syncthing, actualisation automatique optionnelle et révocation active par projet. Les configurations privées sont mises à jour pour empêcher le retour d’un pair révoqué au redémarrage du service. Les contrôles locaux explicites PCP/NAT-PMP entretiennent les baux privés, lient les demandes à l’adresse locale consentie, publient les endpoints réellement attribués et limitent le nettoyage au port/nonce possédé. Les tests de protocole, cycle de bail et publication Core passent, ainsi que le vrai transfert PCP/NAT-PMP via deux routeurs Linux indépendants.

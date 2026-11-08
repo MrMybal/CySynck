@@ -4,7 +4,7 @@ title: Référence de la ligne de commande
 description: Syntaxe des commandes, profils et accès distant à l’API.
 section: Référence
 order: 80
-sourceRevision: 1
+sourceRevision: 2
 ---
 
 # Référence de la ligne de commande {#cli}
@@ -17,7 +17,7 @@ L’exécutable et le panneau de commandes natif partagent les commandes du Core
 Ces lanceurs ne sont pas des commandes Core distantes. Le bouton Aide du desktop ouvre aussi le sujet courant.
 
 ```text
-CySynck 0.40 (C++20)
+CySynck 0.41 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | plugins | events | api-token
   docs [PAGE] [--language en|fr] [--section ID] [--print]  (local offline manual)

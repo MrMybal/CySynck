@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(CySynck VERSION 0.40.0 LANGUAGES C CXX)
+project(CySynck VERSION 0.41.0 LANGUAGES C CXX)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/include/cysynck/core.hpp" cysynck_public_header)
 string(FIND "${cysynck_public_header}" "inline constexpr const char *version = \"${PROJECT_VERSION}\";" cysynck_version_position)
 if(cysynck_version_position EQUAL -1)

@@ -13,7 +13,7 @@
     </td>
     <td width="300" align="right" valign="top">
       <p><sub>Application license</sub><br><a href="LICENSE"><strong>MIT</strong></a></p>
-      <p><sub>Source versions</sub><br><a href="VERSION.md"><strong>Application 0.40.0</strong><br>Unreal bridge 0.2.0</a><br><strong>IN DEVELOPMENT</strong></p>
+      <p><sub>Source versions</sub><br><a href="VERSION.md"><strong>Application 0.41.0</strong><br>Unreal bridge 0.2.0</a><br><strong>IN DEVELOPMENT</strong></p>
     </td>
   </tr>
 </table>
@@ -22,7 +22,7 @@
 
 Synchronize projects, keep versioned backups and review file changes from one application. CySynck is a **C++20** companion to [Syncthing](https://github.com/syncthing/syncthing), with a native [CyUI](https://github.com/MrMybal/CyUI) desktop, a CLI, a Web console and a shared integration SDK. It is intended for people managing shared folders, Git projects and Linux servers.
 
-> **IN DEVELOPMENT · 0.40.0**
+> **IN DEVELOPMENT · 0.41.0**
 >
 > This is the current source version; no downloadable application release is published yet. Development builds require validation for your target workflow. Read the [version notes and documented limitations](VERSION.md).
 

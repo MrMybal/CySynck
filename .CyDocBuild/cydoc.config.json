@@ -1,6 +1,6 @@
 {
   "name": "CySynck",
-  "version": "0.40.0",
+  "version": "0.41.0",
   "defaultLocale": "en",
   "locales": [{ "code": "en", "label": "English" }, { "code": "fr", "label": "Français" }],
   "homePage": "overview",

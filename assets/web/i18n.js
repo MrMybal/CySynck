@@ -2,6 +2,18 @@
 // English is the source language. Keep API identifiers and user content unchanged.
 globalThis.CySynckI18n = (() => {
   const french = {
+    "The VPN address is not on this profile's official WireGuardNT adapter": "L’adresse VPN n’est pas sur l’adaptateur WireGuardNT officiel de ce profil",
+    "The VPN address is unavailable on the expected active adapter": "L’adresse VPN n’est pas disponible sur l’adaptateur actif attendu",
+    "The direct transport adapter changed, is down or is not the expected WireGuard adapter": "L’adaptateur de transport direct a changé, est arrêté ou ne correspond pas au tunnel WireGuard attendu",
+    "Cannot bind direct TCP to its verified WireGuard adapter": "Impossible de lier le TCP direct à son adaptateur WireGuard vérifié",
+    "Run local vpn up as administrator to authorize this macOS direct interface": "Exécutez vpn up en local comme administrateur pour autoriser cette interface directe macOS",
+    "The authorized macOS WireGuard generation changed; run local vpn up again": "L’instance WireGuard macOS autorisée a changé ; exécutez à nouveau vpn up en local",
+    "The VPN address is not unique on its authorized macOS tunnel": "L’adresse VPN n’est pas unique sur son tunnel macOS autorisé",
+    "The VPN address is unavailable on the authorized macOS tunnel": "L’adresse VPN n’est pas disponible sur le tunnel macOS autorisé",
+    "Cannot bind direct TCP to its authorized macOS WireGuard interface": "Impossible de lier le TCP direct à son interface WireGuard macOS autorisée",
+    "macOS direct interface authorization requires local administrator privileges": "L’autorisation de l’interface directe macOS nécessite les droits administrateur locaux",
+    "Cannot authorize a foreign or inactive macOS WireGuard tunnel": "Impossible d’autoriser un tunnel WireGuard macOS étranger ou inactif",
+    "Preserve the existing foreign WireGuard tunnel or service": "Le tunnel ou service WireGuard étranger existant est préservé",
     "CyRevision exchange": "Échange CyRevision",
     "Publishing name": "Nom de publication",
     "Create or show public identity": "Créer ou afficher l’identité publique",

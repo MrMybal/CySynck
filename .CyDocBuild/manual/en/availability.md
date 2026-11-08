@@ -5,14 +5,14 @@ description: Understand the implemented scope and workflows requiring external t
 section: Start
 order: 6
 parent: overview
-revision: 8
+revision: 9
 ---
 
 # Availability and limits {#availability-and-limits}
 
 ## Implemented workflows {#implemented-workflows}
 
-CySynck 0.40 includes project modes, supervised or connected Syncthing, whole-file/fixed-block/CDC backups,
+CySynck 0.41 includes project modes, supervised or connected Syncthing, whole-file/fixed-block/CDC backups,
 selective restoration, bounded diffs, reviewed conflict resolution with preserved copies, explicit Git/LFS exchange,
 history review, separate extraction, reviewed fast-forward/divergent merges, offline LFS cache refill,
 materialization/resume, pointer restoration and export of preserved assets. Their guides state exact limits and refusal conditions.

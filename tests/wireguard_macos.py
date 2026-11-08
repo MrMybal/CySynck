@@ -67,8 +67,8 @@ def main():
         logical = 'cs-' + hashlib.sha256(profile['peer_id'].encode()).hexdigest()[:12]
         receipt = Path('/var/run/wireguard') / (logical + '.cysynck-direct.json')
         require(not receipt.exists() and not receipt.is_symlink(), 'A foreign root authorization occupies the test name')
-        app('vpn', 'up')
         active = True
+        app('vpn', 'up')
         status = app('vpn', 'status')['tunnel']
         require(status['owned'] and status['present'] and re.fullmatch(r'utun[0-9]{1,5}', status['runtime_interface']),
                 'The owned userspace tunnel was not mapped to utun')

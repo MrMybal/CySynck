@@ -2,14 +2,20 @@
 
 [Back to README](README.md) · [Français](VERSION.fr.md)
 
-**Core, CLI and desktop source version: 0.40.0**<br>
+**Core, CLI and desktop source version: 0.41.0**<br>
 **Unreal bridge source version: 0.2.0**<br>
 **Stage: IN DEVELOPMENT**<br>
 **Published application binaries: none**
 
 These notes describe the current source tree, not a published binary release. The C ABI remains at version 1. The bundled documentation uses CyDoc reader 0.1.0; that is a dependency version, separate from CySynck's version.
 
-## Changes in 0.40.0 and the current source tree
+## Changes in 0.41.0
+
+- Bind direct TCP clients and listeners to verified WireGuard interfaces on Linux, Windows and macOS, refusing ordinary adapters and stale identities. Linux kernel tests pass for ordinary/spoofed interfaces, overlapping physical routes and an unprivileged data host. Windows loopback TCP and accepted-socket binding pass locally; actual Windows/macOS driver gates are included and await native CI results.
+- Preserve endpoint replay floors after revoke/re-pair. Maintain explicitly enabled PCP/NAT-PMP leases and publish signed actual router endpoints, with independent two-router Linux forwarding and foreign-mapping preservation tests.
+- Include reproducible real-engine public-profile bootstrap, official-driver CI gates and portable package update instructions. Platform evidence and external signing prerequisites remain scoped below.
+
+## Earlier work and the 0.40.0 baseline
 
 - Isolate WireGuard tunnel names by profile, verify keys and Windows service ownership before control, resolve macOS runtime names and preserve foreign/legacy tunnels. Isolated tool/service models and a real Linux kernel namespace test pass; Windows/macOS drivers remain target checks; real dual-router Linux NAT validation passes.
 - Add signed, expiring VPN endpoint publications with independent signer confirmation, durable replay checkpoints, direct Syncthing LAN/IPv6 address hints, opt-in background refresh and project-scoped live revocation. Private configurations are updated to prevent service restart from restoring revoked peers. Explicit local PCP/NAT-PMP router controls now maintain private leases, bind requests to the consented local address, publish actual assigned endpoints and limit cleanup to their owned listener/nonce. Protocol, lifecycle and Core publication tests pass, as does actual PCP/NAT-PMP forwarding through two independent Linux routers.

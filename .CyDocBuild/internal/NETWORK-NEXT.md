@@ -23,8 +23,9 @@ tool models and actual driver/router evidence have separate scope.
 
 ## Actual evidence
 
-- `kernel-wireguard-linux.json`: revision ed1545d, run 42471087011, six real Linux
-  kernel checks including sudo owner preservation, handshake, authenticated chat,
+- `kernel-wireguard-linux.json`: revision 641f89b, run 42477753274, ten real Linux
+  kernel checks including sudo owner preservation, ordinary/spoofed interface
+  refusal, overlapping physical routes, unprivileged bound TCP, handshake, chat,
   16 MiB verified/encrypted file traffic, revoke/restart and foreign-interface refusal.
 - `router-wireguard-linux.json`: revision af43bc6, run 42475158981, two independent
   miniupnpd 2.3.9 routers and two clients in four owned namespaces. Real PCP/NAT-PMP
@@ -47,13 +48,12 @@ router firmware, arbitrary CGNAT or Windows/macOS driver activation.
 
 ## Required work before the final candidate
 
-- Validate the new Linux direct-socket implementation in its actual namespace gate:
-  reject ordinary/spoofed-name veth interfaces and overlapping plaintext routes,
-  and keep an unprivileged data host usable. See `DIRECT-TRANSPORT-AUDIT.md`.
-- Complete corresponding Windows/macOS socket-interface binding with platform
-  ownership/lifecycle checks and the available native validations.
-- Exercise production Syncthing public-profile bootstrap in an owned network
-  fixture where feasible; keep its evidence separate from NAT forwarding.
+- Record the pending native Windows/macOS driver gates and final CTests. Their
+  socket-interface ownership/lifecycle implementations and disposable driver
+  fixtures are present. See `DIRECT-TRANSPORT-AUDIT.md` for measured scope.
+- Record the pending production Syncthing public-profile bootstrap gate, now
+  using two actual managed engines in the owned Linux network namespaces. Keep
+  its evidence separate from NAT forwarding.
 - Produce the coherent final version, fresh packages/SDK/checksums, portable update
   validation and final native checks. Keep historical report hashes unchanged.
 

@@ -4,7 +4,7 @@ title: Réseau WireGuard et communications directes
 description: Utilisation, commandes et limites : Réseau WireGuard et communications directes.
 section: Réseau
 order: 50
-sourceRevision: 8
+sourceRevision: 9
 ---
 
 # Réseau WireGuard et communications directes {#reseau-wireguard-et-communications-directes}
@@ -201,10 +201,10 @@ Le nom de fichier envoyé est un chemin relatif au projet. Les octets reçus son
 sous un identifiant généré dans `inbox/<project>/<id>.received`, avec leur nom original
 dans l'historique. Ils ne sont pas ouverts, exécutés ou insérés dans le projet automatiquement.
 
-Le canal applicatif est HTTP **à l'intérieur du tunnel WireGuard** ; il ne fournit pas
-son propre chiffrement TLS. Les connexions sortantes se lient à l'adresse VPN configurée.
-Le récepteur vérifie l'adresse VPN, le peer épinglé, son autorisation pour le projet et
-le secret de groupe. Ne pas configurer ces adresses sur une interface publique ou en clair.
+Le canal applicatif utilise HTTP **dans WireGuard**, sans TLS propre. Les clients et récepteurs directs se lient à l’adresse configurée et à une interface de tunnel vérifiée. Une interface absente ou ambiguë, ou un échec de liaison de socket, arrête l’opération.
+Sous Linux, l’interface doit porter le nom du profil et avoir le vrai type WireGuard du noyau ; TCP utilise `SO_BINDTODEVICE`. Les anciens noyaux nécessitant `CAP_NET_RAW` signalent un refus de permission au lieu d’utiliser le routage ordinaire. Sous Windows, le trafic direct nécessite l’adaptateur officiel WireGuardNT avec le nom de profil et le LUID attendus ; TCP utilise `IP_UNICAST_IF`.
+Sous macOS, exécuter localement `vpn up` avec les droits administrateur et le même profil `--state` après chaque création de tunnel. La clé active est vérifiée puis des métadonnées publiques d’interface sont publiées dans le dossier d’exécution WireGuard appartenant à root. Les hôtes ordinaires vérifient profil/clé/adresse, index utun, UUID de démarrage et génération du socket de contrôle protégé avant d’utiliser `IP_BOUND_IF` ; ils ne lisent ni le socket privé ni la clé. `vpn down` retire cette autorisation. Une génération absente ou remplacée nécessite un nouveau `vpn up` local.
+Le récepteur vérifie aussi l’adresse source VPN, le pair épinglé, l’autorisation du projet et le secret de groupe. Réserver les adresses configurées à leurs interfaces VPN.
 
 Limites par défaut : 16 Ko par message UTF-8, 1 Gio par fichier, 4 Gio par quota de réception et d'envoi,
 2000 éléments d'historique local. Depuis la version 0.10, les fichiers sont envoyés par blocs

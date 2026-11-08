@@ -4,7 +4,7 @@ title: WireGuard and direct communication
 description: Pair trusted peers, prepare the VPN and use chat or direct files.
 section: Network
 order: 50
-revision: 8
+revision: 9
 ---
 
 # WireGuard and direct communication {#reseau-wireguard-et-communications-directes}
@@ -174,8 +174,10 @@ cysynck chat history PROJECT_ID
 The receiver listens on the configured VPN address, default `8485/tcp`. The desktop Network view can start it too; only one CLI/desktop receiver may use that address/port.
 The sent filename is relative to the project. Received bytes stay under a generated `inbox/<project>/<id>.received` identity, with original name in history.
 They are not opened, executed or inserted into the project automatically.
-The application channel uses HTTP **inside WireGuard** without its own TLS. Outgoing connections bind to the configured VPN address.
-The receiver checks VPN source address, pinned peer, project authorization and group secret. Do not configure these addresses on a public/plaintext interface.
+The application channel uses HTTP **inside WireGuard** without its own TLS. Direct clients and listeners bind to the configured address and a verified tunnel interface. Missing or ambiguous interfaces and socket-binding errors stop the operation.
+On Linux, the interface must have this profile's name and the actual kernel WireGuard type; TCP uses `SO_BINDTODEVICE`. Older kernels that require `CAP_NET_RAW` report a permission error rather than using ordinary routing. On Windows, direct traffic requires the official WireGuardNT adapter with the expected profile name and LUID; TCP uses `IP_UNICAST_IF`.
+On macOS, run local `vpn up` with administrator privileges and the same `--state` profile after each tunnel creation. This verifies the live key and publishes public interface metadata under the root-owned WireGuard runtime directory. Ordinary data hosts check the profile/key/address, utun index, boot-session UUID and protected control-socket generation before using `IP_BOUND_IF`; they do not read the private socket or key. `vpn down` removes that authorization. A missing or replaced generation requires another local `vpn up`.
+The receiver also checks VPN source address, pinned peer, project authorization and group secret. Keep the configured addresses exclusive to their VPN interfaces.
 Defaults: 16 KiB UTF-8 per message, 1 GiB per file, 4 GiB incoming/outgoing quota, 2,000 local history entries.
 Files use verified 1 MiB blocks, a frozen source and explicit interruption recovery: `transfers list PROJECT_ID`, then `transfers resume PROJECT_ID TRANSFER_ID`.
 `transfers configure` and interfaces adjust limits up to 4 GiB per file and 64 GiB per quota across the profile's projects.

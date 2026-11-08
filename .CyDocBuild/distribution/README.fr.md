@@ -1,4 +1,4 @@
-# CySynck 0.40.0
+# CySynck 0.41.0
 
 [Manuel français](Documentation/Documentation.html#/fr/overview) · [English manual](Documentation/Documentation.html#/en/overview)
 
