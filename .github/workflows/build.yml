@@ -63,7 +63,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - run: sudo apt-get update && sudo apt-get install -y syncthing wireguard-tools iproute2 iputils-ping openssl
+      - run: sudo apt-get update && sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends syncthing wireguard-tools iproute2 iputils-ping openssl miniupnpd-iptables iptables
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -74,6 +74,8 @@ jobs:
       - run: cmake --build build --parallel 3
       - name: Real Linux kernel WireGuard in isolated network namespaces
         run: sudo python3 tests/wireguard_integration.py --prepare-apparmor --cli "$GITHUB_WORKSPACE/build/cysynck" --work "$RUNNER_TEMP/cysynck-wg-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --report "$GITHUB_WORKSPACE/build/network-report/wireguard.json"
+      - name: Real PCP and NAT-PMP routers with kernel WireGuard
+        run: sudo python3 tests/router_wireguard_integration.py --prepare-apparmor --cli "$GITHUB_WORKSPACE/build/cysynck" --work "$RUNNER_TEMP/cysynck-wg-nat-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --report "$GITHUB_WORKSPACE/build/network-report/router-wireguard.json"
       - run: ctest --test-dir build --output-on-failure
       - run: cpack --config build/CPackConfig.cmake -B dist/packages
       - run: cmake -DPACKAGE_DIR="${{ github.workspace }}/dist/packages" -DWORK_DIR="${{ github.workspace }}/package-smoke" -P tests/package_smoke.cmake

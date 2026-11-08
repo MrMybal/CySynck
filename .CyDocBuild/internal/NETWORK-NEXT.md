@@ -75,6 +75,15 @@ Remaining work:
   remapped ports, lease renewal, restart and forged/stale records in addition to the
   existing real handshake/chat/file/revoke/restart/foreign-interface checks.
   Workstation WSL is unavailable; do not install/enable it or activate live user tunnels.
+  `tests/router_wireguard_integration.py` now defines that separate native CI gate:
+  two clients/two independent miniupnpd routers, private runtime mounts, real PCP
+  and NAT-PMP grants, collision with a foreign mapping, signed discovery, actual
+  Core::tick renewal, forged/stale shared records, encrypted chat/file counters and
+  owned cleanup. Its Python syntax and secret scan pass on Windows; actual Linux
+  execution is still pending. No forwarding rule or temporary interface is placed
+  in the host network namespace. Router debug logs are private and discarded.
+  Reproduce with miniupnpd-iptables, iptables and the previous kernel-test tools:
+  `sudo python3 tests/router_wireguard_integration.py --prepare-apparmor --cli /absolute/build/cysynck --work /tmp/cysynck-wg-nat-UNIQUE --report /absolute/reports/router-wireguard.json`.
 - Review outbound direct HTTP route binding and live peer revocation while implementing
   the real driver tests; do not rely solely on the chosen private IP range as evidence
   that a connection uses the owned WireGuard interface.
@@ -91,6 +100,8 @@ Remaining work:
 - <https://www.wireguard.com/quickstart/> (UDP endpoints and keepalive)
 - <https://git.zx2c4.com/wireguard-windows/about/docs/enterprise.md> (service contract)
 - <https://git.zx2c4.com/wireguard-tools/tree/src/wg-quick/darwin.bash> (runtime mapping)
+- <https://github.com/miniupnp/miniupnp/blob/master/miniupnpd/miniupnpd.conf> (independent router configuration)
+- <https://packages.ubuntu.com/resolute/miniupnpd-iptables> (native test-only gateway package)
 
 All protocol code is independently implemented C++20. No WireGuard/GPL implementation
 is copied into the MIT core. Installed tools/drivers remain external dependencies.
