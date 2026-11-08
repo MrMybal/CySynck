@@ -287,11 +287,11 @@ raise SystemExit(result.returncode)
         app("a", "vpn", "down")
         run(["ip", "link", "add", interfaces["a"], "type", "wireguard"], namespace=namespaces[0])
         private_key = run(["wg", "genkey"]).stdout
-        foreign_key = work / "foreign-private.key"
-        foreign_key.write_text(private_key)
-        foreign_key.chmod(0o600)
         foreign_public = run(["wg", "pubkey"], input=private_key).stdout.strip()
-        run(["wg", "set", interfaces["a"], "private-key", foreign_key], namespace=namespaces[0])
+        # The generated fixture key stays on an inherited pipe; the wg profile
+        # needs no additional filesystem read permission beyond the real configs.
+        run(["wg", "set", interfaces["a"], "private-key", "/dev/stdin"],
+            namespace=namespaces[0], input=private_key)
         refused = run([cli, "--state", work / "a/state", "vpn", "up"], namespace=namespaces[0], check=False)
         require(refused.returncode != 0, "CySynck activated a foreign kernel tunnel")
         require(run(["wg", "show", interfaces["a"], "public-key"], namespace=namespaces[0]).stdout.strip() == foreign_public,
