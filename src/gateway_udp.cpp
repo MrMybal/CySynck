@@ -22,7 +22,7 @@ struct GatewayUdp::Impl {
     int socket = -1;
 #endif
     std::string source;
-    Impl(const std::string &gateway, uint16_t port) {
+    Impl(const std::string &gateway, uint16_t port, const std::string &expected_source) {
         if (gateway.empty() || gateway.size() > 15 || gateway.find('\0') != std::string::npos ||
             !port)
             throw std::runtime_error("Port mapping requires an explicit IPv4 gateway and UDP port");
@@ -49,6 +49,14 @@ struct GatewayUdp::Impl {
             if (socket >= FD_SETSIZE)
                 throw std::runtime_error("Gateway UDP socket exceeds the select descriptor limit");
 #endif
+            if (!expected_source.empty()) {
+                sockaddr_in source_address{};
+                source_address.sin_family = AF_INET;
+                if (expected_source.size() > 15 || expected_source.find('\0') != std::string::npos ||
+                    inet_pton(AF_INET, expected_source.c_str(), &source_address.sin_addr) != 1 ||
+                    ::bind(socket, reinterpret_cast<sockaddr *>(&source_address), sizeof(source_address)))
+                    throw std::runtime_error("The consented gateway-facing IPv4 address is no longer available");
+            }
             if (::connect(socket, reinterpret_cast<sockaddr *>(&endpoint), sizeof(endpoint)))
                 throw std::runtime_error("Cannot reach the selected port-mapping gateway");
             sockaddr_in local{};
@@ -62,6 +70,8 @@ struct GatewayUdp::Impl {
                 !inet_ntop(AF_INET, &local.sin_addr, address.data(), address.size()))
                 throw std::runtime_error("Cannot identify the local gateway-facing IPv4 address");
             source = address.data();
+            if (!expected_source.empty() && source != expected_source)
+                throw std::runtime_error("The gateway route no longer uses the consented local address");
         } catch (...) {
             close();
             throw;
@@ -86,8 +96,8 @@ struct GatewayUdp::Impl {
     }
     ~Impl() { close(); }
 };
-GatewayUdp::GatewayUdp(const std::string &gateway, uint16_t port)
-    : impl_(std::make_unique<Impl>(gateway, port)) {}
+GatewayUdp::GatewayUdp(const std::string &gateway, uint16_t port, const std::string &expected_source)
+    : impl_(std::make_unique<Impl>(gateway, port, expected_source)) {}
 GatewayUdp::~GatewayUdp() = default;
 std::string GatewayUdp::local_address() const { return impl_->source; }
 GatewayPacket GatewayUdp::request(const GatewayPacket &packet,

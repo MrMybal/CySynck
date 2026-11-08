@@ -111,6 +111,8 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   vpn status|preview|write-config|up|down|apparmor
   vpn publish|discover ID
   vpn refresh [ID] | vpn automatic true|false
+  vpn router enable GATEWAY_IPV4 [--protocol auto|pcp|nat-pmp] [--lifetime 600] [--external-port 0]
+  vpn router renew|disable
   vpn trust ID PEER_ID --key EXPECTED_PUBLIC_KEY [--fingerprint VERIFIED_SIGNER_SHA256]
   vpn revoke ID PEER_ID
   chat send ID PEER_ID TEXT | chat history ID | chat serve
@@ -124,7 +126,7 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   serve [--host 127.0.0.1] [--port 8484]
 Desktop: cysynck-desktop [--state DIR] [--plugin LIBRARY] [--background|--foreground] [--no-tray]
 Secrets: CYSYNCK_SYNCTHING_API_KEY, CYSYNCK_API_TOKEN, CYSYNCK_MESH_TOKEN.
-VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
+VPN up/down requires administrator/root. Router mapping requires explicit local consent and a compatible gateway.)"}};
     if (args[0] == "cyrevision") {
         if (args.size() < 2) throw std::runtime_error("Choose a CyRevision command; use cysynck help");
         auto command = args[1];
@@ -333,6 +335,16 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
                      {"--listen-port", "listen_port"}, {"--mesh-port", "mesh_port"}})
                 if (flags.contains(flag))
                     data[key] = std::stoi(flags[flag]);
+        } else if (command == "router") {
+            if (args.size() < 3) throw std::runtime_error("Use vpn router enable GATEWAY | renew | disable");
+            data["action"] = args[2];
+            if (args[2] == "enable") {
+                require(4);
+                data["gateway"] = args[3];
+                if (flags.contains("--protocol")) data["protocol"] = flags.at("--protocol");
+                if (flags.contains("--lifetime")) data["lifetime_seconds"] = std::stoi(flags.at("--lifetime"));
+                if (flags.contains("--external-port")) data["external_port"] = std::stoi(flags.at("--external-port"));
+            } else require(3);
         } else if (command == "automatic") {
             require(3);
             if (args[2] != "true" && args[2] != "false") throw std::runtime_error("Choose automatic true|false");

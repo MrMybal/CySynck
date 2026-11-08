@@ -69,9 +69,9 @@ class LegacyOnly : public std::runtime_error {
 };
 GatewayMapping pcp_map(const std::string &gateway, uint16_t internal, uint16_t preferred,
                        uint32_t lifetime, const std::string &nonce_hex,
-                       const std::string &preferred_ip, uint16_t port) {
+                       const std::string &preferred_ip, uint16_t port, const std::string &source) {
     auto nonce = nonce_bytes(nonce_hex);
-    GatewayUdp client(gateway, port);
+    GatewayUdp client(gateway, port, source);
     Bytes packet{2, 1, 0, 0};
     append32(packet, lifetime);
     auto local = mapped_address(client.local_address());
@@ -145,7 +145,7 @@ GatewayMapping pcp_map(const std::string &gateway, uint16_t internal, uint16_t p
 std::string new_gateway_nonce() { return random_id().substr(0, 24); }
 GatewayMapping map_gateway(const std::string &gateway, uint16_t internal, uint16_t preferred,
                            uint32_t lifetime, const std::string &protocol, const std::string &nonce,
-                           const std::string &preferred_ip, uint16_t port) {
+                           const std::string &preferred_ip, uint16_t port, const std::string &source) {
     if (!internal || lifetime > 3600)
         throw std::runtime_error(
             "Map only a nonzero WireGuard UDP port for at most 3600 requested seconds");
@@ -156,13 +156,13 @@ GatewayMapping map_gateway(const std::string &gateway, uint16_t internal, uint16
             "Mapping deletion must use its recorded protocol and ownership token");
     if (protocol != "nat-pmp") {
         try {
-            return pcp_map(gateway, internal, preferred, lifetime, nonce, preferred_ip, port);
+            return pcp_map(gateway, internal, preferred, lifetime, nonce, preferred_ip, port, source);
         } catch (const LegacyOnly &) {
             if (protocol != "auto")
                 throw;
         }
     }
-    auto value = nat_pmp_map(gateway, internal, preferred, lifetime, port);
+    auto value = nat_pmp_map(gateway, internal, preferred, lifetime, port, source);
     return {"nat-pmp",           value.external_address, value.local_address, value.internal_port,
             value.external_port, value.lifetime_seconds, value.gateway_epoch, ""};
 }

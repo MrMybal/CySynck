@@ -4,6 +4,8 @@
 #include "vpn_tunnel.hpp"
 #include "network_discovery.hpp"
 #include "cyrevision_codec.hpp"
+#include "router_lease.hpp"
+#include "gateway_udp.hpp"
 #include <ctime>
 #include <fstream>
 #include <httplib.h>
@@ -97,6 +99,9 @@ Json Core::network_action(const std::string &action, const Json &data) {
     auto tunnel_name = vpn_interface_name(registry_.at("peer_id").get<std::string>());
     auto configuration = project_child(directory, tunnel_name + ".conf");
     if (action == "configure") {
+        if (network.value("router_mapping", Json::object()).value("enabled", false) ||
+            network.value("router_mapping", Json::object()).value("phase", "") == "cleanup-pending")
+            throw std::runtime_error("Disable router mapping before reconfiguring the VPN identity");
         auto privateFile = project_child(directory, "private.key");
         if (!fs::exists(privateFile)) {
             auto result = process({wg_tool(), "genkey"});
@@ -160,6 +165,27 @@ Json Core::network_action(const std::string &action, const Json &data) {
             throw std::runtime_error("Local WireGuard public identity differs from its private key");
         return render(true);
     };
+    auto router_context = [&](const std::string &gateway) {
+        auto local = profile(network.at("profile"));
+        auto port = vpn_owned_listen_port(wg_tool(), activation_tool(), tunnel_name,
+                                          local.at("public_key"), configuration);
+        if (port != local.at("listen_port").get<uint16_t>())
+            throw std::runtime_error("The live WireGuard UDP port differs from its published profile; restart the owned tunnel first");
+        GatewayUdp route(gateway, 5351);
+        return RouterLeaseContext{local.at("peer_id").get<std::string>() + ":" +
+                                      local.at("public_key").get<std::string>(), route.local_address(), port};
+    };
+    RouterMapper mapper = [](const std::string &gateway, uint16_t internal, uint16_t external,
+                             uint32_t lifetime, const std::string &protocol,
+                             const std::string &nonce, const std::string &address, const std::string &source) {
+        return map_gateway(gateway, internal, external, lifetime, protocol, nonce, address, 5351, source);
+    };
+    auto mapped_endpoint = [&]() -> Json {
+        auto state = network.value("router_mapping", Json::object());
+        if (!state.value("enabled", false)) return Json();
+        auto context = router_context(state.at("options").at("gateway"));
+        return router_lease_endpoint(state, context, std::time(nullptr));
+    };
     if (action == "status") {
         Json handshakes = Json::array();
         Json tunnel;
@@ -183,6 +209,7 @@ Json Core::network_action(const std::string &action, const Json &data) {
                 {"tunnel", tunnel},
                 {"endpoint_refresh_enabled", network.value("endpoint_refresh_enabled", false)},
                 {"endpoint_refresh", network.value("endpoint_refresh", Json(nullptr))},
+                {"router_mapping", router_lease_status(network.value("router_mapping", Json::object()), std::time(nullptr))},
                 {"requires_restart", !network.value("pending_removals", Json::object()).empty() ||
                     network.value("endpoint_refresh", Json::object()).value("requires_restart", false)},
                 {"pending_removals", network.value("pending_removals", Json::object()).size()},
@@ -193,6 +220,40 @@ Json Core::network_action(const std::string &action, const Json &data) {
     }
     if (!network.contains("profile"))
         throw std::runtime_error("Configure the local WireGuard identity first");
+    if (action == "router") {
+        auto command = data.at("action").get<std::string>();
+        auto &state = network["router_mapping"];
+        if (!state.is_object()) state = Json::object();
+        auto now = int64_t(std::time(nullptr));
+        Json result;
+        if (command == "enable") {
+            if (!network.at("profile").at("endpoint").get<std::string>().empty())
+                throw std::runtime_error("Clear the manual UDP endpoint before enabling router mapping");
+            auto context = router_context(data.at("gateway"));
+            enable_router_lease(state, data, context, now, [&] { save(); });
+            result = renew_router_lease(state, context, now, true, mapper, [&] { save(); });
+        } else if (command == "renew") {
+            auto context = router_context(state.at("options").at("gateway"));
+            result = renew_router_lease(state, context, now, !data.value("scheduled", false),
+                                        mapper, [&] { save(); });
+        } else if (command == "disable") {
+            RouterLeaseContext context;
+            if (state.contains("lease"))
+                try { context = router_context(state.at("lease").at("gateway")); }
+                catch (const std::exception &) { /* No owned listener: never delete another mapping. */ }
+            result = disable_router_lease(state, context, now, mapper, [&] { save(); });
+        } else throw std::runtime_error("Choose router enable, renew or disable");
+        // Only projects explicitly published locally may receive automatic records.
+        // Empty/disabled leases withdraw the local sidecar; already copied signed
+        // records expire at their original bounded deadline.
+        Json issues = Json::array();
+        auto publications = network.value("endpoint_projects", Json::array());
+        for (const auto &id : publications)
+            try { network_action("publish", {{"project", id}}); }
+            catch (const std::exception &e) { issues.push_back({{"project", id}, {"error", e.what()}}); }
+        result["publication_errors"] = issues;
+        return result;
+    }
     if (action == "apparmor") {
 #ifdef __linux__
         return {{"supported", true}, {"configuration", path_string(configuration)},
@@ -292,10 +353,14 @@ Json Core::network_action(const std::string &action, const Json &data) {
             atomic_write(configuration, render(true), true);
             return {{"path", path_string(configuration)}, {"interface", tunnel_name}};
         }
+        Json router;
+        if (action == "down" && network.contains("router_mapping"))
+            router = network_action("router", {{"action", "disable"}});
         auto result = vpn_tunnel_control(action, wg_tool(), activation_tool(), tunnel_name,
                                   profile(network.at("profile")).at("public_key"), configuration,
                                   action == "down" ? render(false, false) : render(true));
         network["applied_peers"] = Json::object();
+        if (!router.is_null()) result["router_mapping"] = router;
         return result;
     }
     auto &p = project(data.at("project"));
@@ -311,18 +376,33 @@ Json Core::network_action(const std::string &action, const Json &data) {
         auto output = path / (local["peer_id"].get<std::string>() + ".json");
         atomic_write(output, local.dump(2));
         Json result = {{"profile", local}, {"path", path_string(output)}};
-        if (local.contains("signing_key") && !local.at("endpoint").get<std::string>().empty()) {
+        if (!network.contains("endpoint_projects")) network["endpoint_projects"] = Json::array();
+        auto &publications = network["endpoint_projects"];
+        if (std::find(publications.begin(), publications.end(), p.at("id")) == publications.end()) {
+            if (publications.size() >= 256) throw std::runtime_error("Automatic endpoint publication project limit reached");
+            publications.push_back(p.at("id"));
+        }
+        auto now = int64_t(std::time(nullptr));
+        Json endpoint;
+        if (!local.at("endpoint").get<std::string>().empty())
+            endpoint = {{"endpoint", local.at("endpoint")}, {"source", "manual"}, {"expires_at", now + 900}};
+        else endpoint = mapped_endpoint();
+        auto signed_path = project_child(path, local["peer_id"].get<std::string>() + ".endpoint.json");
+        if (local.contains("signing_key") && !endpoint.is_null()) {
             auto sequence = network.value("endpoint_sequence", int64_t(0));
             if (sequence < 0 || sequence == INT64_MAX) throw std::runtime_error("Endpoint sequence exhausted");
             network["endpoint_sequence"] = ++sequence;
             save();
-            auto now = int64_t(std::time(nullptr));
-            auto signed_path = project_child(path, local["peer_id"].get<std::string>() + ".endpoint.json");
             atomic_write(signed_path, sign_endpoint_record(network_endpoint_identity(local, p.at("id")),
-                local.at("endpoint"), "manual", sequence, now, now + 900,
+                endpoint.at("endpoint"), endpoint.at("source"), sequence, now, endpoint.at("expires_at"),
                 project_child(directory, "endpoint-signing.pem")));
             result["endpoint_path"] = path_string(signed_path);
-            result["endpoint_expires_at"] = now + 900;
+            result["endpoint_expires_at"] = endpoint.at("expires_at");
+            result["endpoint_source"] = endpoint.at("source");
+        } else if (fs::exists(signed_path)) {
+            if (path_is_link(signed_path) || !fs::is_regular_file(signed_path))
+                throw std::runtime_error("Refuse to replace a linked or invalid endpoint publication");
+            fs::remove(signed_path);
         }
         return result;
     }
@@ -434,9 +514,21 @@ Json Core::network_action(const std::string &action, const Json &data) {
     throw std::runtime_error("Unknown network action");
 }
 void Core::maintain_network() {
-    if (!registry_.contains("network") ||
-        !registry_["network"].value("endpoint_refresh_enabled", false)) return;
+    if (!registry_.contains("network")) return;
     auto now = int64_t(std::time(nullptr));
+    auto &router = registry_["network"]["router_mapping"];
+    if (!router.is_object()) router = Json::object();
+    if (router_lease_due(router, now)) {
+        try {
+            network_action("router", {{"action", router.value("enabled", false) ? "renew" : "disable"},
+                                       {"scheduled", true}});
+        } catch (const std::exception &e) {
+            router["error"] = e.what();
+            router["retry_at"] = now + 45;
+            router["last_attempt_at"] = now;
+        }
+    }
+    if (!registry_["network"].value("endpoint_refresh_enabled", false)) return;
     auto last = registry_["network"].value("endpoint_refresh", Json::object()).value("checked_at", int64_t(0));
     if (now >= last && now - last < 45) return;
     try { network_action("refresh", Json::object()); }

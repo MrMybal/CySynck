@@ -1,5 +1,6 @@
 #include "network_discovery.hpp"
 #include "cyrevision_codec.hpp"
+#include "router_lease.hpp"
 #include <ctime>
 #include <functional>
 #include <iostream>
@@ -70,6 +71,8 @@ int model(int argc, char **argv) {
                 return 1;
             if (args.at(2) == "public-key")
                 std::cout << world.at("public_key").get<std::string>();
+            else if (args.at(2) == "listen-port")
+                std::cout << world.value("listen_port", 51821);
             else if (args.at(2) != "latest-handshakes")
                 return 1;
         }
@@ -299,6 +302,49 @@ int main(int argc, char **argv) {
                       .get<int64_t>() >= now,
               "Opt-in automatic endpoint refresh did not run from Core::tick");
         restarted.request("POST", "/api/network/automatic", {{"enabled", false}});
+        refuses([&] { restarted.request("GET", "/api/network/router", {{"action", "disable"}}); },
+                "A read request mutated router mapping consent");
+        // The production publisher must use the granted external port and lease
+        // deadline, with an independently inspected live WG listener. The private
+        // controller is injected here; UDP packet behavior has a separate fixture.
+        registry = Json::parse(read_file(core.state() / "registry.json"));
+        RouterLeaseContext context{local.at("peer_id").get<std::string>() + ":" +
+                                       local.at("public_key").get<std::string>(), "127.0.0.1", 51821};
+        Json lease = Json::object();
+        enable_router_lease(lease, {{"gateway", "127.0.0.1"}, {"protocol", "pcp"}}, context, now, [] {});
+        renew_router_lease(lease, context, now, true,
+            [&](const std::string &, uint16_t port, uint16_t, uint32_t, const std::string &,
+                const std::string &nonce, const std::string &, const std::string &) {
+                return GatewayMapping{"pcp", "198.18.0.20", "127.0.0.1", port, 45019, 120, 100, nonce};
+            }, [] {});
+        registry["network"]["router_mapping"] = lease;
+        atomic_write(core.state() / "registry.json", registry.dump());
+        atomic_write(core.state() / "vpn/endpoint-signing.pem", read_file(root / "remote.pem"), true);
+        auto mapped = restarted.request("POST", "/api/network/publish", {{"project", "team"}});
+        auto mapped_path = fs::u8path(mapped.at("endpoint_path").get<std::string>());
+        auto mapped_bytes = read_file(mapped_path);
+        auto mapped_record = verify_endpoint_record(mapped_bytes, network_endpoint_identity(local, "team"), now, root);
+        check(mapped_record.at("metadata").at("endpoint") == "198.18.0.20:45019" &&
+                  mapped_record.at("metadata").at("source") == "pcp" &&
+                  mapped_record.at("metadata").at("expires_at") <= now + 120 &&
+                  mapped_bytes.find(lease.at("lease").at("nonce").get<std::string>()) == std::string::npos &&
+                  restarted.request("GET", "/api/network/status").dump().find(
+                      lease.at("lease").at("nonce").get<std::string>()) == std::string::npos,
+              "Mapped publication lost its assigned port/deadline or exposed the private PCP nonce");
+        world = Json::parse(read_file(world_file));
+        world["listen_port"] = 51999;
+        atomic_write(world_file, world.dump());
+        refuses([&] { restarted.request("POST", "/api/network/publish", {{"project", "team"}}); },
+                "A desired configuration port was used instead of the live WireGuard UDP port");
+        check(read_file(mapped_path) == mapped_bytes, "A mismatched listener replaced a valid signed publication");
+        world["listen_port"] = 51821;
+        atomic_write(world_file, world.dump());
+        registry = Json::parse(read_file(core.state() / "registry.json"));
+        registry["network"]["router_mapping"]["lease"]["expires_at"] = now;
+        registry["network"]["router_mapping"]["lease"]["uncertain_until"] = now;
+        atomic_write(core.state() / "registry.json", registry.dump());
+        restarted.request("POST", "/api/network/router", {{"action", "disable"}});
+        check(!fs::exists(mapped_path), "Disabling an expired mapping left its local signed publication behind");
         // Exercise production publication, not just the signed-record primitive.
         registry = Json::parse(read_file(core.state() / "registry.json"));
         local["endpoint"] = "publisher.example:51821";

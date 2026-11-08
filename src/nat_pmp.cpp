@@ -25,7 +25,8 @@ class Client {
     GatewayUdp transport_;
 
   public:
-    Client(const std::string &gateway, uint16_t port) : transport_(gateway, port) {}
+    Client(const std::string &gateway, uint16_t port, const std::string &source)
+        : transport_(gateway, port, source) {}
     std::string local_address() const { return transport_.local_address(); }
     Bytes request(const Bytes &packet, unsigned char expected_opcode, size_t expected_length) {
         return transport_.request(packet, [&](const GatewayPacket &response) {
@@ -45,11 +46,12 @@ class Client {
 };
 } // namespace
 NatPmpMapping nat_pmp_map(const std::string &gateway, uint16_t internal_port,
-                          uint16_t preferred_port, uint32_t lifetime, uint16_t router_port) {
+                          uint16_t preferred_port, uint32_t lifetime, uint16_t router_port,
+                          const std::string &expected_source) {
     if (!internal_port || lifetime > 3600)
         throw std::runtime_error(
             "NAT-PMP needs a nonzero WireGuard port and a lifetime of at most 3600 seconds");
-    Client client(gateway, router_port);
+    Client client(gateway, router_port, expected_source);
     Bytes address;
     if (lifetime) {
         address = client.request({0, 0}, 128, 12);

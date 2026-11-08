@@ -4,7 +4,7 @@ title: Architecture C++
 description: Utilisation, commandes et limites : Architecture C++.
 section: Développement
 order: 70
-sourceRevision: 4
+sourceRevision: 5
 ---
 
 # Architecture C++ {#architecture-c}
@@ -102,7 +102,9 @@ Routes principales :
 | `/api/projects/<id>/git-integration-check` (vérification du dépôt en lecture seule) | POST |
 | `/api/projects/<id>/git-integration-acknowledge` (jeton de vérification frais, reçu conservé) | POST |
 | `/api/network/status` | GET |
-| `/api/network/configure`, `publish`, `discover`, `trust`, `revoke`, `preview`, `write-config` | POST |
+| `/api/network/publish`, `discover`, `preview` | POST |
+| `/api/network/configure`, `trust`, `revoke`, `write-config` | POST dans le Core local uniquement ; HTTP refuse |
+| `/api/network/automatic`, `refresh`, `router`, `up`, `down` | POST dans le Core local uniquement ; router prend `action:enable\|renew\|disable` ; voir [le consentement et les baux](doc:network#router-mapping) |
 | `/api/network/chat`, `send-file`, `history` | POST |
 | `/api/doctor` | GET pour inspection, POST pour tests explicites |
 | `/api/service/plan`, `/api/service/export` | POST de préparation/export |

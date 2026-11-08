@@ -4,7 +4,7 @@ title: Réseau WireGuard et communications directes
 description: Utilisation, commandes et limites : Réseau WireGuard et communications directes.
 section: Réseau
 order: 50
-sourceRevision: 5
+sourceRevision: 6
 ---
 
 # Réseau WireGuard et communications directes {#reseau-wireguard-et-communications-directes}
@@ -116,7 +116,61 @@ cysynck vpn automatic false
 
 L’actualisation automatique est désactivée par défaut et vérifie environ toutes les 45 secondes pendant l’exécution de l’hôte. Elle ne crée jamais de tunnel ; modifier un tunnel actif nécessite les droits administrateur/root et les contrôles de propriété. Une adresse dynamique expirée disparaît de la configuration générée et est effacée du pair actif avant de rétablir sa route hôte. Les erreurs sont disponibles dans `endpoint_refresh` de `vpn status`. HTTP et le CLI distant ne peuvent pas configurer les identités, appairer/révoquer des pairs, écrire la configuration privée, activer le tunnel ou activer/exécuter l’actualisation automatique ; utiliser le bureau ou CLI local.
 
-Les nouvelles identités conservent leur clé de signature séparée dans `vpn/endpoint-signing.pem`, jamais dans le dossier d’échange. Publier un endpoint manuel écrit aussi une publication signée valable 15 minutes. Les clients de protocole PCP/NAT-PMP sont testés séparément, mais leur configuration, le renouvellement des baux et la publication des adresses mappées sont encore en cours d’intégration. Cette version n’ouvre pas encore automatiquement de redirection sur le routeur.
+Les nouvelles identités conservent leur clé de signature séparée dans `vpn/endpoint-signing.pem`, jamais dans le dossier d’échange. Publier un endpoint manuel écrit aussi une publication signée valable 15 minutes.
+
+## Redirection du routeur sur consentement {#router-mapping}
+
+Un routeur IPv4 local compatible peut ouvrir le **port UDP WireGuard actif appartenant
+au profil** avec PCP ou NAT-PMP. Cette fonction est désactivée par défaut. Choisir
+explicitement le routeur dans la vue Réseau native ou le CLI local, après connexion
+du VPN. Laisser vide l’endpoint manuel du profil public pour ce mode. Une nouvelle
+identité peut omettre `--endpoint` à sa configuration ; modifier un profil déjà
+épinglé nécessite révocation et nouvel appairage sur les autres appareils.
+
+```sh
+cysynck vpn up
+cysynck vpn publish SHARED_PROJECT_ID
+cysynck vpn router enable 192.168.1.1 --protocol auto --lifetime 600 --external-port 0
+cysynck vpn status
+# Garder le bureau ou processus serve normal de ce profil actif pour renouveler.
+cysynck vpn router renew
+cysynck vpn router disable
+```
+
+`auto` essaie PCP et ne bascule vers NAT-PMP que sur une réponse explicite Unsupported
+Version. Les modes forcés `pcp` et `nat-pmp` sont disponibles. Le bail demandé dure
+60 à 3600 secondes ; le port externe `0` laisse choisir le routeur. L’attribution
+réelle fournit l’adresse/port externe publié, l’expiration et la date de renouvellement.
+La clé publique et le port UDP du tunnel actif doivent correspondre au profil ;
+modifier le port souhaité n’autorise pas la redirection d’un autre port actif.
+La redirection ne crée aucun tunnel.
+
+Le registre privé réserve le nonce PCP avant l’envoi et le réutilise après
+redémarrage. Le renouvellement intervient vers la moitié du bail attribué pendant
+les appels à `Core::tick()`. Chaque demande se lie à l’IPv4 locale consentie vers le
+routeur. Un changement d’adresse source ou de port/identité actif arrête le
+renouvellement et demande une nouvelle activation locale. Un changement d’epoch du
+routeur est détecté au renouvellement réussi ; un nouveau port externe remplace la
+publication signée. Seuls les projets déjà publiés explicitement en local reçoivent
+ces publications automatiques, limitées au bail et à une heure maximum. Les pairs
+doivent exécuter `vpn refresh` ou activer leur actualisation automatique.
+
+La désactivation est enregistrée avant la tentative de suppression et retire les
+fichiers locaux d’adresses de cet appareil. Les publications déjà copiées conservent
+leur expiration initiale. La suppression utilise uniquement le protocole enregistré,
+l’adresse source, le port actif appartenant au profil et le nonce PCP ; elle
+n’efface jamais toutes les redirections. Un échec reste en attente d’une nouvelle
+tentative bornée. Un bail expiré, un réseau/port changé ou une demande historique
+incertaine est laissé à l’expiration du routeur pour préserver les autres redirections.
+`vpn down` tente le nettoyage avant d’arrêter son tunnel. `router_mapping` dans
+`vpn status` montre les baux, erreurs et expirations en attente sans le nonce privé.
+HTTP et le CLI distant ne peuvent ni activer, ni renouveler, ni désactiver cette fonction.
+
+Les fixtures UDP, le cycle persistant des baux et la publication signée via le Core
+passent leurs tests. Un essai avec deux vrais routeurs NAT reste nécessaire ; le
+test Linux WireGuard existant emploie des pairs directs en espaces réseau. Cette
+fonction ne fournit ni STUN/ICE, ni perçage NAT arbitraire, ni relais de paquets,
+ni garantie de traversée CGNAT.
 
 ## Tchat et fichiers directs {#tchat-et-fichiers-directs}
 

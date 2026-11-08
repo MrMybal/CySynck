@@ -1,5 +1,6 @@
 #include "vpn_tunnel.hpp"
 #include <algorithm>
+#include <charconv>
 #include <ctime>
 #include <regex>
 #include <set>
@@ -229,6 +230,24 @@ Json vpn_tunnel_status(const std::string &tool, const std::string &logical,
         }
     }
     return result;
+}
+uint16_t vpn_owned_listen_port(const std::string &tool, const std::string &activation_tool,
+                               const std::string &logical, const std::string &public_key,
+                               const fs::path &configuration) {
+    logical_name(logical);
+    auto current = inspect(tool, logical, public_key, interfaces(tool), {});
+    auto configured_service = service(logical, configuration, activation_tool);
+    if (current.at("present") != true || current.at("owned") != true ||
+        (configured_service.at("exists") == true && configured_service.at("owned") != true))
+        throw std::runtime_error("Router mapping requires this profile's owned live WireGuard tunnel");
+    auto response = process({tool, "show", current.at("runtime_interface"), "listen-port"}, {}, {}, 10);
+    auto text = trim(response.out);
+    unsigned port = 0;
+    auto parsed = std::from_chars(text.data(), text.data() + text.size(), port);
+    if (response.code || parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size() ||
+        !port || port > 65535 || text != std::to_string(port))
+        throw std::runtime_error("Cannot identify the owned WireGuard UDP listener");
+    return static_cast<uint16_t>(port);
 }
 Json vpn_tunnel_control(const std::string &action, const std::string &tool,
                         const std::string &activation_tool, const std::string &logical,

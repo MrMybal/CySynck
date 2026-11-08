@@ -16,5 +16,6 @@ GatewayMapping map_gateway(const std::string &gateway_ipv4, uint16_t internal_ud
                            uint16_t preferred_external_port, uint32_t lifetime_seconds,
                            const std::string &protocol, const std::string &private_nonce,
                            const std::string &preferred_external_ipv4 = "",
-                           uint16_t router_port = 5351);
+                           uint16_t router_port = 5351,
+                           const std::string &expected_local_address = "");
 } // namespace cysynck

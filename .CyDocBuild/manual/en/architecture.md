@@ -4,7 +4,7 @@ title: C++ architecture and local API
 description: Understand the shared core, private state and routes used by application integrations.
 section: Developers
 order: 70
-revision: 4
+revision: 5
 ---
 
 # C++ architecture {#architecture-c}
@@ -68,7 +68,9 @@ The server may start/stop its preconfigured managed engine. Status omits its RES
 | `/api/projects/ID/git-integrations`, `git-integration-check`, `git-integration-acknowledge` | POST receipt history/check/review |
 | `/api/projects/ID/git-materialize`, `git-materializations`, `git-materialization-check`, `git-materialization-acknowledge`, `git-materialization-resume`, `git-materialization-export` | POST; [LFS working files](doc:git-materialization) |
 | `/api/network/status` | GET |
-| `/api/network/configure`, `publish`, `discover`, `trust`, `revoke`, `preview`, `write-config` | POST |
+| `/api/network/publish`, `discover`, `preview` | POST |
+| `/api/network/configure`, `trust`, `revoke`, `write-config` | POST in local Core only; HTTP refuses |
+| `/api/network/automatic`, `refresh`, `router`, `up`, `down` | POST in local Core only; router takes `action:enable\|renew\|disable`; see [router consent and leases](doc:network#router-mapping) |
 | `/api/network/chat`, `send-file`, `history` | POST; [direct channel](doc:network) |
 | `/api/cli` | POST `{"args":["project","list"]}` |
 | `/api/doctor` | GET inspection or POST explicit probes |

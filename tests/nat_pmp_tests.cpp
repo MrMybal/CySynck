@@ -243,9 +243,20 @@ int main() {
 #endif
     int result = 0;
     try {
+        {
+            Gateway gateway("pcp-normal");
+            refuses([&] { map_gateway("127.0.0.1", 51820, 0, 600, "pcp", new_gateway_nonce(),
+                                        "", gateway.port, "0.0.0.0"); },
+                    "A changed/wildcard source address transmitted a router mapping request");
+            check(gateway.packets().empty(), "A source-context failure sent a datagram before refusing");
+            auto bound = map_gateway("127.0.0.1", 51820, 0, 600, "pcp", new_gateway_nonce(),
+                                      "", gateway.port, "127.0.0.1");
+            check(bound.local_address == "127.0.0.1" && bound.external_port == 45001,
+                  "PCP could not bind the exact consented local address");
+        }
         for (const auto &mode : {"normal", "drop-first", "wrong-source", "wrong-opcode"}) {
             Gateway gateway(mode);
-            auto lease = nat_pmp_map("127.0.0.1", 51820, 40000, 600, gateway.port);
+            auto lease = nat_pmp_map("127.0.0.1", 51820, 40000, 600, gateway.port, "127.0.0.1");
             check(lease.external_address == "198.18.0.10" && lease.local_address == "127.0.0.1" &&
                       lease.internal_port == 51820 && lease.external_port == 45000 &&
                       lease.lifetime_seconds == 300 && lease.gateway_epoch == 100,

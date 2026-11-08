@@ -5,7 +5,7 @@ description: Understand the implemented scope and workflows requiring external t
 section: Start
 order: 6
 parent: overview
-revision: 6
+revision: 7
 ---
 
 # Availability and limits {#availability-and-limits}
@@ -24,7 +24,7 @@ remain managed by CyRevision; transport authorization does not grant group admis
 ## Network requirements {#network-requirements}
 
 WireGuard needs reachable UDP endpoints or a suitable network arrangement. No STUN/ICE, automatic NAT hole punching or WireGuard packet relay is implemented.
-Signed expiring endpoint discovery, private replay checkpoints, direct Syncthing LAN/IPv6 hints and opt-in background refresh are implemented. Live peer updates and project-scoped revocation pass isolated ownership/tool models. A real Linux kernel namespace test also passes handshake, chat, verified files, live revoke/restart and foreign-interface preservation, with exact AppArmor read rules restored afterward. Windows/macOS driver and actual NAT-router acceptance remain target checks. PCP/NAT-PMP UDP clients pass protocol fixtures but router lease integration is pending. See [network setup](doc:network#automatic-endpoints).
+Signed expiring endpoint discovery, private replay checkpoints, direct Syncthing LAN/IPv6 hints and opt-in background refresh are implemented. Live peer updates and project-scoped revocation pass isolated ownership/tool models. A real Linux kernel namespace test also passes handshake, chat, verified files, live revoke/restart and foreign-interface preservation, with exact AppArmor read rules restored afterward. Windows/macOS driver and actual NAT-router acceptance remain target checks. Explicit PCP/NAT-PMP router consent, private lease persistence, renewal/expiry, source-address binding, owned cleanup and signed mapped-endpoint publication pass protocol/controller/Core tests. See [network setup](doc:network#automatic-endpoints) and [router mapping](doc:network#router-mapping).
 Syncthing discovery and relays may use infrastructure. Direct chat/files use an authenticated HTTP channel inside the VPN and a shared group secret.
 There is no offline store-and-forward delivery or read receipt. Do not expose that unencrypted application channel outside the tunnel.
 

@@ -5,7 +5,7 @@ description: Usage, commands and limits for Integrate the C++ core or C ABI.
 section: Developers
 order: 71
 parent: architecture
-revision: 4
+revision: 5
 ---
 
 # Integrate the C++ core or C ABI {#integrate-the-c-core-or-c-abi}
@@ -30,7 +30,7 @@ The same method/path/body work through C ABI v1. Unknown pages/sections and inco
 
 ## Host maintenance {#host-maintenance}
 
-CLI servers and the desktop already maintain scheduled work. An embedded C++ host calls `Core::tick()` periodically from a worker. C ABI and Unreal hosts can use `POST /api/maintenance/tick` with an empty `{}` body through the existing request function or asynchronous Blueprint node. Schedule it about every 15 seconds when engine supervision, scheduled backups or opted-in VPN endpoint refresh are needed. It can perform disk/network work and must stay off the rendering thread. The Unreal bridge's ticker dispatches completion callbacks; the host schedules maintenance requests. Inspect events and network status for individual operation failures. No new C ABI symbol is required.
+CLI servers and the desktop already maintain scheduled work. An embedded C++ host calls `Core::tick()` periodically from a worker. C ABI and Unreal hosts can use `POST /api/maintenance/tick` with an empty `{}` body through the existing request function or asynchronous Blueprint node. Schedule it about every 15 seconds when engine supervision, scheduled backups, opted-in VPN endpoint refresh or router lease renewal are needed. It can perform disk/network work and must stay off the rendering thread. The Unreal bridge's ticker dispatches completion callbacks; the host schedules maintenance requests. Inspect events and network status for individual operation failures. No new C ABI symbol is required.
 
 ## C++20 {#c20}
 

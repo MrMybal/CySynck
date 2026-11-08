@@ -8,6 +8,7 @@
 #endif
 #include <GLFW/glfw3.h>
 #include <algorithm>
+#include <ctime>
 #include <fstream>
 #include <functional>
 #include <future>
@@ -74,6 +75,25 @@ static void localize() {
     c::registerTranslations(
         "fr",
         {{"CyRevision exchange", "Échange CyRevision"},
+         {"Router port mapping", "Redirection de port du routeur"},
+         {"Router IPv4 address", "Adresse IPv4 du routeur"},
+         {"Mapping protocol", "Protocole de redirection"},
+         {"Requested lease (seconds)", "Bail demandé (secondes)"},
+         {"Preferred external UDP port (0 = automatic)", "Port UDP externe préféré (0 = automatique)"},
+         {"I allow router port mapping", "J’autorise la redirection du routeur"},
+         {"Allow this app to open and renew its WireGuard UDP port on this router.",
+          "Autoriser cette application à ouvrir et renouveler son port UDP WireGuard sur ce routeur."},
+         {"Enable router mapping", "Activer la redirection du routeur"},
+         {"Renew router mapping", "Renouveler la redirection du routeur"},
+         {"Disable router mapping", "Désactiver la redirection du routeur"},
+         {"Mapped UDP endpoint", "Adresse UDP redirigée"},
+         {"Mapping is active", "La redirection est active"},
+         {"Mapping is inactive", "La redirection est inactive"},
+         {"A previous mapping may remain until its lease expires.", "Une ancienne redirection peut subsister jusqu’à expiration de son bail."},
+         {"Clear the manual endpoint and connect the VPN before enabling a compatible PCP/NAT-PMP router. Renewal needs the running desktop/server and tunnel permissions.",
+          "Effacez l’adresse manuelle et connectez le VPN avant d’activer un routeur PCP/NAT-PMP compatible. Le renouvellement nécessite le bureau/serveur actif et les droits du tunnel."},
+         {"Use reachable IPv6, manual forwarding or an explicitly enabled compatible router.",
+          "Utilisez une IPv6 joignable, une redirection manuelle ou un routeur compatible explicitement activé."},
          {"Endpoint signing fingerprint", "Empreinte de signature des adresses"},
          {"Verified VPN public key", "Clé publique VPN vérifiée"},
          {"Verified signing fingerprint", "Empreinte de signature vérifiée"},
@@ -1068,6 +1088,9 @@ class App {
     std::string vpn_name, vpn_address = "10.77.0.1", vpn_endpoint, chat_peer, chat_text, send_path;
     std::string vpn_device_id;
     int vpn_listen_port = 51820, vpn_mesh_port = 8485;
+    std::string router_gateway;
+    int router_protocol = 0, router_lifetime = 600, router_external_port = 0;
+    bool router_consent = false;
     bool vpn_show_config = false;
     std::unordered_map<std::string, std::string> vpn_verified_keys, vpn_verified_fingerprints;
     std::string engine_executable, engine_url = "http://127.0.0.1:8384", engine_key, device_id,
@@ -4766,6 +4789,15 @@ class App {
         network_requested = true;
         net("status", Json::object(), [this](const Json &r) {
             network_state = r;
+            auto mapping = r.value("router_mapping", Json::object());
+            if (mapping.contains("options")) {
+                auto options = mapping.at("options");
+                router_gateway = options.at("gateway");
+                auto protocol = options.at("protocol").get<std::string>();
+                router_protocol = protocol == "pcp" ? 1 : protocol == "nat-pmp" ? 2 : 0;
+                router_lifetime = options.at("lifetime_seconds");
+                router_external_port = options.at("external_port");
+            }
             if (!r["profile"].is_null()) {
                 vpn_name = r["profile"]["name"];
                 vpn_address = r["profile"]["address"];
@@ -4789,8 +4821,7 @@ class App {
         c::callout(c::Tone::info, c::tr("WireGuard requires its official tools and "
                                         "administrator/root rights.")
                                       .c_str());
-        c::callout(c::Tone::warning, c::tr("A reachable UDP endpoint or IPv6 is needed. Automatic "
-                                           "NAT traversal is pending.")
+        c::callout(c::Tone::warning, c::tr("Use reachable IPv6, manual forwarding or an explicitly enabled compatible router.")
                                          .c_str());
         c::beginCard("identity", c::tr("VPN identity").c_str());
         if (c::beginProperties("vpn-fields")) {
@@ -4868,6 +4899,51 @@ class App {
         ImGui::SameLine();
         if (button("Disconnect VPN"))
             net("down", Json::object(), [this](const Json &) { invalidate_network(); });
+        c::endCard();
+        c::space(8);
+        c::beginCard("router-mapping", c::tr("Router port mapping").c_str());
+        ImGui::TextWrapped("%s", c::tr("Clear the manual endpoint and connect the VPN before enabling a compatible PCP/NAT-PMP router. Renewal needs the running desktop/server and tunnel permissions.").c_str());
+        auto mapping = network_state.is_object() ? network_state.value("router_mapping", Json::object()) : Json::object();
+        bool mapping_enabled = mapping.value("enabled", false);
+        ImGui::BeginDisabled(mapping_enabled);
+        if (c::beginProperties("router-fields")) {
+            field("Router IPv4 address", router_gateway);
+            c::property(c::tr("Mapping protocol").c_str());
+            ImGui::Combo("##router-protocol", &router_protocol, "Auto (PCP / NAT-PMP)\0PCP\0NAT-PMP\0");
+            c::property(c::tr("Requested lease (seconds)").c_str());
+            ImGui::InputInt("##router-lifetime", &router_lifetime);
+            c::property(c::tr("Preferred external UDP port (0 = automatic)").c_str());
+            ImGui::InputInt("##router-port", &router_external_port);
+            c::endProperties();
+        }
+        ImGui::TextWrapped("%s", c::tr("Allow this app to open and renew its WireGuard UDP port on this router.").c_str());
+        ImGui::Checkbox(c::trLabel("I allow router port mapping").c_str(), &router_consent);
+        ImGui::BeginDisabled(!router_consent || router_gateway.empty() || router_lifetime < 60 ||
+                              router_lifetime > 3600 || router_external_port < 0 || router_external_port > 65535);
+        if (button("Enable router mapping", true)) {
+            static const char *protocols[] = {"auto", "pcp", "nat-pmp"};
+            net("router", {{"action", "enable"}, {"gateway", router_gateway},
+                            {"protocol", protocols[std::clamp(router_protocol, 0, 2)]},
+                            {"lifetime_seconds", router_lifetime}, {"external_port", router_external_port}},
+                [this](const Json &r) { error = r.value("error", ""); router_consent = false; invalidate_network(); });
+        }
+        ImGui::EndDisabled();
+        ImGui::EndDisabled();
+        if (mapping_enabled) {
+            if (button("Renew router mapping"))
+                net("router", {{"action", "renew"}}, [this](const Json &r) { error = r.value("error", ""); invalidate_network(); });
+            ImGui::SameLine();
+        }
+        if (mapping_enabled || mapping.contains("protocol"))
+            if (button("Disable router mapping"))
+                net("router", {{"action", "disable"}}, [this](const Json &r) { error = r.value("error", ""); invalidate_network(); });
+        text(c::tr(mapping.value("active", false) ? "Mapping is active" : "Mapping is inactive"));
+        if (mapping.value("active", false))
+            text(c::tr("Mapped UDP endpoint") + ": " + mapping.value("external_address", "") + ":" +
+                 std::to_string(mapping.value("external_port", 0)));
+        if (mapping.value("abandoned_until", int64_t(0)) > int64_t(std::time(nullptr)))
+            ImGui::TextWrapped("%s", c::tr("A previous mapping may remain until its lease expires.").c_str());
+        if (!mapping.value("error", "").empty()) text(mapping.at("error"));
         c::endCard();
         if (project().is_null()) {
             c::emptyState(c::tr("Select a project").c_str(),

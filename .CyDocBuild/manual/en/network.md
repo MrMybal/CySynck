@@ -4,7 +4,7 @@ title: WireGuard and direct communication
 description: Pair trusted peers, prepare the VPN and use chat or direct files.
 section: Network
 order: 50
-revision: 5
+revision: 6
 ---
 
 # WireGuard and direct communication {#reseau-wireguard-et-communications-directes}
@@ -99,7 +99,56 @@ cysynck vpn automatic false
 
 Automatic refresh is off by default and checks about every 45 seconds while the host runs. It never creates a tunnel; updating an active tunnel requires administrator/root permissions and passes ownership checks. An expired dynamic endpoint is removed from the generated configuration and cleared from the live peer before re-adding its host route. Errors are available under `endpoint_refresh` in `vpn status`. HTTP and remote CLI cannot configure identities, pair/revoke peers, write private tunnel configurations, activate tunnels or arm/perform automatic refresh; use the local desktop or CLI.
 
-New local identities keep their separate endpoint signing key in `vpn/endpoint-signing.pem`, never in the exchange. Publishing a manual endpoint also writes a signed publication valid for 15 minutes. Local PCP/NAT-PMP protocol clients are tested independently, but router mapping configuration, lease maintenance and mapped-endpoint publication are still being integrated. This version does not yet open router mappings automatically.
+New local identities keep their separate endpoint signing key in `vpn/endpoint-signing.pem`, never in the exchange. Publishing a manual endpoint also writes a signed publication valid for 15 minutes.
+
+## Opt-in router mapping {#router-mapping}
+
+A compatible local IPv4 router can open the **owned live WireGuard UDP listener** using
+PCP or NAT-PMP. This is off by default. Choose the router explicitly in the native
+Network view or local CLI, after starting the VPN. Keep the public profile's manual
+endpoint empty for this mode. A new identity can omit `--endpoint` when configuring;
+changing an already pinned profile requires revocation and pairing again on its peers.
+
+```sh
+cysynck vpn up
+cysynck vpn publish SHARED_PROJECT_ID
+cysynck vpn router enable 192.168.1.1 --protocol auto --lifetime 600 --external-port 0
+cysynck vpn status
+# Keep this profile's desktop or normal serve process running for renewal.
+cysynck vpn router renew
+cysynck vpn router disable
+```
+
+`auto` tries PCP and falls back to NAT-PMP only on an explicit Unsupported Version
+response. Forced `pcp` and `nat-pmp` modes are available. Requested lifetimes are
+60–3600 seconds; external port `0` lets the router choose. The actual grant supplies
+the published external address/port, deadline and renewal schedule. The live tunnel's
+public key and UDP port must match this profile; merely editing the desired port
+does not authorize mapping a different listener. No tunnel is created by mapping.
+
+The private registry saves the PCP nonce before sending a request and reuses it
+after restart. Renewal occurs around half the granted lifetime while `Core::tick()`
+runs. Each request binds to the consented gateway-facing local IPv4 address. A
+changed source address or listener stops renewal and requires a new local enable
+action. Gateway epoch changes are detected on a successful renewal; a newly assigned
+external port replaces the signed publication. Only projects already explicitly
+published locally receive these automatic records. They expire with the grant and
+in at most one hour. Peers must run `vpn refresh` or opt into automatic refresh.
+
+Disabling is saved before attempting deletion and withdraws this device's local
+endpoint sidecars. Copied signed records retain their original expiry. Cleanup
+uses only the recorded protocol, source address, owned listener and PCP nonce;
+it never sends a delete-all operation. Failed deletion remains pending for a
+bounded retry. An expired mapping, changed network/listener or uncertain legacy
+request is left to router expiry instead of risking deletion of another mapping.
+`vpn down` attempts cleanup before stopping its owned tunnel. `router_mapping` in
+`vpn status` shows grants, errors and pending expiry, without the private nonce.
+HTTP and remote CLI cannot enable, renew or disable mappings.
+
+The UDP protocol fixtures, persistent lease lifecycle and signed Core publication
+tests pass. A test with two real NAT routers is still required; the existing real
+Linux WireGuard test uses direct namespace peers. This feature does not provide
+STUN/ICE, arbitrary NAT hole punching, a packet relay or guaranteed CGNAT traversal.
 
 ## Chat and direct files {#tchat-et-fichiers-directs}
 

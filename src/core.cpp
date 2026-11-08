@@ -794,6 +794,8 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
         return registry_["settings"];
     }
     if (path.rfind("/api/network/", 0) == 0) {
+        if (path == "/api/network/router" && method != "POST")
+            throw std::runtime_error("Method not allowed");
         if (path == "/api/network/transfer-limits" || path == "/api/network/transfer-configure") {
             if (method != (path.ends_with("-limits") ? "GET" : "POST"))
                 throw std::runtime_error("Method not allowed");

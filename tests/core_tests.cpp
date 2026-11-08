@@ -470,7 +470,7 @@ int main(int argc, char **argv) {
                             "{\"args\":[\"desktop\",\"startup\",\"enable\"]}", "application/json");
             check(response && response->status == 400,
                   "Remote CLI cannot register programs at login");
-            for (const auto &action : {"up", "down", "configure", "automatic", "refresh", "trust", "revoke", "write-config"}) {
+            for (const auto &action : {"up", "down", "configure", "automatic", "refresh", "router", "trust", "revoke", "write-config"}) {
                 response = client.Post(std::string("/api/network/") + action,
                     {{"Authorization", "Bearer " + token}}, "{}", "application/json");
                 check(response && response->status == 403,

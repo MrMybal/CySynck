@@ -8,6 +8,9 @@ std::string vpn_mapped_interface(const std::string &logical, const fs::path &map
 Json vpn_tunnel_status(const std::string &tool, const std::string &logical,
                        const std::string &public_key, const fs::path &configuration,
                        const fs::path &mapping_directory = {});
+uint16_t vpn_owned_listen_port(const std::string &tool, const std::string &activation_tool,
+                               const std::string &logical, const std::string &public_key,
+                               const fs::path &configuration);
 Json vpn_tunnel_control(const std::string &action, const std::string &tool,
                         const std::string &activation_tool, const std::string &logical,
                         const std::string &public_key, const fs::path &configuration,

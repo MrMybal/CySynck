@@ -12,7 +12,8 @@ class GatewayUdp {
     std::unique_ptr<Impl> impl_;
 
   public:
-    GatewayUdp(const std::string &gateway_ipv4, uint16_t port);
+    GatewayUdp(const std::string &gateway_ipv4, uint16_t port,
+                const std::string &expected_local_address = "");
     ~GatewayUdp();
     GatewayUdp(const GatewayUdp &) = delete;
     GatewayUdp &operator=(const GatewayUdp &) = delete;

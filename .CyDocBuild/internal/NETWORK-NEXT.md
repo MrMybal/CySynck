@@ -19,8 +19,11 @@ the address query and clears the suggested external port, as required by RFC 688
 PCP keeps a private 96-bit nonce for ownership, renewal and deletion. Automatic mode
 falls back only on an explicit legacy Unsupported Version response. Loopback tests
 cover assigned ports, renew/delete, epochs, wrong sources/nonces/fields, protocol
-denials and malformed options. The client is not yet connected to application configuration, automatic publication
-or maintenance; the user manual correctly still labels NAT traversal as pending.
+denials and malformed options. The application now exposes explicit local router
+consent, owned live-listener inspection, durable PCP reservations, source-bound UDP,
+renewal/expiry and conservative cleanup. Successful grants publish signed endpoints
+only for projects explicitly published from this profile. UDP, controller lifecycle
+and Core publication tests pass; actual two-router NAT acceptance remains pending.
 
 ## Required implementation and evidence
 
@@ -54,22 +57,19 @@ Remaining work:
   Explicit CI `--prepare-apparmor` adds only the two known test configs through the
   distro-supported local include, reloads only wg-quick and restores the include
   afterward. Enforcement and DAC permissions stay enabled. This configuration
-  passed native CI at `e0a0933`: all five driver checks, CTest, SDK/package and real
-  Syncthing server tests pass in run 42467568236. `kernel-wireguard-linux.json` records
+  passed native CI at `ed1545d`: all six driver checks, CTest, SDK/package and real
+  Syncthing server tests pass in run 42471087011. `kernel-wireguard-linux.json` records
   the sanitized proof and its precise scope. The extra fixture-owner check added later
   checks that sudo updates preserve an existing user's private registry ownership;
-  its actual POSIX run remains to be verified at the next native CI revision.
+  its actual POSIX run passes in the same six-check native job.
   Reproduce on a disposable Linux machine with the required tools:
   `sudo python3 tests/wireguard_integration.py --prepare-apparmor --cli /absolute/build/cysynck --work /tmp/cysynck-wg-UNIQUE --report /absolute/reports/wireguard.json`.
 
-- Support explicit router-mapping consent and gateway selection, mapping renewal,
-  expiry, gateway reboot/network change and ownership-bound cleanup. Prefer modern
-  PCP for automatic negotiation; RFC 6886 recommends PCP first with NAT-PMP fallback
-  on Unsupported Version, not on arbitrary silence. A forced legacy mode can be explicit.
-- Publish mapped endpoints using the integrated signed-record/replay machinery. Reserve
-  monotonic counters before publication; keep private keys and mapping nonces local.
-- Keep mapping leases private and bind them to the local identity, gateway, local source
-  address and selected WG port. Never delete another application's mapping or all ports.
+- Exercise the integrated router controls against an independently implemented NAT
+  gateway. Current automated evidence separates actual UDP protocol fixtures, the
+  deterministic persisted controller and real Core publication/listener models;
+  none establishes actual NAT forwarding. PCP-first fallback, private nonces,
+  renewal/reboot/remapping, source change and deletion boundaries are implemented.
 - Extend the actual Linux WireGuard test from direct veth peers to two isolated
   router/NAT namespaces, coupled to real mapped endpoint publication/discovery. Test
   remapped ports, lease renewal, restart and forged/stale records in addition to the

@@ -244,7 +244,7 @@ struct HttpServer::Impl {
                     }
                     if (req.path == "/api/network/up" || req.path == "/api/network/down" ||
                         req.path == "/api/network/configure" || req.path == "/api/network/automatic" ||
-                        req.path == "/api/network/refresh" || req.path == "/api/network/trust" ||
+                        req.path == "/api/network/refresh" || req.path == "/api/network/router" || req.path == "/api/network/trust" ||
                         req.path == "/api/network/revoke" || req.path == "/api/network/write-config" ||
                         req.path == "/api/engine/configure" || req.path == "/api/engine/connect") {
                         res.status = 403;
@@ -270,7 +270,7 @@ struct HttpServer::Impl {
                         if (policy.size() > 1 && policy[0] == "vpn" &&
                             (policy[1] == "up" || policy[1] == "down" ||
                              policy[1] == "configure" || policy[1] == "automatic" ||
-                             policy[1] == "refresh" || policy[1] == "trust" ||
+                             policy[1] == "refresh" || policy[1] == "router" || policy[1] == "trust" ||
                              policy[1] == "revoke" || policy[1] == "write-config"))
                             throw std::runtime_error("Tunnel changes require the local CLI");
                         if (policy.size() > 1 && policy[0] == "engine" &&
