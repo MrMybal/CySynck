@@ -9,6 +9,9 @@
 #elif defined(__APPLE__)
 #include <mach-o/dyld.h>
 #endif
+#ifndef _WIN32
+#include <dlfcn.h>
+#endif
 
 namespace cysynck::help {
 namespace {
@@ -33,6 +36,32 @@ bool complete(const fs::path &path) {
            fs::is_regular_file(path / "DocData/data.js") &&
            fs::is_regular_file(path / "DocData/viewer.js") &&
            fs::is_regular_file(path / "DocData/viewer.css");
+}
+fs::path library_directory() {
+    // A host executable (Unreal, a C consumer, another application) may live
+    // elsewhere. Locate resources relative to this shared library without
+    // modifying the host process's global environment or working directory.
+    static const char module_anchor = 0;
+#ifdef _WIN32
+    HMODULE module = nullptr;
+    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           reinterpret_cast<LPCWSTR>(&module_anchor), &module))
+        return {};
+    std::wstring name(32768, 0);
+    auto size = GetModuleFileNameW(module, name.data(), static_cast<DWORD>(name.size()));
+    if (!size || size == name.size()) return {};
+    name.resize(size);
+    std::error_code error;
+    auto path = fs::canonical(fs::path(name), error);
+    return error ? fs::path{} : path.parent_path();
+#else
+    Dl_info info{};
+    if (!dladdr(&module_anchor, &info) || !info.dli_fname) return {};
+    std::error_code error;
+    auto path = fs::canonical(fs::u8path(info.dli_fname), error);
+    return error ? fs::path{} : path.parent_path();
+#endif
 }
 } // namespace
 fs::path executable() {
@@ -62,11 +91,12 @@ fs::path directory() {
             throw std::runtime_error("CYSYNCK_DOC_ROOT must contain a complete CyDoc export");
         return fs::canonical(path);
     }
-    auto bin = executable().parent_path();
-    for (const auto &path : {bin / "Documentation", bin / "../Resources/Documentation",
-                             bin / "../Documentation", bin / "../share/cysynck/Documentation"})
-        if (complete(path))
-            return fs::canonical(path);
+    for (const auto &bin : {library_directory(), executable().parent_path()}) {
+        if (bin.empty()) continue;
+        for (const auto &path : {bin / "Documentation", bin / "../Resources/Documentation",
+                                 bin / "../Documentation", bin / "../share/cysynck/Documentation"})
+            if (complete(path)) return fs::canonical(path);
+    }
     throw std::runtime_error(
         "Offline documentation missing; install the complete package or set CYSYNCK_DOC_ROOT");
 }

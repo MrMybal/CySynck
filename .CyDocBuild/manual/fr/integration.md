@@ -5,7 +5,7 @@ description: Lier le SDK, gérer les chaînes UTF-8 et préparer une intégratio
 section: Développement
 order: 71
 parent: architecture
-sourceRevision: 2
+sourceRevision: 3
 ---
 
 # Intégrer le cœur C++ ou l’ABI C {#integrate-the-c-core-or-c-abi}
@@ -15,6 +15,20 @@ Desktop et serveur exposent les mêmes API.
 Les exemples sont installés sous `share/cysynck/examples/consumer` et `share/cysynck/examples/c-consumer`.
 La [référence C++](doc:cpp-api), la [référence C](doc:c-api) et [l’ABI des extensions](doc:plugin-api) sont extraites d’annotations explicites des en-têtes publics distribués.
 L’index ne publie pas les corps d’implémentation et n’infère pas les surcharges ou macros avec un analyseur C++.
+
+## Aide hors ligne embarquée {#embedded-help}
+
+Le cœur cherche son manuel complet à partir de sa bibliothèque partagée, puis de l’exécutable hôte. Une extension Unreal ou un hôte C/C++ déplacé peut ainsi conserver le lecteur avec son SDK natif. Une variable `CYSYNCK_DOC_ROOT` explicite reste prioritaire ; aucun environnement ni dossier de travail de l’hôte n’est modifié automatiquement.
+
+Demander une URL locale validée sans ouvrir le navigateur :
+
+```cpp
+auto help = core.request("POST", "/api/help/location",
+    {{"page", "network"}, {"section", "automatic-endpoints"}, {"language", "fr"}});
+// help["url"] contient une URL file:// avec la route stable localisée.
+```
+
+La méthode, le chemin et le corps sont identiques via l’ABI C v1. Les pages/sections inconnues et exports incomplets sont refusés ; une langue non prise en charge revient à l’anglais. Distribuer le dossier `Documentation` complet et ses licences comme fichiers accessibles directement. L’hôte décide quand ouvrir l’URL retournée dans son interface.
 
 ## C++20 {#c20}
 

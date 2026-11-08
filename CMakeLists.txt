@@ -253,6 +253,15 @@ if(CYSYNCK_TESTS)
   target_link_libraries(cysynck-help-tests PRIVATE cysynck_core)
   add_dependencies(cysynck-help-tests cysynck-documentation)
   add_test(NAME cysynck-offline-help COMMAND cysynck-help-tests "${cysynck_documentation}")
+  add_executable(cysynck-help-host examples/c-consumer/main.c)
+  target_link_libraries(cysynck-help-host PRIVATE cysynck_core)
+  set_target_properties(cysynck-help-host PROPERTIES LINKER_LANGUAGE C)
+  add_dependencies(cysynck-help-host cysynck-help-assets)
+  add_test(NAME cysynck-embedded-help COMMAND "${CMAKE_COMMAND}"
+    "-DHOST_EXECUTABLE=$<TARGET_FILE:cysynck-help-host>"
+    "-DCORE_LIBRARY=$<TARGET_FILE:cysynck_core>"
+    "-DEXPECTED_DOCUMENTATION=$<TARGET_FILE_DIR:cysynck>/Documentation"
+    "-DWORK_PARENT=${CMAKE_BINARY_DIR}" -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/help_embed.cmake")
   add_executable(cysynck-help-http-tests tests/help_http_tests.cpp)
   target_include_directories(cysynck-help-http-tests PRIVATE src)
   target_link_libraries(cysynck-help-http-tests PRIVATE cysynck_core httplib::httplib)

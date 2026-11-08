@@ -5,7 +5,7 @@ description: Usage, commands and limits for Integrate the C++ core or C ABI.
 section: Developers
 order: 71
 parent: architecture
-revision: 2
+revision: 3
 ---
 
 # Integrate the C++ core or C ABI {#integrate-the-c-core-or-c-abi}
@@ -13,6 +13,20 @@ revision: 2
 The package contains a C++20 shared library, headers and a relocatable CMake package.
 Both desktop and headless builds provide the same APIs. See the [C++ request contract](doc:cpp-api), [C ABI reference](doc:c-api) and [native plugin contract](doc:plugin-api), extracted from the distributed public headers. The index contains include/symbol references rather than implementation listings or inferred C++ overloads. SDK examples are included in
 `share/cysynck/examples/consumer` and `share/cysynck/examples/c-consumer`.
+
+## Embedded offline help {#embedded-help}
+
+The core resolves its own complete manual relative to the shared library, then the host executable. This lets an Unreal plugin or relocated C/C++ host keep its reader with the native SDK. An explicit `CYSYNCK_DOC_ROOT` remains available and takes precedence; no host environment or working directory is changed automatically.
+
+Request a validated local URL without opening a browser:
+
+```cpp
+auto help = core.request("POST", "/api/help/location",
+    {{"page", "network"}, {"section", "automatic-endpoints"}, {"language", "fr"}});
+// help["url"] is a file:// URL with the localized stable route.
+```
+
+The same method/path/body work through C ABI v1. Unknown pages/sections and incomplete exports are refused; unsupported languages fall back to English. Distribute the full `Documentation` directory and its licenses as loose files. The host decides when to open the returned URL in its user interface.
 
 ## C++20 {#c20}
 

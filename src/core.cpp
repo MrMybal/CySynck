@@ -4,6 +4,7 @@
 #include <cysynck/core.hpp>
 #include <cysynck/plugin.h>
 #include "plugin_metadata.hpp"
+#include "help.hpp"
 #include <fstream>
 #include <iomanip>
 #include <picosha2.h>
@@ -705,6 +706,11 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
     load();
     if (!data.is_object())
         throw std::runtime_error("Expected a JSON object");
+    if (path == "/api/help/location") {
+        if (method != "POST") throw std::runtime_error("Method not allowed");
+        return help::location(data.value("page", "overview"), data.value("section", ""),
+                              data.value("language", "en"));
+    }
     if (path == "/api/cyrevision/identity") {
         if (method != "GET" && method != "POST") throw std::runtime_error("Method not allowed");
         return cyrevision_action(state_, nullptr, "identity", method == "GET" ? Json::object() : data);
