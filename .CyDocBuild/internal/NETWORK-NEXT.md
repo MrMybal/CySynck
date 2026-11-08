@@ -46,9 +46,17 @@ Remaining work:
   byte counters, live revoke, restart preservation and foreign-interface refusal.
   The harness copies only public profiles; it does not claim real Syncthing/NAT
   transport coverage. Only its sanitized report is uploaded; owned namespaces,
-  data and ephemeral private keys are removed. Execution is pending native CI.
+  data and ephemeral private keys are removed. Initial native runs fail when the
+  enforcing wg-quick AppArmor profile refuses configuration under the private test
+  state path: euid/uid/owner are root, mode is 0600 and the wrapper can read it before
+  exec. The installed-tool boundary is now reported without printing keys.
+  `vpn apparmor` exports exact read-only rules and refuses policy metacharacters.
+  Explicit CI `--prepare-apparmor` adds only the two known test configs through the
+  distro-supported local include, reloads only wg-quick and restores the include
+  afterward. Enforcement and DAC permissions stay enabled. This configuration must
+  pass native CI before recording real tunnel acceptance as successful.
   Reproduce on a disposable Linux machine with the required tools:
-  `sudo python3 tests/wireguard_integration.py --cli /absolute/build/cysynck --work /tmp/cysynck-wg-UNIQUE --report /absolute/reports/wireguard.json`.
+  `sudo python3 tests/wireguard_integration.py --prepare-apparmor --cli /absolute/build/cysynck --work /tmp/cysynck-wg-UNIQUE --report /absolute/reports/wireguard.json`.
 
 - Support explicit router-mapping consent and gateway selection, mapping renewal,
   expiry, gateway reboot/network change and ownership-bound cleanup. Prefer modern

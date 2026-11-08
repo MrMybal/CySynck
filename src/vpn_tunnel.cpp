@@ -13,6 +13,19 @@
 #endif
 
 namespace cysynck {
+std::string vpn_apparmor_rules(const std::string &path) {
+    // Quoting alone does not make AppArmor glob/variable syntax literal. Refuse
+    // metacharacters rather than generating an unexpectedly broad permission.
+    if (path.empty() || path.size() > 4096 || path.front() != '/' ||
+        path.find_first_of("*?[]{}^@\"\\,\n\r") != std::string::npos ||
+        path.find("//") != std::string::npos ||
+        std::any_of(path.begin(), path.end(), [](unsigned char byte) { return byte < 32 || byte == 127; }) ||
+        std::regex_search(path, std::regex("/\\.\\.?(/|$)")) ||
+        !std::regex_search(path, std::regex("/(cs-[0-9a-f]{12}|cysynck)\\.conf$")))
+        throw std::runtime_error("AppArmor export needs an absolute tunnel path without policy metacharacters");
+    auto slash = path.rfind('/');
+    return "\"" + path.substr(0, slash + 1) + "\" r,\n\"" + path + "\" r,\n";
+}
 namespace {
 std::string trim(std::string value) {
     while (!value.empty() && (value.back() == '\r' || value.back() == '\n' || value.back() == ' '))

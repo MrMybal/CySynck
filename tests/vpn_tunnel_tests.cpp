@@ -89,6 +89,13 @@ int main(int argc, char **argv) {
     }
     auto root = fs::current_path() / "vpn-model-tests" / random_id();
     try {
+        auto rules = vpn_apparmor_rules("/home/test/profil été/vpn/cs-0123456789ab.conf");
+        check(rules == "\"/home/test/profil été/vpn/\" r,\n\"/home/test/profil été/vpn/cs-0123456789ab.conf\" r,\n",
+              "AppArmor export did not restrict permissions to the exact private tunnel");
+        for (auto path : {"relative/cysynck.conf", "/tmp/*/cysynck.conf", "/tmp/@{HOME}/cysynck.conf",
+                          "/tmp/../cysynck.conf", "/tmp/[ab]/cysynck.conf", "/tmp/\"bad/cysynck.conf",
+                          "/tmp/line\nbreak/cysynck.conf", "/tmp/other.conf"})
+            refuses([&] { vpn_apparmor_rules(path); }, "AppArmor path could widen the generated policy");
         fs::create_directories(root / "mappings");
         auto tool = path_string(fs::absolute(fs::u8path(argv[0])));
         auto name = vpn_interface_name("first-isolated-profile");

@@ -4,7 +4,7 @@ title: Réseau WireGuard et communications directes
 description: Utilisation, commandes et limites : Réseau WireGuard et communications directes.
 section: Réseau
 order: 50
-sourceRevision: 3
+sourceRevision: 4
 ---
 
 # Réseau WireGuard et communications directes {#reseau-wireguard-et-communications-directes}
@@ -94,6 +94,8 @@ cysynck --state /absolute/path/to/state vpn down
 Windows utilise le service de tunnel officiel WireGuard ; Linux/macOS utilisent `wg-quick`.
 Utiliser le nom d’interface propre au profil affiché par `vpn status`.
 Le bureau tente les mêmes opérations avec ses droits actuels et signale les échecs de permissions.
+
+Certaines distributions Linux confinent `wg-quick` avec AppArmor et autorisent initialement les configurations uniquement sous `/etc/wireguard`. Les droits root seuls n’autorisent pas un autre dossier privé d’état. `cysynck vpn apparmor` exporte des règles de lecture limitées au fichier de configuration exact et à son dossier ; il ne modifie aucune politique. Un administrateur peut ajouter ces règles dans l’inclusion locale prévue par le profil `wg-quick` installé, en conservant les règles existantes, puis recharger ce profil avec `apparmor_parser -r /etc/apparmor.d/wg-quick` (adapter au nom du fichier réellement installé). L’export refuse les caractères de chemin qui deviendraient des jokers ou variables de politique. Conserver AppArmor en mode d’application et les permissions privées du fichier.
 
 ## Actualisation automatique des adresses {#automatic-endpoints}
 

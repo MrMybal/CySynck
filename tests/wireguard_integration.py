@@ -15,6 +15,7 @@ import re
 import secrets
 import selectors
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -26,11 +27,79 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
+class ScopedAppArmorReadAccess:
+    """Supported local include; exact test configurations only; retain confinement."""
+    def __init__(self, run, tag, rules):
+        self.run, self.path, self.profile = run, None, None
+        self.block = ("\n# BEGIN CySynck isolated CI " + tag + "\n" + rules +
+                      "# END CySynck isolated CI " + tag + "\n").encode()
+        self.original = None
+        self.applied = False
+
+    def replace_include(self, data):
+        require(not self.path.is_symlink(), "Preserve linked AppArmor overrides")
+        info = self.path.stat() if self.path.exists() else None
+        temporary = self.path.parent / (".cysynck-ci-" + uuid.uuid4().hex)
+        try:
+            with os.fdopen(os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600), "wb") as stream:
+                stream.write(data)
+                stream.flush()
+                os.fsync(stream.fileno())
+                if info:
+                    os.fchown(stream.fileno(), info.st_uid, info.st_gid)
+                    os.fchmod(stream.fileno(), stat.S_IMODE(info.st_mode))
+            require(not self.path.is_symlink(), "Preserve a changed AppArmor override")
+            os.replace(temporary, self.path)
+        finally:
+            if temporary.exists():
+                temporary.unlink()
+
+    def prepare(self):
+        inventory = Path("/sys/kernel/security/apparmor/profiles")
+        if not inventory.exists():
+            return {"prepared": False, "reason": "AppArmor profile inventory absent"}
+        active = inventory.read_text().splitlines()
+        if not any(line in ("wg-quick (enforce)", "/usr/bin/wg-quick (enforce)") for line in active):
+            return {"prepared": False, "reason": "wg-quick is not in enforcing mode"}
+        candidates = (Path("/etc/apparmor.d/wg-quick"), Path("/etc/apparmor.d/usr.bin.wg-quick"))
+        self.profile = next((p for p in candidates if p.is_file() and not p.is_symlink()), None)
+        require(self.profile is not None, "Cannot locate the installed enforcing wg-quick profile")
+        match = re.search(r"include(?:\s+if\s+exists)?\s+<local/(wg-quick|usr\.bin\.wg-quick)>", self.profile.read_text())
+        require(match is not None, "Installed wg-quick profile has no supported local include")
+        self.path = self.profile.parent / "local" / match[1]
+        require(self.path.parent.is_dir() and not self.path.parent.is_symlink(), "Preserve linked AppArmor include directories")
+        require(not self.path.is_symlink(), "Preserve linked AppArmor local overrides")
+        if self.path.exists():
+            require(self.path.is_file() and self.path.stat().st_size <= 1024 * 1024, "Preserve unrelated AppArmor content")
+            self.original = self.path.read_bytes()
+        self.replace_include((self.original or b"") + self.block)
+        self.applied = True
+        self.run(["apparmor_parser", "-r", self.profile])
+        return {"prepared": True, "profile": str(self.profile), "exact_configurations": 2,
+                "permissions": "read-only, no wildcard, no disable/complain mode"}
+
+    def close(self):
+        if not self.applied:
+            return
+        require(not self.path.is_symlink(), "Preserve a changed AppArmor include")
+        current = self.path.read_bytes()
+        require(current.count(self.block) == 1, "AppArmor CI block changed; preserve concurrent changes")
+        cleaned = current.replace(self.block, b"", 1)
+        if self.original is None and not cleaned:
+            self.path.unlink()
+        else:
+            self.replace_include(cleaned)
+        self.run(["apparmor_parser", "-r", self.profile])
+        self.applied = False
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cli", type=Path, required=True)
     parser.add_argument("--work", type=Path, required=True, help="New absolute cysynck-wg-* directory")
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--prepare-apparmor", action="store_true",
+                        help="Temporarily add exact read-only test configs via the installed profile's local include")
     args = parser.parse_args()
     require(sys.platform == "linux" and os.geteuid() == 0, "Use a disposable Linux runner as root")
     cli = args.cli.resolve(strict=True)
@@ -42,6 +111,7 @@ def main():
     work.mkdir(mode=0o700)
     report = {"kernel": os.uname().release, "checks": [], "success": False}
     namespaces, children = [], []
+    apparmor = None
     tag = "csci-" + uuid.uuid4().hex[:10]
     environment = {k: v for k, v in os.environ.items() if not k.startswith("CYSYNCK_")}
     environment.update(CYSYNCK_WG=shutil.which("wg") or "wg",
@@ -139,6 +209,19 @@ raise SystemExit(result.returncode)
             require(candidate["signing_fingerprint"] == fingerprint, "Independent signer fingerprint differs")
             app(side, "vpn", "trust", "wireguard-ci", profiles[other]["peer_id"],
                 "--key", profiles[other]["public_key"], "--fingerprint", fingerprint)
+        if args.prepare_apparmor:
+            rules = ""
+            for side in ("a", "b"):
+                plan = app(side, "vpn", "apparmor")
+                logical = "cs-" + hashlib.sha256(profiles[side]["peer_id"].encode()).hexdigest()[:12]
+                configuration = work / side / "state/vpn" / (logical + ".conf")
+                expected = f'"{configuration.parent}/" r,\n"{configuration}" r,\n'
+                require(plan["supported"] and Path(plan["configuration"]) == configuration and plan["rules"] == expected,
+                        "AppArmor export exceeds the two exact owned test configurations")
+                rules += plan["rules"]
+            apparmor = ScopedAppArmorReadAccess(run, tag, rules)
+            report["apparmor"] = apparmor.prepare()
+        for side in ("a", "b"):
             app(side, "vpn", "up")
         interfaces = {side: app(side, "vpn", "status")["interface"] for side in ("a", "b")}
         deadline = time.monotonic() + 20
@@ -235,6 +318,14 @@ raise SystemExit(result.returncode)
             if result.returncode:
                 report["success"] = False
                 report.setdefault("cleanup_errors", []).append(result.stderr[-1000:])
+        if apparmor:
+            try:
+                apparmor.close()
+                if report.get("apparmor", {}).get("prepared"):
+                    report["apparmor"]["restored"] = True
+            except Exception as error:
+                report["success"] = False
+                report.setdefault("cleanup_errors", []).append(str(error))
         require(work.parent == parent and work.name.startswith("cysynck-wg-") and not work.is_symlink(), "Refuse foreign work cleanup")
         shutil.rmtree(work)
         args.report.parent.mkdir(parents=True, exist_ok=True)

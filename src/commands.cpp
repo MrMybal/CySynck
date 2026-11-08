@@ -108,7 +108,7 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   Git review/history/commit commands also accept --local-ref refs/heads/BRANCH|detached.
   git storage ID [--exports ID1,ID2] [--apply true --plan PREVIEW_TOKEN]
   vpn configure NAME 10.77.X.Y [--endpoint HOST:UDP_PORT] [--listen-port 51820] [--mesh-port 8485] [--device-id ID]
-  vpn status|preview|write-config|up|down
+  vpn status|preview|write-config|up|down|apparmor
   vpn publish|discover ID
   vpn refresh [ID] | vpn automatic true|false
   vpn trust ID PEER_ID --key EXPECTED_PUBLIC_KEY [--fingerprint VERIFIED_SIGNER_SHA256]

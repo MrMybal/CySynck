@@ -193,6 +193,16 @@ Json Core::network_action(const std::string &action, const Json &data) {
     }
     if (!network.contains("profile"))
         throw std::runtime_error("Configure the local WireGuard identity first");
+    if (action == "apparmor") {
+#ifdef __linux__
+        return {{"supported", true}, {"configuration", path_string(configuration)},
+                {"rules", vpn_apparmor_rules(path_string(configuration))},
+                {"profile_candidates", {"/etc/apparmor.d/wg-quick", "/etc/apparmor.d/usr.bin.wg-quick"}},
+                {"note", "Add these exact read-only rules to the installed profile's local include and reload it as root; no policy is changed by this command"}};
+#else
+        return {{"supported", false}, {"note", "AppArmor policy export is available on Linux"}};
+#endif
+    }
     if (action == "automatic") {
         if (!data.at("enabled").is_boolean()) throw std::runtime_error("Choose automatic endpoint refresh true or false");
         network["endpoint_refresh_enabled"] = data.at("enabled");

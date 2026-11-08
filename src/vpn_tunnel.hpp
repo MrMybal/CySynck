@@ -3,6 +3,7 @@
 #include <functional>
 namespace cysynck {
 std::string vpn_interface_name(const std::string &peer_id);
+std::string vpn_apparmor_rules(const std::string &absolute_unix_configuration);
 std::string vpn_mapped_interface(const std::string &logical, const fs::path &mapping_directory);
 Json vpn_tunnel_status(const std::string &tool, const std::string &logical,
                        const std::string &public_key, const fs::path &configuration,
