@@ -51,7 +51,7 @@ private:
 };
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCySynckAbiTest, "CySynck.Native.AbiAndUnicode", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCySynckAbiTest, "CySynck.Native.AbiAndUnicode", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
 bool FCySynckAbiTest::RunTest(const FString&)
 {
     auto& Module = FModuleManager::LoadModuleChecked<FCySynckModule>(TEXT("CySynck"));
@@ -66,6 +66,12 @@ bool FCySynckAbiTest::RunTest(const FString&)
     }
     TestTrue(TEXT("Overview request succeeds"), Module.Request(TEXT("GET"), TEXT("/api/overview"), TEXT("{}"), Result));
     TestTrue(TEXT("Overview contains its version"), Result.Contains(TEXT("\"version\"")));
+    TestTrue(TEXT("Embedded local help resolves without changing the host environment"),
+             Module.Request(TEXT("POST"), TEXT("/api/help/location"),
+                 TEXT("{\"page\":\"network\",\"section\":\"automatic-endpoints\",\"language\":\"fr\"}"), Result));
+    TestTrue(TEXT("Help stays inside the staged plugin resources"), Result.Contains(TEXT("ThirdParty")));
+    TestTrue(TEXT("Help preserves the local URL, language and section"),
+             Result.Contains(TEXT("file:///")) && Result.Contains(TEXT("Documentation.html#/fr/network/automatic-endpoints")));
     TestFalse(TEXT("Unknown routes report failure"), Module.Request(TEXT("GET"), TEXT("/api/unknown"), TEXT("{}"), Result));
     TestTrue(TEXT("Error JSON is returned"), Result.Contains(TEXT("\"error\"")));
     Module.Close();
@@ -73,7 +79,7 @@ bool FCySynckAbiTest::RunTest(const FString&)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCySynckAsyncTest, "CySynck.Native.AsyncFifoAndLifetime", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCySynckAsyncTest, "CySynck.Native.AsyncFifoAndLifetime", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
 bool FCySynckAsyncTest::RunTest(const FString&)
 {
     auto& Module = FModuleManager::LoadModuleChecked<FCySynckModule>(TEXT("CySynck"));
@@ -102,7 +108,7 @@ bool FCySynckAsyncTest::RunTest(const FString&)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCySynckCloseTest, "CySynck.Native.CloseDrainsActiveAndCancelsQueued", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCySynckCloseTest, "CySynck.Native.CloseDrainsActiveAndCancelsQueued", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
 bool FCySynckCloseTest::RunTest(const FString&)
 {
     auto& Module = FModuleManager::LoadModuleChecked<FCySynckModule>(TEXT("CySynck"));
@@ -126,7 +132,7 @@ bool FCySynckCloseTest::RunTest(const FString&)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCySynckQueueTest, "CySynck.Native.QueueBackpressure", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCySynckQueueTest, "CySynck.Native.QueueBackpressure", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
 bool FCySynckQueueTest::RunTest(const FString&)
 {
     auto& Module = FModuleManager::LoadModuleChecked<FCySynckModule>(TEXT("CySynck"));
@@ -150,7 +156,7 @@ bool FCySynckQueueTest::RunTest(const FString&)
     TestEqual(TEXT("Only the already active request executes during Close"), Successes, 1);
     return true;
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCySynckShutdownTest, "CySynck.Native.ShutdownJoinsWorker", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCySynckShutdownTest, "CySynck.Native.ShutdownJoinsWorker", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
 bool FCySynckShutdownTest::RunTest(const FString&)
 {
     auto& Module = FModuleManager::LoadModuleChecked<FCySynckModule>(TEXT("CySynck"));

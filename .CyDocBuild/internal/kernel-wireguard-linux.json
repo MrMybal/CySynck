@@ -1,0 +1,25 @@
+{
+  "kernel": "7.0.0-1019-azure",
+  "checks": [
+    "real-kernel-handshake-and-ping",
+    "authenticated-chat-over-kernel-wireguard",
+    "verified-resumable-protocol-file-over-kernel-wireguard",
+    "live-revocation-and-service-restart-preservation",
+    "foreign-kernel-interface-preserved"
+  ],
+  "success": true,
+  "apparmor": {
+    "prepared": true,
+    "profile": "/etc/apparmor.d/wg-quick",
+    "exact_configurations": 2,
+    "permissions": "read-only, no wildcard, no disable/complain mode",
+    "restored": true
+  },
+  "payload_bytes": 16777216,
+  "payload_sha256": "fbc6902d90c21d903b46d2d126f82cc6484a0c108b1bc4bdf0b4425dc588ca99",
+  "wireguard_bytes_growth": 17972312,
+  "revision": "e0a093315ec8beb3ee2142a630068efe69aa1e01",
+  "ci_run": 42467568236,
+  "job_id": 128690526358,
+  "scope": "Linux kernel WireGuard over two isolated direct veth namespaces; manual endpoints. Public profiles copied by the harness. No NAT router or real Syncthing profile transport in this test."
+}

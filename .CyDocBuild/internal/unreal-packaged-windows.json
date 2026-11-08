@@ -1,0 +1,53 @@
+{
+  "success": true,
+  "engine": "5.8.3",
+  "platform": "Windows x64",
+  "configuration": "Development",
+  "renderer": "NullRHI",
+  "bridge_version": "0.2.0",
+  "native_abi": 1,
+  "native_version": "0.40.0",
+  "native_sha256": "4565ec082f4e3517bd361fb26623595ff6ec078dd62c4490eeee2203894ba2ab",
+  "verified_runtime_files": 34,
+  "editor": {
+    "succeeded": 5,
+    "failed": 0,
+    "not_run": 0
+  },
+  "packaged_game": {
+    "succeeded": 5,
+    "failed": 0,
+    "not_run": 0,
+    "tests": [
+      {
+        "name": "CySynck.Native.AbiAndUnicode",
+        "state": "Success"
+      },
+      {
+        "name": "CySynck.Native.AsyncFifoAndLifetime",
+        "state": "Success"
+      },
+      {
+        "name": "CySynck.Native.CloseDrainsActiveAndCancelsQueued",
+        "state": "Success"
+      },
+      {
+        "name": "CySynck.Native.QueueBackpressure",
+        "state": "Success"
+      },
+      {
+        "name": "CySynck.Native.ShutdownJoinsWorker",
+        "state": "Success"
+      }
+    ]
+  },
+  "source_sha256": {
+    "integrations/unreal/CySynck/Source/CySynck/CySynck.Build.cs": "02c85b1b514d4b893282c688ccd8efb94a5a5ebca094bc062f6c101229b52198",
+    "integrations/unreal/CySynck/Source/CySynck/Private/CySynckModule.cpp": "6114672d0ab35f8b10830df4d998772d0fa817d93aad651a54a3541700f6f0a2",
+    "integrations/unreal/CySynck/Source/CySynck/Private/CySynckAsyncRequest.cpp": "e511043fbcb69d6bc8f63bf5a8d27c5cebeb3a611c7042ec87cd76918fb91b3c",
+    "integrations/unreal/CySynck/Source/CySynck/Private/Tests/CySynckTests.cpp": "904aa01a3c7c1b535f81da8f881bcf65bf5c6c308442d63242d88bc168dbb656",
+    "scripts/test-unreal.ps1": "b043e7a6736bbe3d586b48a5a487f8ae1b75be3e97b1842f73a7c5ccfe89408d",
+    "scripts/test-unreal-packaged.ps1": "96fb6bdb883a806c337bf9eb956eca4b38f1e7c9bec9baac6966768e1e3a643b"
+  },
+  "scope": "Real editor, cook/stage/archive and packaged game; NoEngineChanges, isolated logs/DDC, no browser opened. Does not validate Shipping, GPU rendering or Linux/macOS Unreal."
+}

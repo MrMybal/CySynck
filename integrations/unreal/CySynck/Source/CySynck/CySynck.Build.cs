@@ -15,5 +15,20 @@ public class CySynck : ModuleRules
             : Path.Combine(NativeRoot, "lib", Target.Platform == UnrealTargetPlatform.Mac
                 ? "libcysynck_core.dylib" : "libcysynck_core.so");
         RuntimeDependencies.Add(Library);
+        // Loose resources are needed by the OS loader and the local file:// reader.
+        // Public headers/build intermediates are compile-time inputs only.
+        string LibraryDirectory = Path.GetDirectoryName(Library);
+        foreach (string File in Directory.GetFiles(LibraryDirectory))
+            if (File != Library && (File.EndsWith(".dll") || File.EndsWith(".dylib") || File.Contains(".so")))
+                RuntimeDependencies.Add(File, StagedFileType.NonUFS);
+        foreach (string Name in new[] { "LICENSE", "THIRD_PARTY.md", "version.json" })
+            RuntimeDependencies.Add(Path.Combine(NativeRoot, Name), StagedFileType.NonUFS);
+        foreach (string Name in new[] { "licenses", "Documentation" })
+        {
+            string ResourceDirectory = Path.Combine(NativeRoot, Name);
+            if (Directory.Exists(ResourceDirectory))
+                foreach (string File in Directory.GetFiles(ResourceDirectory, "*", SearchOption.AllDirectories))
+                    RuntimeDependencies.Add(File, StagedFileType.NonUFS);
+        }
     }
 }

@@ -28,6 +28,11 @@ dans `share/cysynck/integrations/unreal/` des paquets SDK.
 Activer l’extension **CySynck** et compiler le projet. Ouvrir le manuel copié dans
 `ThirdParty/CySynck/Documentation/Documentation.html#/fr/architecture/autres-applications-c-et-unreal`.
 Garder les ressources `DocData/` ensemble. La lecture utilise les fichiers locaux sans serveur Web.
+Les dépendances d’exécution préparent aussi les bibliothèques natives/CRT, notices,
+licences et le manuel complet comme fichiers `NonUFS` dans un jeu cuit. `POST
+/api/help/location` renvoie une URL de page/section validée à partir de la bibliothèque
+SDK, sans ouvrir le navigateur ni modifier l’environnement de l’hôte. Voir la page
+d’intégration du manuel SDK.
 
 ## Utilisation depuis Blueprint
 
@@ -37,7 +42,10 @@ Garder les ressources `DocData/` ensemble. La lecture utilise les fichiers locau
    avec le corps `{}`. L’événement **Completed** renvoie `Success` et `ResultJson` sur le thread de jeu.
 3. Examiner le JSON, dont les aperçus et jetons de plan. N’envoyer une écriture qu’après
    revue, avec les mêmes contrats API JSON que le CLI et l’application autonome.
-4. Appeler **Close** à la fin. La requête active se termine avant fermeture de son handle natif ;
+4. Pour les sauvegardes planifiées, la supervision du moteur ou l’entretien VPN activé,
+   soumettre `POST /api/maintenance/tick` avec `{}` via le nœud asynchrone environ toutes
+   les 15 secondes. Le ticker distribue les fins de requêtes ; l’hôte planifie l’entretien.
+5. Appeler **Close** à la fin. La requête active se termine avant fermeture de son handle natif ;
    les requêtes en attente reçoivent un échec explicite sans être exécutées.
 
 Les requêtes s’exécutent en série, dans l’ordre FIFO, sur un thread de travail. La file
@@ -68,6 +76,18 @@ profils Unicode, callbacks FIFO asynchrones, durée de vie du proxy, saturation 
 et fermeture avec des opérations actives/en attente.
 
 Compilation et cinq tests d’automatisation réussis avec **Unreal Engine 5.7.4 et 5.8.3, Windows x64, Development Editor**.
-Les hôtes Unreal Linux/macOS, autres versions du moteur, jeux empaquetés et distributions
+Le **jeu Win64 Development empaqueté sous 5.8.3** passe aussi cinq tests après cuisson,
+staging et archivage, avec 34 fichiers natifs/runtime/licences/manuel vérifiés par SHA-256.
+Reproduire le parcours complet éditeur/jeu depuis la racine du dépôt :
+
+```powershell
+./scripts/test-unreal-packaged.ps1 -EngineRoot 'C:/UnrealEngine/UE_5.8' `
+  -SdkPrefix 'D:/CySynck/dist' -WorkDirectory 'D:/CySynck/ue-packaged-smoke'
+```
+
+Le dossier de travail doit être nouveau. Journaux et DDC restent dans ce dossier ;
+le test utilise une cuisson sur fichiers sans stockage Zen et lance le jeu caché avec
+un délai maximal. NullRHI valide le pont natif et ses ressources, pas le rendu GPU.
+Les hôtes Unreal Linux/macOS, autres versions du moteur et configurations Shipping
 par plateforme nécessitent encore leurs propres compilations/exécutions. La CI native
 vérifie que les paquets SDK contiennent une extension installable ; elle ne compile pas Unreal.

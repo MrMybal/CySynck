@@ -46,7 +46,7 @@ try {
     [Environment]::SetEnvironmentVariable('UE-SharedDataCachePath','None','Process')
     & $dotnet $ubt UnrealEditor Win64 Development "-Project=$projectFile" -NoEngineChanges -NoHotReload -NoUBA -NoUBALocal -NoXGE -MaxParallelActions=2 "-Log=$(Join-Path $testDirectory 'ubt.log')" *> (Join-Path $testDirectory 'build.log')
     if ($LASTEXITCODE) { throw "Unreal build failed; inspect $testDirectory/build.log" }
-    & $editor $projectFile -unattended -NullRHI -nosound -NoSplash -NoLiveCoding -NoCrashDialog '-ExecCmds=Automation RunTests CySynck.Native' '-TestExit=Automation Test Queue Empty' "-ReportExportPath=$(Join-Path $testDirectory 'AutomationReport')" "-AbsLog=$(Join-Path $testDirectory 'runtime.log')" -stdout -FullStdOutLogOutput -UTF8Output *> (Join-Path $testDirectory 'automation.log')
+    & $editor $projectFile -unattended -NullRHI -ddc=InstalledNoZenLocalFallback -nosound -NoSplash -NoLiveCoding -NoCrashDialog '-ExecCmds=Automation RunTests CySynck.Native' '-TestExit=Automation Test Queue Empty' "-ReportExportPath=$(Join-Path $testDirectory 'AutomationReport')" "-AbsLog=$(Join-Path $testDirectory 'runtime.log')" -stdout -FullStdOutLogOutput -UTF8Output *> (Join-Path $testDirectory 'automation.log')
     if ($LASTEXITCODE) { throw "Unreal automation failed; inspect $testDirectory/automation.log" }
     $reportFile = Join-Path $testDirectory 'AutomationReport/index.json'
     if (-not (Test-Path -LiteralPath $reportFile)) { throw 'Unreal did not write an automation report.' }

@@ -8,7 +8,8 @@ class CYSYNCK_API UCySynckBlueprintLibrary : public UBlueprintFunctionLibrary
 {
     GENERATED_BODY()
 public:
-    // Call expensive operations from a task, not an Unreal tick. Returns UTF-8 JSON as FString.
+    // Open/Close run on the game thread. Use CySynckAsyncRequest for expensive work.
+    // Requests return UTF-8 JSON converted to FString.
     UFUNCTION(BlueprintCallable, Category="CySynck")
     static bool Open(const FString& StateDirectory, FString& Error);
 

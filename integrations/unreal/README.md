@@ -26,6 +26,10 @@ The script is also distributed at `share/cysynck/integrations/unreal/` in SDK pa
 Enable the **CySynck** plugin and compile the project. Open the copied manual at
 `ThirdParty/CySynck/Documentation/Documentation.html#/en/architecture/autres-applications-c-et-unreal`.
 Keep its `DocData/` resources together. Reading uses local files without a web server.
+Runtime dependencies also stage the native/CRT libraries, notices, licenses and complete
+manual as loose `NonUFS` files in a cooked game. `POST /api/help/location` returns a
+validated page/section URL relative to the SDK library without opening a browser or
+changing the host's environment. See the SDK manual's integration page.
 
 ## Blueprint workflow
 
@@ -35,7 +39,10 @@ Keep its `DocData/` resources together. Reading uses local files without a web s
    Its **Completed** event returns `Success` and `ResultJson` on the game thread.
 3. Inspect returned JSON, including preview/plan tokens. Submit writes only after reviewing
    the result, using the same JSON API contracts as the CLI and standalone application.
-4. Call **Close** when finished. An active request completes before its native handle closes;
+4. If the host needs scheduled backups, engine supervision or opted-in VPN maintenance,
+   submit `POST /api/maintenance/tick` with `{}` through the async node about every 15 seconds.
+   The bridge's ticker dispatches completions; the host schedules maintenance work.
+5. Call **Close** when finished. An active request completes before its native handle closes;
    queued requests that have not started receive an explicit failure without executing.
 
 Requests run serially, in FIFO order, on a worker thread. The queue accepts at most 64
@@ -65,6 +72,18 @@ report. Tests cover the real C ABI, Unicode profiles, asynchronous FIFO callback
 lifetime, queue backpressure and closing with queued/active work.
 
 Builds and five automation tests pass with **Unreal Engine 5.7.4 and 5.8.3, Windows x64, Development Editor**.
-Linux/macOS Unreal hosts, other engine versions, packaged games and platform staging
+The full **5.8.3 Win64 Development packaged game** also passes five tests after cook,
+staging and archive, with 34 native/runtime/license/manual files checked by SHA-256.
+Reproduce the complete Editor/game run from the repository root:
+
+```powershell
+./scripts/test-unreal-packaged.ps1 -EngineRoot 'C:/UnrealEngine/UE_5.8' `
+  -SdkPrefix 'D:/CySynck/dist' -WorkDirectory 'D:/CySynck/ue-packaged-smoke'
+```
+
+The work directory must be new. Logs and DDC stay under the test directory; the test
+uses a filesystem cook without Zen storage and runs the game hidden with a deadline.
+NullRHI validates the native bridge and resource staging; it does not validate GPU rendering.
+Linux/macOS Unreal hosts, other engine versions and Shipping builds
 still require their own engine builds/runtime checks. The standalone native CI checks
 that SDK packages contain a stageable plugin; it does not compile Unreal itself.

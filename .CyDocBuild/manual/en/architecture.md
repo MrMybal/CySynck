@@ -4,7 +4,7 @@ title: C++ architecture and local API
 description: Understand the shared core, private state and routes used by application integrations.
 section: Developers
 order: 70
-revision: 3
+revision: 4
 ---
 
 # C++ architecture {#architecture-c}
@@ -140,5 +140,11 @@ There is no CyUI dependency or second ImGui instance inside Unreal.
 
 The repository's `scripts/test-unreal.ps1` stages a new isolated test project, builds
 with an installed Windows engine without changing engine sources, and runs NullRHI
-automation. Windows Development Editor builds/automation pass with Unreal 5.7.4 and 5.8.3; other
-engine versions, Linux/macOS Unreal hosts and packaged games need their own checks.
+automation. Windows Development Editor builds/automation pass with Unreal 5.7.4 and 5.8.3.
+`scripts/test-unreal-packaged.ps1` also verifies cook/stage/archive and five real automation
+tests in a 5.8.3 Win64 Development game, with 34 runtime/resource file hashes checked.
+Native/CRT libraries, licenses and the full local reader remain loose NonUFS files.
+`POST /api/help/location` resolves the SDK's local reader; the host can schedule
+`POST /api/maintenance/tick` through the async node for periodic maintenance.
+NullRHI does not validate graphics. Other engine versions, Linux/macOS Unreal hosts
+and Shipping builds need their own checks.

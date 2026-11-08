@@ -53,8 +53,12 @@ Remaining work:
   `vpn apparmor` exports exact read-only rules and refuses policy metacharacters.
   Explicit CI `--prepare-apparmor` adds only the two known test configs through the
   distro-supported local include, reloads only wg-quick and restores the include
-  afterward. Enforcement and DAC permissions stay enabled. This configuration must
-  pass native CI before recording real tunnel acceptance as successful.
+  afterward. Enforcement and DAC permissions stay enabled. This configuration
+  passed native CI at `e0a0933`: all five driver checks, CTest, SDK/package and real
+  Syncthing server tests pass in run 42467568236. `kernel-wireguard-linux.json` records
+  the sanitized proof and its precise scope. The extra fixture-owner check added later
+  checks that sudo updates preserve an existing user's private registry ownership;
+  its actual POSIX run remains to be verified at the next native CI revision.
   Reproduce on a disposable Linux machine with the required tools:
   `sudo python3 tests/wireguard_integration.py --prepare-apparmor --cli /absolute/build/cysynck --work /tmp/cysynck-wg-UNIQUE --report /absolute/reports/wireguard.json`.
 
@@ -66,9 +70,10 @@ Remaining work:
   monotonic counters before publication; keep private keys and mapping nonces local.
 - Keep mapping leases private and bind them to the local identity, gateway, local source
   address and selected WG port. Never delete another application's mapping or all ports.
-- Run actual Linux WireGuard handshakes/data through two isolated router/NAT namespaces
-  in CI, coupled to the mapping fixture and real endpoint publication/discovery. Test
-  remapped ports, lease renewal, restart, forged/stale records, chat and direct files.
+- Extend the actual Linux WireGuard test from direct veth peers to two isolated
+  router/NAT namespaces, coupled to real mapped endpoint publication/discovery. Test
+  remapped ports, lease renewal, restart and forged/stale records in addition to the
+  existing real handshake/chat/file/revoke/restart/foreign-interface checks.
   Workstation WSL is unavailable; do not install/enable it or activate live user tunnels.
 - Review outbound direct HTTP route binding and live peer revocation while implementing
   the real driver tests; do not rely solely on the chosen private IP range as evidence

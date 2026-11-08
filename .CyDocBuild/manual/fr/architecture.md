@@ -4,7 +4,7 @@ title: Architecture C++
 description: Utilisation, commandes et limites : Architecture C++.
 section: Développement
 order: 70
-sourceRevision: 3
+sourceRevision: 4
 ---
 
 # Architecture C++ {#architecture-c}
@@ -193,8 +193,14 @@ Il ne dépend pas de CyUI et n’embarque pas de seconde instance ImGui dans Unr
 
 Le script `scripts/test-unreal.ps1` du dépôt prépare un projet de test isolé, compile
 avec un moteur Windows installé sans changer ses sources et lance les tests en NullRHI.
-Compilation/tests Windows Development Editor réussis avec Unreal 5.7.4 et 5.8.3 ; les autres
-versions, hôtes Unreal Linux/macOS et jeux empaquetés nécessitent leurs propres contrôles.
+Compilation/tests Windows Development Editor réussis avec Unreal 5.7.4 et 5.8.3.
+`scripts/test-unreal-packaged.ps1` vérifie aussi la cuisson, le staging, l’archivage et
+cinq vrais tests dans un jeu 5.8.3 Win64 Development, avec 34 empreintes de fichiers
+d’exécution/ressources contrôlées. Bibliothèques natives/CRT, licences et lecteur local
+complet restent accessibles comme fichiers NonUFS. `POST /api/help/location` trouve
+le lecteur du SDK ; l’hôte peut planifier `POST /api/maintenance/tick` via le nœud
+asynchrone pour l’entretien périodique. NullRHI ne valide pas le rendu. Les autres versions,
+hôtes Unreal Linux/macOS et configurations Shipping nécessitent leurs propres contrôles.
 
 Le périmètre des sauvegardes utilise POST `/api/projects/ID/backup-preview` et PUT
 `/api/projects/ID/backup-excludes`. POST `backup` accepte le plan de l'aperçu des règles
