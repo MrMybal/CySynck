@@ -74,6 +74,21 @@ static void localize() {
     c::registerTranslations(
         "fr",
         {{"CyRevision exchange", "Échange CyRevision"},
+         {"Endpoint signing fingerprint", "Empreinte de signature des adresses"},
+         {"Verified VPN public key", "Clé publique VPN vérifiée"},
+         {"Verified signing fingerprint", "Empreinte de signature vérifiée"},
+         {"Refresh VPN endpoints", "Actualiser les adresses VPN"},
+         {"Enable automatic endpoint refresh", "Activer l’actualisation automatique des adresses"},
+         {"Disable automatic endpoint refresh", "Désactiver l’actualisation automatique des adresses"},
+         {"Endpoint refresh requires the running desktop or server and administrator/root permissions.",
+          "L’actualisation nécessite le bureau ou serveur en cours d’exécution et les droits administrateur/root."},
+         {"Compare the VPN key and signing fingerprint with the owner using a separate trusted channel.",
+          "Comparez la clé VPN et l’empreinte de signature avec le propriétaire via un canal de confiance séparé."},
+         {"WireGuard listen port", "Port d’écoute WireGuard"},
+         {"Direct receiver port", "Port de réception directe"},
+         {"Syncthing device ID", "Identifiant d’appareil Syncthing"},
+         {"Revoke for this project", "Révoquer pour ce projet"},
+         {"VPN changes require attention", "Des modifications VPN nécessitent une intervention"},
          {"Tunnel interface", "Interface du tunnel"},
          {"Recent handshake", "Échange de clés récent"},
          {"No recent handshake", "Aucun échange de clés récent"},
@@ -1051,6 +1066,10 @@ class App {
     int mode = 0, interval = 60, keep = 30;
     std::string name, root, exchange, shared_id;
     std::string vpn_name, vpn_address = "10.77.0.1", vpn_endpoint, chat_peer, chat_text, send_path;
+    std::string vpn_device_id;
+    int vpn_listen_port = 51820, vpn_mesh_port = 8485;
+    bool vpn_show_config = false;
+    std::unordered_map<std::string, std::string> vpn_verified_keys, vpn_verified_fingerprints;
     std::string engine_executable, engine_url = "http://127.0.0.1:8384", engine_key, device_id,
                                    device_name, device_address = "dynamic";
     int engine_mode = 0, engine_port = 8385, sync_port = 22001;
@@ -4751,6 +4770,9 @@ class App {
                 vpn_name = r["profile"]["name"];
                 vpn_address = r["profile"]["address"];
                 vpn_endpoint = r["profile"]["endpoint"];
+                vpn_device_id = r["profile"].value("device_id", "");
+                vpn_listen_port = r["profile"].at("listen_port");
+                vpn_mesh_port = r["profile"].at("mesh_port");
             }
         });
     }
@@ -4775,21 +4797,52 @@ class App {
             field("Name", vpn_name);
             field("VPN address", vpn_address);
             field("UDP endpoint", vpn_endpoint);
+            field("Syncthing device ID", vpn_device_id);
+            c::property(c::tr("WireGuard listen port").c_str());
+            ImGui::InputInt("##wg-listen", &vpn_listen_port);
+            c::property(c::tr("Direct receiver port").c_str());
+            ImGui::InputInt("##mesh-listen", &vpn_mesh_port);
             c::endProperties();
         }
         if (button("Configure identity", true))
             net("configure",
-                {{"name", vpn_name}, {"address", vpn_address}, {"endpoint", vpn_endpoint}},
+                {{"name", vpn_name}, {"address", vpn_address}, {"endpoint", vpn_endpoint},
+                 {"listen_port", vpn_listen_port}, {"mesh_port", vpn_mesh_port}, {"device_id", vpn_device_id}},
                 [this](const Json &) { invalidate_network(); });
         ImGui::SameLine();
-        if (button("Preview VPN config"))
-            refresh_network();
+        if (button("Preview VPN config")) {
+            vpn_show_config = !vpn_show_config;
+            if (vpn_show_config) refresh_network();
+        }
         if (!network_state.is_null()) {
             text(c::tr("Tunnel interface") + ": " + network_state.value("interface", ""));
             if (!network_state["profile"].is_null())
                 c::textMono("%s",
                             network_state["profile"]["public_key"].get<std::string>().c_str());
-            text(network_state["config_preview"]);
+            if (vpn_show_config) {
+                ImGui::BeginChild("vpn-config-preview", c::dp(-1, 160), ImGuiChildFlags_Borders,
+                                  ImGuiWindowFlags_HorizontalScrollbar);
+                text(network_state["config_preview"]);
+                ImGui::EndChild();
+            }
+            if (!network_state.value("signing_fingerprint", "").empty()) {
+                text(c::tr("Endpoint signing fingerprint"));
+                c::textMono("%s", network_state.at("signing_fingerprint").get_ref<const std::string &>().c_str());
+            }
+            auto automatic = network_state.value("endpoint_refresh_enabled", false);
+            if (button(automatic ? "Disable automatic endpoint refresh" : "Enable automatic endpoint refresh"))
+                net("automatic", {{"enabled", !automatic}}, [this](const Json &) { invalidate_network(); });
+            ImGui::TextWrapped("%s", c::tr("Endpoint refresh requires the running desktop or server and administrator/root permissions.").c_str());
+            const auto refreshed = network_state.value("endpoint_refresh", Json());
+            if (network_state.value("requires_restart", false))
+                c::callout(c::Tone::warning, c::tr("VPN changes require attention").c_str());
+            if (refreshed.is_object() && refreshed.contains("errors"))
+                for (const auto &issue : refreshed.at("errors")) text(issue.value("error", ""));
+            if (button("Refresh VPN endpoints"))
+                net("refresh", Json::object(), [this](const Json &r) {
+                    if (!r.at("errors").empty()) error = r.at("errors").dump(2);
+                    invalidate_network();
+                });
             c::textDim("%s", c::tr(network_state["status_error"].get<std::string>().c_str()).c_str());
             for (const auto &peer : network_state.at("peers")) {
                 const auto &profile = peer.at("profile");
@@ -4798,6 +4851,16 @@ class App {
                     recent |= handshake.at("public_key") == profile.at("public_key") && handshake.at("recent").get<bool>();
                 text(profile.at("name").get<std::string>() + " / " + profile.at("address").get<std::string>());
                 c::textDim("%s", c::tr(recent ? "Recent handshake" : "No recent handshake").c_str());
+                if (!selected.empty() && std::find(peer.at("projects").begin(), peer.at("projects").end(), Json(selected)) != peer.at("projects").end()) {
+                    ImGui::PushID(profile.at("peer_id").get_ref<const std::string &>().c_str());
+                    if (button("Revoke for this project"))
+                        net("revoke", {{"project", selected}, {"peer", profile.at("peer_id")}},
+                            [this](const Json &r) {
+                                if (r.at("requires_restart") == true) error = r.value("error", "");
+                                invalidate_network();
+                            });
+                    ImGui::PopID();
+                }
             }
         }
         if (button("Connect VPN"))
@@ -4817,9 +4880,12 @@ class App {
             net("publish", {{"project", selected}});
         ImGui::SameLine();
         if (button("Discover peers"))
-            net("discover", {{"project", selected}}, [this](const Json &r) {
-                incoming = r["peers"];
-                error = r["discovery_error"];
+            net("discover", {{"project", selected}}, [this, project_id = selected](const Json &r) {
+                if (selected == project_id) {
+                    incoming = r["peers"];
+                    error = r["discovery_error"];
+                    verified.clear(); vpn_verified_keys.clear(); vpn_verified_fingerprints.clear();
+                }
             });
         for (auto &candidate : incoming)
             if (candidate.contains("profile")) {
@@ -4830,14 +4896,30 @@ class App {
                                .c_str(),
                            3);
                 c::textMono("%s", p["public_key"].get<std::string>().c_str());
+                auto fingerprint = candidate.value("signing_fingerprint", std::string{});
+                if (!fingerprint.empty()) {
+                    text(c::tr("Endpoint signing fingerprint"));
+                    c::textMono("%s", fingerprint.c_str());
+                }
                 c::textDim("%s / %s", p["endpoint"].get<std::string>().c_str(),
                            candidate["syncthing_transport"].get<std::string>().c_str());
                 ImGui::Checkbox(c::trLabel("I verified this key").c_str(), &verified[id]);
-                if (verified[id] && button("Trust public key")) {
+                ImGui::TextWrapped("%s", c::tr("Compare the VPN key and signing fingerprint with the owner using a separate trusted channel.").c_str());
+                if (c::beginProperties("verify-pairing")) {
+                    field("Verified VPN public key", vpn_verified_keys[id]);
+                    if (!fingerprint.empty()) field("Verified signing fingerprint", vpn_verified_fingerprints[id]);
+                    c::endProperties();
+                }
+                ImGui::BeginDisabled(!verified[id] || vpn_verified_keys[id] != p.at("public_key").get<std::string>() ||
+                                     (!fingerprint.empty() && vpn_verified_fingerprints[id] != fingerprint));
+                if (button("Trust public key")) {
                     net("trust",
-                        {{"project", selected}, {"profile", p}, {"expected_key", p["public_key"]}});
+                        {{"project", selected}, {"profile", p}, {"expected_key", vpn_verified_keys[id]},
+                         {"expected_fingerprint", vpn_verified_fingerprints[id]}},
+                        [this](const Json &) { invalidate_network(); });
                     chat_peer = id;
                 }
+                ImGui::EndDisabled();
                 ImGui::PopID();
             }
         c::endCard();

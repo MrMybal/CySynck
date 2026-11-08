@@ -5,7 +5,7 @@ description: Install, update or remove the Windows package; run portable Linux a
 section: Start
 order: 2
 parent: overview
-revision: 1
+revision: 2
 ---
 
 # Windows installation {#installation-windows}
@@ -13,7 +13,7 @@ revision: 1
 The package includes the CLI, desktop, SDK, offline manual and `Install-CySynck.ps1`.
 The application/core use C++20; PowerShell only handles deployment. There is no signed EXE/MSI installer or automatic update download.
 Windows Installed Apps registration is not provided; the Start menu includes an uninstall shortcut.
-Install Syncthing, Git and WireGuard separately as needed. Linux/macOS packages can be extracted and run directly:
+Install Syncthing, Git, WireGuard and OpenSSL separately as needed. OpenSSL supplies P-256 signatures for CyRevision and VPN endpoints; `CYSYNCK_OPENSSL` can select its executable. Linux/macOS packages can be extracted and run directly:
 the CLI is in `bin/`; macOS also includes `CySynck.app`. Keep the entire package together, including libraries and `Documentation/`.
 On Linux servers use a headless build and [service export](doc:services). Building from source is covered in the repository's contributor instructions.
 

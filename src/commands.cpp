@@ -110,7 +110,8 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   vpn configure NAME 10.77.X.Y [--endpoint HOST:UDP_PORT] [--listen-port 51820] [--mesh-port 8485] [--device-id ID]
   vpn status|preview|write-config|up|down
   vpn publish|discover ID
-  vpn trust ID PEER_ID --key EXPECTED_PUBLIC_KEY
+  vpn refresh [ID] | vpn automatic true|false
+  vpn trust ID PEER_ID --key EXPECTED_PUBLIC_KEY [--fingerprint VERIFIED_SIGNER_SHA256]
   vpn revoke ID PEER_ID
   chat send ID PEER_ID TEXT | chat history ID | chat serve
   send-file ID PEER_ID RELATIVE_PATH [--legacy true]
@@ -332,6 +333,13 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
                      {"--listen-port", "listen_port"}, {"--mesh-port", "mesh_port"}})
                 if (flags.contains(flag))
                     data[key] = std::stoi(flags[flag]);
+        } else if (command == "automatic") {
+            require(3);
+            if (args[2] != "true" && args[2] != "false") throw std::runtime_error("Choose automatic true|false");
+            data["enabled"] = args[2] == "true";
+        } else if (command == "refresh") {
+            if (args.size() != 2 && args.size() != 3) throw std::runtime_error("Use vpn refresh [PROJECT]");
+            if (args.size() == 3) data["project"] = args[2];
         } else if (command == "publish" || command == "discover") {
             require(3);
             data["project"] = args[2];
@@ -346,6 +354,7 @@ VPN up/down requires administrator/root. No automatic NAT traversal.)"}};
                     data = {{"project", args[2]},
                             {"profile", peer["profile"]},
                             {"expected_key", flags["--key"]}};
+                    if (flags.contains("--fingerprint")) data["expected_fingerprint"] = flags["--fingerprint"];
                     found = true;
                 }
             if (!found)

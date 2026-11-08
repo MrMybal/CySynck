@@ -2,6 +2,9 @@
 #include "inbox.hpp"
 #include "transfers.hpp"
 #include "vpn_tunnel.hpp"
+#include "network_discovery.hpp"
+#include "cyrevision_codec.hpp"
+#include <ctime>
 #include <fstream>
 #include <httplib.h>
 #include <regex>
@@ -20,6 +23,13 @@ static std::string trim(std::string s) {
     return s;
 }
 static std::string wg_tool() { return env("CYSYNCK_WG", "wg"); }
+static std::string activation_tool() {
+#ifdef _WIN32
+    return env("CYSYNCK_WIREGUARD", "C:/Program Files/WireGuard/wireguard.exe");
+#else
+    return env("CYSYNCK_WG_QUICK", "wg-quick");
+#endif
+}
 static void key(const std::string &value) {
     if (!std::regex_match(value, std::regex("[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=")))
         throw std::runtime_error("Invalid WireGuard public key");
@@ -56,7 +66,7 @@ static Json profile(const Json &data) {
     auto device = data.value("device_id", std::string{});
     if (!device.empty() && !std::regex_match(device, std::regex("[A-Z2-7-]{56,80}")))
         throw std::runtime_error("Invalid Syncthing device ID");
-    return {{"version", 1},
+    Json normalized = {{"version", 1},
             {"peer_id", valid_id(data.at("peer_id"))},
             {"name", name},
             {"address", address},
@@ -65,6 +75,12 @@ static Json profile(const Json &data) {
             {"listen_port", data.at("listen_port")},
             {"mesh_port", data.at("mesh_port")},
             {"device_id", device}};
+    if (data.contains("signing_key")) {
+        auto signer = data.at("signing_key").get<std::string>();
+        (void)cyrevision::fingerprint(signer);
+        normalized["signing_key"] = signer;
+    }
+    return normalized;
 }
 static fs::path exchange_dir(const Json &p) {
     return project_child(
@@ -101,6 +117,9 @@ Json Core::network_action(const std::string &action, const Json &data) {
                           {"mesh_port", data.value("mesh_port", 8485)},
                           {"public_key", trim(result.out)},
                           {"device_id", data.value("device_id", std::string{})}});
+        auto signing_file = project_child(directory, "endpoint-signing.pem");
+        if (!fs::exists(signing_file)) cyrevision::generate_key(signing_file);
+        p["signing_key"] = cyrevision::public_key(signing_file);
         for (auto &peer : network["peers"])
             if (peer["profile"]["address"] == p["address"])
                 throw std::runtime_error("VPN address already assigned to a peer");
@@ -127,11 +146,19 @@ Json Core::network_action(const std::string &action, const Json &data) {
             auto p = profile(peer.at("profile"));
             out += "\n[Peer]\nPublicKey = " + p["public_key"].get<std::string>() +
                    "\nAllowedIPs = " + p["address"].get<std::string>() + "/32\n";
-            if (!p["endpoint"].get<std::string>().empty())
-                out += "Endpoint = " + p["endpoint"].get<std::string>() +
+            auto endpoint = effective_network_endpoint(peer, std::time(nullptr));
+            if (!endpoint.empty())
+                out += "Endpoint = " + endpoint +
                        "\nPersistentKeepalive = 25\n";
         }
         return out;
+    };
+    auto safe_update = [&]() {
+        if (!fs::exists(configuration)) return std::string{};
+        auto derived = process({wg_tool(), "pubkey"}, {}, read_file(project_child(directory, "private.key"), 128));
+        if (derived.code || trim(derived.out) != profile(network.at("profile")).at("public_key").get<std::string>())
+            throw std::runtime_error("Local WireGuard public identity differs from its private key");
+        return render(true);
     };
     if (action == "status") {
         Json handshakes = Json::array();
@@ -154,11 +181,95 @@ Json Core::network_action(const std::string &action, const Json &data) {
                 {"handshakes", handshakes},
                 {"interface", tunnel_name},
                 {"tunnel", tunnel},
+                {"endpoint_refresh_enabled", network.value("endpoint_refresh_enabled", false)},
+                {"endpoint_refresh", network.value("endpoint_refresh", Json(nullptr))},
+                {"requires_restart", !network.value("pending_removals", Json::object()).empty() ||
+                    network.value("endpoint_refresh", Json::object()).value("requires_restart", false)},
+                {"pending_removals", network.value("pending_removals", Json::object()).size()},
+                {"signing_fingerprint", network.contains("profile") && network["profile"].contains("signing_key")
+                    ? cyrevision::fingerprint(network["profile"]["signing_key"]) : ""},
                 {"status_error", error},
                 {"config_preview", network.contains("profile") ? render(false) : ""}};
     }
     if (!network.contains("profile"))
         throw std::runtime_error("Configure the local WireGuard identity first");
+    if (action == "automatic") {
+        if (!data.at("enabled").is_boolean()) throw std::runtime_error("Choose automatic endpoint refresh true or false");
+        network["endpoint_refresh_enabled"] = data.at("enabled");
+        if (data.at("enabled") == true) network["endpoint_refresh"] = {{"checked_at", 0}};
+        return {{"enabled", data.at("enabled")}, {"requires_tick", true}};
+    }
+    if (action == "refresh") {
+        const auto now = int64_t(std::time(nullptr));
+        auto wanted = data.value("project", std::string{});
+        if (!wanted.empty()) project(wanted);
+        Json connections = Json::object(), errors = Json::array(), output = Json::array(), tunnel_errors = Json::array();
+        if (engine_config().at("key_configured").get<bool>())
+            try { connections = engine_request("GET", "system/connections").at("connections"); }
+            catch (const std::exception &e) { errors.push_back({{"source", "syncthing"}, {"error", e.what()}}); }
+        for (auto &[id, peer] : network["peers"].items()) {
+            auto pinned = profile(peer.at("profile"));
+            if (!peer.contains("endpoint_checkpoints")) peer["endpoint_checkpoints"] = Json::object();
+            for (const auto &project_id : peer.at("projects")) {
+                auto name = project_id.get<std::string>();
+                if ((!wanted.empty() && wanted != name) || !pinned.contains("signing_key")) continue;
+                try {
+                    auto publication = project_child(exchange_dir(project(name)), id + ".endpoint.json");
+                    if (fs::exists(publication))
+                        accept_network_endpoint(read_file(publication, 16384), network_endpoint_identity(pinned, name),
+                                                peer["endpoint_checkpoints"][name], now, directory);
+                } catch (const std::exception &e) {
+                    errors.push_back({{"peer", id}, {"project", name}, {"error", e.what()}});
+                }
+            }
+            peer["resolved_endpoint"] = resolved_network_endpoint(pinned, peer["endpoint_checkpoints"],
+                connections.value(pinned.at("device_id").get<std::string>(), Json::object()), now);
+            output.push_back({{"peer", id}, {"resolved", peer["resolved_endpoint"]}});
+        }
+        if (!network.contains("applied_peers")) network["applied_peers"] = Json::object();
+        if (!network.contains("pending_removals")) network["pending_removals"] = Json::object();
+        auto local = profile(network.at("profile"));
+        auto apply = [&](const std::string &key, const std::string &address, const std::string &endpoint,
+                         bool remove, bool clear) {
+            return vpn_set_peer(wg_tool(), activation_tool(), tunnel_name, local.at("public_key"),
+                                configuration, key, address, endpoint, remove, clear, {}, safe_update());
+        };
+        // Persist accepted counters and revocations before a possibly interrupted tool call.
+        save();
+        std::vector<std::string> removed;
+        for (auto &[key, ignored] : network["pending_removals"].items()) {
+            try {
+                apply(key, "", "", true, false);
+                removed.push_back(key);
+                network["applied_peers"].erase(key);
+            } catch (const std::exception &e) {
+                Json issue = {{"public_key", key}, {"error", e.what()}};
+                errors.push_back(issue); tunnel_errors.push_back(issue);
+            }
+        }
+        for (const auto &key : removed) network["pending_removals"].erase(key);
+        for (auto &[id, peer] : network["peers"].items()) {
+            auto pinned = profile(peer.at("profile"));
+            auto key = pinned.at("public_key").get<std::string>();
+            if (network["pending_removals"].contains(key)) continue;
+            auto endpoint = effective_network_endpoint(peer, now);
+            Json desired = {{"address", pinned.at("address")}, {"endpoint", endpoint}};
+            if (network["applied_peers"].value(key, Json()) == desired) continue;
+            try {
+                auto result = apply(key, pinned.at("address"), endpoint, false,
+                                    endpoint.empty());
+                if (result.at("active") == true) network["applied_peers"][key] = desired;
+                else network["applied_peers"].erase(key);
+            } catch (const std::exception &e) {
+                Json issue = {{"peer", id}, {"error", e.what()}};
+                errors.push_back(issue); tunnel_errors.push_back(issue);
+            }
+        }
+        network["endpoint_refresh"] = {{"checked_at", now}, {"peers", output}, {"errors", errors},
+                                       {"tunnel_errors", tunnel_errors},
+                                       {"requires_restart", !network["pending_removals"].empty() || !tunnel_errors.empty()}};
+        return network["endpoint_refresh"];
+    }
     if (action == "preview")
         return {{"config", render(false)}, {"interface", tunnel_name}};
     if (action == "write-config" || action == "up" || action == "down") {
@@ -171,14 +282,11 @@ Json Core::network_action(const std::string &action, const Json &data) {
             atomic_write(configuration, render(true), true);
             return {{"path", path_string(configuration)}, {"interface", tunnel_name}};
         }
-#ifdef _WIN32
-        auto tool = env("CYSYNCK_WIREGUARD", "C:/Program Files/WireGuard/wireguard.exe");
-#else
-        auto tool = env("CYSYNCK_WG_QUICK", "wg-quick");
-#endif
-        return vpn_tunnel_control(action, wg_tool(), tool, tunnel_name,
+        auto result = vpn_tunnel_control(action, wg_tool(), activation_tool(), tunnel_name,
                                   profile(network.at("profile")).at("public_key"), configuration,
                                   action == "down" ? render(false, false) : render(true));
+        network["applied_peers"] = Json::object();
+        return result;
     }
     auto &p = project(data.at("project"));
     auto path = exchange_dir(p);
@@ -192,7 +300,21 @@ Json Core::network_action(const std::string &action, const Json &data) {
         fs::create_directories(path);
         auto output = path / (local["peer_id"].get<std::string>() + ".json");
         atomic_write(output, local.dump(2));
-        return {{"profile", local}, {"path", path_string(output)}};
+        Json result = {{"profile", local}, {"path", path_string(output)}};
+        if (local.contains("signing_key") && !local.at("endpoint").get<std::string>().empty()) {
+            auto sequence = network.value("endpoint_sequence", int64_t(0));
+            if (sequence < 0 || sequence == INT64_MAX) throw std::runtime_error("Endpoint sequence exhausted");
+            network["endpoint_sequence"] = ++sequence;
+            save();
+            auto now = int64_t(std::time(nullptr));
+            auto signed_path = project_child(path, local["peer_id"].get<std::string>() + ".endpoint.json");
+            atomic_write(signed_path, sign_endpoint_record(network_endpoint_identity(local, p.at("id")),
+                local.at("endpoint"), "manual", sequence, now, now + 900,
+                project_child(directory, "endpoint-signing.pem")));
+            result["endpoint_path"] = path_string(signed_path);
+            result["endpoint_expires_at"] = now + 900;
+        }
+        return result;
     }
     if (action == "discover") {
         Json connections = Json::object(), output = Json::array();
@@ -215,14 +337,19 @@ Json Core::network_action(const std::string &action, const Json &data) {
                         auto connection = connections.value(
                             candidate["device_id"].get<std::string>(), Json::object());
                         bool trusted = network["peers"].contains(peer) &&
-                                       network["peers"][peer]["profile"] == candidate;
+                                       network["peers"][peer]["profile"] == candidate &&
+                                       std::find(network["peers"][peer]["projects"].begin(),
+                                                 network["peers"][peer]["projects"].end(), p.at("id")) !=
+                                           network["peers"][peer]["projects"].end();
                         output.push_back(
                             {{"profile", candidate},
                              {"trusted", trusted},
                              {"syncthing_connected", connection.value("connected", false)},
                              {"syncthing_transport", connection.value("type", std::string{})},
                              {"observed_sync_address",
-                              connection.value("address", std::string{})}});
+                              connection.value("address", std::string{})},
+                             {"signing_fingerprint", candidate.contains("signing_key")
+                                ? cyrevision::fingerprint(candidate.at("signing_key")) : ""}});
                     } catch (const std::exception &) {
                     }
         return {{"peers", output},
@@ -244,9 +371,13 @@ Json Core::network_action(const std::string &action, const Json &data) {
             if (other != peer && (entry["profile"]["address"] == candidate["address"] ||
                                   entry["profile"]["public_key"] == candidate["public_key"]))
                 throw std::runtime_error("Duplicate peer address/key");
-        if (network["peers"].contains(peer) &&
-            network["peers"][peer]["profile"]["public_key"] != candidate["public_key"])
-            throw std::runtime_error("Pinned peer key changed; revoke and pair again");
+        if (candidate.contains("signing_key") &&
+            data.value("expected_fingerprint", std::string{}) != cyrevision::fingerprint(candidate.at("signing_key")))
+            throw std::runtime_error("Independently confirm the endpoint signing fingerprint before pairing");
+        if (network["peers"].contains(peer) && network["peers"][peer]["profile"] != candidate)
+            throw std::runtime_error("Pinned peer identity changed; revoke and pair again");
+        if (!network["peers"].contains(peer) && network["peers"].size() >= 256)
+            throw std::runtime_error("VPN peer limit (256) reached");
         auto projects =
             network["peers"].contains(peer) ? network["peers"][peer]["projects"] : Json::array();
         bool exists = false;
@@ -255,16 +386,54 @@ Json Core::network_action(const std::string &action, const Json &data) {
                 exists = true;
         if (!exists)
             projects.push_back(p.at("id"));
-        network["peers"][peer] = {{"profile", candidate}, {"projects", projects}};
+        if (!network["peers"].contains(peer)) network["peers"][peer] = {{"profile", candidate}};
+        network["peers"][peer]["projects"] = projects;
         event(p.at("id"), "vpn", "Peer public key pinned: " + peer);
         return {{"peer", peer}, {"trusted", true}};
     }
     if (action == "revoke") {
         auto peer = valid_id(data.at("peer"));
-        network["peers"].erase(peer);
-        return {{"revoked", peer}};
+        if (!network["peers"].contains(peer)) return {{"revoked", peer}, {"requires_restart", false}};
+        auto &entry = network["peers"][peer];
+        auto &projects = entry["projects"];
+        projects.erase(std::remove(projects.begin(), projects.end(), p.at("id")), projects.end());
+        if (entry.contains("endpoint_checkpoints")) entry["endpoint_checkpoints"].erase(p.at("id").get<std::string>());
+        entry["resolved_endpoint"] = resolved_network_endpoint(profile(entry.at("profile")),
+            entry.value("endpoint_checkpoints", Json::object()), Json::object(), std::time(nullptr));
+        bool remove = projects.empty();
+        std::string error;
+        if (remove) {
+            auto key = entry["profile"]["public_key"].get<std::string>();
+            network["peers"].erase(peer);
+            if (!network.contains("pending_removals")) network["pending_removals"] = Json::object();
+            network["pending_removals"][key] = true;
+            save();
+            try {
+                vpn_set_peer(wg_tool(), activation_tool(), tunnel_name, network["profile"]["public_key"],
+                             configuration, key, "", "", true, false, {}, safe_update());
+                network["pending_removals"].erase(key);
+                if (network.contains("applied_peers")) network["applied_peers"].erase(key);
+            } catch (const std::exception &e) { error = e.what(); }
+        } else {
+            auto refreshed = network_action("refresh", Json::object());
+            if (!refreshed.at("errors").empty()) error = refreshed.at("errors").dump();
+        }
+        return {{"revoked", peer}, {"project", p.at("id")}, {"tunnel_peer_removed", remove && error.empty()},
+                {"requires_restart", !error.empty()}, {"error", error}};
     }
     throw std::runtime_error("Unknown network action");
+}
+void Core::maintain_network() {
+    if (!registry_.contains("network") ||
+        !registry_["network"].value("endpoint_refresh_enabled", false)) return;
+    auto now = int64_t(std::time(nullptr));
+    auto last = registry_["network"].value("endpoint_refresh", Json::object()).value("checked_at", int64_t(0));
+    if (now >= last && now - last < 45) return;
+    try { network_action("refresh", Json::object()); }
+    catch (const std::exception &e) {
+        registry_["network"]["endpoint_refresh"] = {{"checked_at", now},
+            {"errors", Json::array({{{"error", e.what()}}})}, {"requires_restart", true}};
+    }
 }
 const Json &trusted_peer(const Json &registry, const std::string &project,
                          const std::string &peer) {

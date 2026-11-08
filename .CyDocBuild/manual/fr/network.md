@@ -4,7 +4,7 @@ title: Réseau WireGuard et communications directes
 description: Utilisation, commandes et limites : Réseau WireGuard et communications directes.
 section: Réseau
 order: 50
-sourceRevision: 2
+sourceRevision: 3
 ---
 
 # Réseau WireGuard et communications directes {#reseau-wireguard-et-communications-directes}
@@ -22,7 +22,8 @@ Le mode actuel ne promet donc pas une découverte Internet sans aucune infrastru
 
 ## Préparer deux appareils {#preparer-deux-appareils}
 
-Installer WireGuard avec ses outils officiels. `wg` doit être dans le PATH, ou être
+Installer les outils officiels WireGuard et OpenSSL (signatures P-256 des adresses).
+`CYSYNCK_OPENSSL` peut sélectionner l’exécutable OpenSSL. `wg` doit être dans le PATH, ou être
 sélectionné par `CYSYNCK_WG`. Sous Windows, `CYSYNCK_WIREGUARD` peut préciser le chemin de
 `wireguard.exe`. Sous Linux/macOS, `CYSYNCK_WG_QUICK` peut préciser `wg-quick`.
 Attribuer une adresse **différente** de `10.77.0.0/16` à chaque appareil, en évitant un
@@ -48,14 +49,14 @@ Après synchronisation des profils :
 
 ```sh
 cysynck vpn discover SHARED_PROJECT_ID
-cysynck vpn trust SHARED_PROJECT_ID OTHER_PEER_ID --key OTHER_PUBLIC_KEY
+cysynck vpn trust SHARED_PROJECT_ID OTHER_PEER_ID --key OTHER_PUBLIC_KEY --fingerprint VERIFIED_SIGNER_SHA256
 cysynck vpn preview
 cysynck vpn write-config
 ```
 
-Vérifier la clé publique avec son propriétaire avant de l'autoriser, sur chaque appareil.
-Un changement de clé épinglée est refusé ; `vpn revoke PROJECT_ID PEER_ID` retire
-l'appairage local. Un peer reçoit seulement une route `/32` vers son adresse VPN.
+Vérifier la clé VPN et l’empreinte de signature des adresses avec leur propriétaire via un canal de confiance séparé, sur chaque appareil. `vpn status` affiche l’empreinte locale ; `vpn discover` affiche celle des candidats. Le formulaire natif demande les valeurs vérifiées indépendamment. Changer une clé, une adresse, un appareil Syncthing, un port d’écoute ou une identité de signature épinglés nécessite une révocation puis un nouvel appairage. Les anciens profils sans clé de signature restent utilisables pour un appairage statique.
+
+`vpn revoke PROJECT_ID PEER_ID` retire l’autorisation de ce projet. Un pair encore autorisé dans un autre projet reste dans le tunnel. Retirer sa dernière autorisation supprime aussi le pair WireGuard actif et actualise une configuration privée existante pour empêcher sa restauration au redémarrage du service. Un échec d’outil ou de permissions conserve une intention privée de suppression et retourne `requires_restart: true` ; l’autorisation applicative est déjà retirée. Réessayer avec `vpn refresh` et les droits nécessaires, ou arrêter puis redémarrer le tunnel. Un pair reçoit seulement une route `/32` vers son adresse VPN.
 Aucune route Internet par défaut ni commande PostUp/PostDown n'est générée.
 
 Le fichier privé `vpn/cs-EMPREINTE_PROFIL.conf` reste dans l’état local. Son nom de tunnel
@@ -79,7 +80,7 @@ au profil ; les tunnels globaux étrangers sont préservés. L’arrêt régén�
 minimale sans hooks au lieu d’exécuter les commandes d’un ancien fichier modifié.
 Répéter up/down ne remplace pas un tunnel actif et ne réactive pas un tunnel absent.
 Si un service Windows existe sans interface active, `already_up` est faux ; l’arrêter avant
-de réessayer. Un arrêt/démarrage applique les changements d’adresses ou de pairs au tunnel existant.
+de réessayer. Un arrêt/démarrage applique les changements d’adresse ou de port d’écoute local. `vpn refresh` peut appliquer les adresses des pairs et les révocations au tunnel actif appartenant au profil.
 
 Dans un terminal administrateur/root, **avec le même dossier `--state`** que celui utilisé
 par le compte pour préparer la configuration :
@@ -91,9 +92,25 @@ cysynck --state /absolute/path/to/state vpn down
 ```
 
 Windows utilise le service de tunnel officiel WireGuard ; Linux/macOS utilisent `wg-quick`.
-L'interface s'appelle `cysynck`. Ne pas employer ce nom pour un tunnel indépendant.
-Changer de configuration après activation nécessite actuellement une reconnexion explicite.
-Le bouton desktop tente la même opération avec les droits actuels et signale un échec de droits.
+Utiliser le nom d’interface propre au profil affiché par `vpn status`.
+Le bureau tente les mêmes opérations avec ses droits actuels et signale les échecs de permissions.
+
+## Actualisation automatique des adresses {#automatic-endpoints}
+
+Laisser vide l’endpoint publié d’un pair pour autoriser la sélection automatique. Un endpoint explicitement épinglé reste prioritaire. `vpn refresh [PROJECT_ID]` lit les publications signées `<peer_id>.endpoint.json` uniquement pour les projets et identités déjà autorisés. Chaque publication lie le projet, le pair, sa clé WireGuard, sa clé de signature, son appareil Syncthing et son port UDP. Les signatures expirent au plus tard après une heure ; les compteurs et empreintes privés refusent les retours en arrière et réutilisations divergentes après redémarrage. Une publication vérifiée en cache reste utilisable jusqu’à son expiration si un ancien fichier ou un faux remplace le fichier partagé. Révoquer l’autorisation d’un projet retire son adresse des candidates utilisables.
+
+Sans publication signée valide, la connexion Syncthing locale peut fournir une adresse IPv4 privée du LAN ou IPv6 globale/ULA directe. Seuls les pairs TCP/QUIC connectés avec un identifiant d’appareil Syncthing épinglé sont retenus. Le port UDP provient du **port d’écoute WireGuard** épinglé, jamais du port observé de synchronisation. Les relais, appareils déconnectés, indices IPv4 publics derrière NAT, adresses de boucle locale, link-local et noms d’hôte sont exclus. Une candidate ne prouve pas la connectivité UDP : vérifier un échange de clés WireGuard récent dans `vpn status`.
+
+```sh
+cysynck vpn refresh SHARED_PROJECT_ID
+cysynck vpn automatic true
+# Garder le bureau ou `cysynck serve` actif pour appeler Core::tick().
+cysynck vpn automatic false
+```
+
+L’actualisation automatique est désactivée par défaut et vérifie environ toutes les 45 secondes pendant l’exécution de l’hôte. Elle ne crée jamais de tunnel ; modifier un tunnel actif nécessite les droits administrateur/root et les contrôles de propriété. Une adresse dynamique expirée disparaît de la configuration générée et est effacée du pair actif avant de rétablir sa route hôte. Les erreurs sont disponibles dans `endpoint_refresh` de `vpn status`. HTTP et le CLI distant ne peuvent pas configurer les identités, appairer/révoquer des pairs, écrire la configuration privée, activer le tunnel ou activer/exécuter l’actualisation automatique ; utiliser le bureau ou CLI local.
+
+Les nouvelles identités conservent leur clé de signature séparée dans `vpn/endpoint-signing.pem`, jamais dans le dossier d’échange. Publier un endpoint manuel écrit aussi une publication signée valable 15 minutes. Les clients de protocole PCP/NAT-PMP sont testés séparément, mais leur configuration, le renouvellement des baux et la publication des adresses mappées sont encore en cours d’intégration. Cette version n’ouvre pas encore automatiquement de redirection sur le routeur.
 
 ## Tchat et fichiers directs {#tchat-et-fichiers-directs}
 

@@ -40,7 +40,7 @@ The desktop, CLI and Web/API console share one core. The core can also be embedd
 - **Backups:** scheduling, exclusion previews, retention, whole-file/fixed-block/content-defined storage, integrity verification and selective restoration.
 - **File review:** bounded side-by-side or unified differences, Git-compatible patches and explicit conflict resolution with preserved recovery copies.
 - **Git and LFS:** verified bundle exchange, branch/commit/three-way review, reviewed merges, separate extraction, cache management, materialization, pointer restoration and export of preserved assets.
-- **Direct networking:** WireGuard pairing, chat and verified resumable file transfers through an authenticated channel inside the VPN.
+- **Direct networking:** WireGuard pairing, signed endpoint discovery, direct LAN/IPv6 candidates, project-scoped revocation, chat and verified resumable file transfers through an authenticated channel inside the VPN.
 - **Desktop and operations:** tray integration, per-profile login startup, diagnostics and reviewed systemd/LaunchAgent service export.
 - **Integration:** C++20 core, C ABI v1 using UTF-8 JSON, typed plugin options and buildable C/C++/plugin examples. The [Unreal bridge](integrations/unreal/README.md) provides queued asynchronous Blueprint requests and SDK staging.
 
@@ -76,7 +76,7 @@ There are currently **no published binary downloads**. Build from the sources be
 | Linux server | Native CI and real Syncthing peer tests passed; host service/tunnel checks remain | `dist/bin/cysynck serve` |
 | macOS | Native core/SDK/package CI passed, including software-rendered desktop captures | `open dist/CySynck.app` |
 
-Install **Syncthing**, **Git** and **WireGuard** separately for the workflows that need them; Git LFS tracking tools are also external. CySynck does not bundle these programs. WireGuard requires suitable privileges and reachable UDP endpoints; peer discovery alone does not create connectivity through every NAT.
+Install **Syncthing**, **Git**, **WireGuard** and **OpenSSL** separately for the workflows that need them; OpenSSL supplies P-256 signing for CyRevision and VPN endpoint publications, and Git LFS tracking tools are also external. CySynck does not bundle these programs. WireGuard requires suitable privileges and reachable UDP endpoints; peer discovery alone does not create connectivity through every NAT.
 
 For a locally built Windows package, extract the full archive and run `Install-CySynck.ps1` from its root to install for the current user. Portable use is also available. Keep all package folders together, including libraries, Web assets and the manual. The manual's installation page explains updates and removal.
 

@@ -40,7 +40,7 @@ L’application native, le CLI et la console Web/API partagent un même cœur. C
 - **Sauvegardes** : planification, aperçu des exclusions, rétention, stockage par fichiers entiers/blocs fixes/blocs à découpage selon le contenu, vérification d’intégrité et restauration sélective.
 - **Revue de fichiers** : différences bornées côte à côte ou unifiées, patches compatibles Git et résolution explicite des conflits avec conservation de copies de récupération.
 - **Git et LFS** : échanges de bundles vérifiés, revue de branches/commits/trois versions, intégrations après revue, extraction séparée, gestion du cache, matérialisation, restauration des pointeurs et export des assets préservés.
-- **Réseau direct** : appairage WireGuard, tchat et transferts de fichiers vérifiés avec reprise par un canal authentifié à l’intérieur du VPN.
+- **Réseau direct** : appairage WireGuard, découverte d’adresses signées, candidates LAN/IPv6 directes, révocation par projet, tchat et transferts de fichiers vérifiés avec reprise par un canal authentifié à l’intérieur du VPN.
 - **Application et exploitation** : icône de notification, démarrage à la connexion par profil, diagnostics et export de services systemd/LaunchAgent après revue.
 - **Intégration** : cœur C++20, ABI C v1 utilisant du JSON UTF-8, options d’extensions typées et exemples C/C++/extensions compilables. Le [pont Unreal](integrations/unreal/README.fr.md) fournit les requêtes Blueprint asynchrones en file et la préparation du SDK.
 
@@ -76,7 +76,7 @@ Il n’existe actuellement **aucun téléchargement binaire publié**. Compilez 
 | Serveur Linux | CI native et tests de vrais pairs Syncthing réussis ; services/tunnels sur l’hôte à vérifier | `dist/bin/cysynck serve` |
 | macOS | CI native cœur/SDK/paquets validée, dont les captures desktop en rendu logiciel | `open dist/CySynck.app` |
 
-Installez **Syncthing**, **Git** et **WireGuard** séparément pour les fonctions qui en ont besoin ; les outils de suivi Git LFS sont également externes. CySynck ne fournit pas ces programmes. WireGuard exige les privilèges adaptés et des points de terminaison UDP joignables ; la découverte des pairs ne suffit pas à traverser tous les NAT.
+Installez **Syncthing**, **Git**, **WireGuard** et **OpenSSL** séparément pour les fonctions qui en ont besoin ; OpenSSL fournit les signatures P-256 de CyRevision et des publications d’adresses VPN, et les outils de suivi Git LFS sont également externes. CySynck ne fournit pas ces programmes. WireGuard exige les privilèges adaptés et des points de terminaison UDP joignables ; la découverte des pairs ne suffit pas à traverser tous les NAT.
 
 Pour un paquet Windows compilé localement, extrayez l’archive complète et lancez `Install-CySynck.ps1` depuis sa racine pour installer l’application pour l’utilisateur courant. L’usage portable est également possible. Gardez tous les dossiers du paquet ensemble, y compris les bibliothèques, ressources Web et le manuel. La page d’installation du manuel explique les mises à jour et la désinstallation.
 

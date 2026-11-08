@@ -1088,6 +1088,7 @@ void Core::tick() {
     DiskLock disk(state_);
     load();
     maintain_engine();
+    maintain_network();
     for (auto &p : registry_["projects"])
         try {
             if (p.at("paused").get<bool>() || p.at("backup_interval_minutes") == 0)

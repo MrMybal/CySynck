@@ -243,6 +243,9 @@ struct HttpServer::Impl {
                         return;
                     }
                     if (req.path == "/api/network/up" || req.path == "/api/network/down" ||
+                        req.path == "/api/network/configure" || req.path == "/api/network/automatic" ||
+                        req.path == "/api/network/refresh" || req.path == "/api/network/trust" ||
+                        req.path == "/api/network/revoke" || req.path == "/api/network/write-config" ||
                         req.path == "/api/engine/configure" || req.path == "/api/engine/connect") {
                         res.status = 403;
                         res.set_content("{\"error\":\"Use the local desktop or "
@@ -253,16 +256,25 @@ struct HttpServer::Impl {
                     if (req.path == "/api/cli" && req.method == "POST") {
                         auto arguments =
                             Json::parse(req.body).at("args").get<std::vector<std::string>>();
-                        if (arguments.size() > 1 && arguments[0] == "desktop" &&
-                            arguments[1] == "startup")
+                        // cli() accepts flags before/between positional arguments. Apply the
+                        // local-only policy to the same positional sequence to prevent bypasses.
+                        std::vector<std::string> positional;
+                        for (size_t i = 0; i < arguments.size(); ++i) {
+                            if (arguments[i].rfind("--", 0) == 0) { if (i + 1 < arguments.size()) ++i; }
+                            else positional.push_back(arguments[i]);
+                        }
+                        const auto &policy = positional;
+                        if (policy.size() > 1 && policy[0] == "desktop" && policy[1] == "startup")
                             throw std::runtime_error(
                                 "Login startup settings require the local desktop or CLI");
-                        if (arguments.size() > 1 && arguments[0] == "vpn" &&
-                            (arguments[1] == "up" || arguments[1] == "down"))
+                        if (policy.size() > 1 && policy[0] == "vpn" &&
+                            (policy[1] == "up" || policy[1] == "down" ||
+                             policy[1] == "configure" || policy[1] == "automatic" ||
+                             policy[1] == "refresh" || policy[1] == "trust" ||
+                             policy[1] == "revoke" || policy[1] == "write-config"))
                             throw std::runtime_error("Tunnel changes require the local CLI");
-                        if (arguments.size() > 1 && arguments[0] == "engine" &&
-                            (arguments[1] == "configure" || arguments[1] == "connect" ||
-                             arguments[1] == "run"))
+                        if (policy.size() > 1 && policy[0] == "engine" &&
+                            (policy[1] == "configure" || policy[1] == "connect" || policy[1] == "run"))
                             throw std::runtime_error(
                                 "Engine executable and credentials must be configured locally");
                         result = cli(core, arguments);

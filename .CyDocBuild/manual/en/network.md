@@ -4,7 +4,7 @@ title: WireGuard and direct communication
 description: Pair trusted peers, prepare the VPN and use chat or direct files.
 section: Network
 order: 50
-revision: 2
+revision: 3
 ---
 
 # WireGuard and direct communication {#reseau-wireguard-et-communications-directes}
@@ -17,7 +17,7 @@ Syncthing discovery may use discovery/relay services; this does not promise infr
 
 ## Prepare two devices {#preparer-deux-appareils}
 
-Install official WireGuard tools. Put `wg` on PATH or select `CYSYNCK_WG`.
+Install official WireGuard tools and OpenSSL (P-256 endpoint signatures). Put `wg` on PATH or select `CYSYNCK_WG`; select an OpenSSL executable with `CYSYNCK_OPENSSL` when needed.
 Windows can use `CYSYNCK_WIREGUARD` for `wireguard.exe`; Linux/macOS can select `wg-quick` with `CYSYNCK_WG_QUICK`.
 Assign a **different** address in `10.77.0.0/16` to each device, avoiding existing network conflicts. This subnet is not configurable yet.
 
@@ -38,13 +38,14 @@ After profiles synchronize:
 
 ```sh
 cysynck vpn discover SHARED_PROJECT_ID
-cysynck vpn trust SHARED_PROJECT_ID OTHER_PEER_ID --key OTHER_PUBLIC_KEY
+cysynck vpn trust SHARED_PROJECT_ID OTHER_PEER_ID --key OTHER_PUBLIC_KEY --fingerprint VERIFIED_SIGNER_SHA256
 cysynck vpn preview
 cysynck vpn write-config
 ```
 
-Verify the public key with its owner before trusting it, on both devices. A pinned-key change is refused.
-`vpn revoke PROJECT_ID PEER_ID` removes local pairing. Each peer receives only a `/32` route to its VPN address, with no default Internet route or PostUp/PostDown commands.
+Verify the VPN public key and endpoint signing fingerprint with their owner through a separate trusted channel, on both devices. `vpn status` shows the local signing fingerprint; `vpn discover` shows each candidate's fingerprint. The native pairing form requires the independently checked values. Changing a pinned key, address, device, listener or signing identity requires revocation and pairing again. Legacy profiles without a signing key remain usable for static pairing.
+
+`vpn revoke PROJECT_ID PEER_ID` removes authorization for that project. A peer shared with another authorized project stays in the tunnel. Removing its last authorization also removes the live WireGuard peer and updates an existing private configuration so a service restart cannot restore it. Permission/tool failures preserve a private removal intent and return `requires_restart: true`; application trust is already revoked. Use `vpn refresh` with the required permissions to retry, or stop and restart the tunnel. Each peer receives only a `/32` route to its VPN address, with no default Internet route or PostUp/PostDown commands.
 Private `vpn/cs-PROFILE_HASH.conf` stays in local state; never synchronize it. Its stable
 15-character tunnel name is derived from this profile's peer identity and is shown by
 `vpn preview`, `vpn write-config` and `vpn status`. Separate profiles use separate names.
@@ -65,7 +66,7 @@ foreign global tunnels are preserved. Shutdown regenerates a minimal configurati
 without hooks rather than executing commands from an edited old file. Repeated up/down
 does not overwrite or reactivate an already active/absent tunnel. If an owned Windows
 service exists without a running interface, `already_up` is false; stop it before retrying.
-Stop/start is needed to apply changed address or peer settings to an existing tunnel.
+Stop/start is needed to apply a changed local address or listener. `vpn refresh` can apply peer endpoints and revocations to an owned active tunnel.
 
 In an administrator/root terminal, use **the same `--state` profile** prepared by the user:
 
@@ -75,8 +76,24 @@ cysynck --state /absolute/path/to/state vpn status
 cysynck --state /absolute/path/to/state vpn down
 ```
 
-Windows uses the official WireGuard tunnel service; Linux/macOS use `wg-quick`. The interface is named `cysynck`; do not assign that name to an independent tunnel.
-Changing active configuration currently requires an explicit reconnect. The desktop attempts the same operation with its current permissions and reports privilege failures.
+Windows uses the official WireGuard tunnel service; Linux/macOS use `wg-quick`. Use the profile-specific interface name shown by `vpn status`. The desktop attempts the same operations with its current permissions and reports privilege failures.
+
+## Automatic endpoint refresh {#automatic-endpoints}
+
+Leave a peer's published endpoint empty to allow automatic selection. An explicitly pinned endpoint always takes precedence. `vpn refresh [PROJECT_ID]` reads signed `<peer_id>.endpoint.json` publications only for already authorized projects and identities. Each publication binds the project, peer, WireGuard key, signing key, Syncthing device and UDP listener. Signatures expire within one hour; private sequence/hash checkpoints reject rollback and conflicting reuse after a restart. A valid cached publication stays usable until expiry if an older or forged shared file replaces it. Revoking a project's authorization discards its eligible endpoint.
+
+When there is no valid signed endpoint, the local Syncthing connection may supply a literal LAN IPv4 or direct global/ULA IPv6 address. Only connected TCP/QUIC peers with a pinned Syncthing device ID qualify. The UDP port comes from the pinned **WireGuard listener**, not the observed sync port. Relay, disconnected, public IPv4 NAT hints, loopback, link-local and hostname candidates are excluded. A candidate does not prove UDP reachability: check a recent WireGuard handshake in `vpn status`.
+
+```sh
+cysynck vpn refresh SHARED_PROJECT_ID
+cysynck vpn automatic true
+# Keep the desktop or `cysynck serve` running to call Core::tick().
+cysynck vpn automatic false
+```
+
+Automatic refresh is off by default and checks about every 45 seconds while the host runs. It never creates a tunnel; updating an active tunnel requires administrator/root permissions and passes ownership checks. An expired dynamic endpoint is removed from the generated configuration and cleared from the live peer before re-adding its host route. Errors are available under `endpoint_refresh` in `vpn status`. HTTP and remote CLI cannot configure identities, pair/revoke peers, write private tunnel configurations, activate tunnels or arm/perform automatic refresh; use the local desktop or CLI.
+
+New local identities keep their separate endpoint signing key in `vpn/endpoint-signing.pem`, never in the exchange. Publishing a manual endpoint also writes a signed publication valid for 15 minutes. Local PCP/NAT-PMP protocol clients are tested independently, but router mapping configuration, lease maintenance and mapped-endpoint publication are still being integrated. This version does not yet open router mappings automatically.
 
 ## Chat and direct files {#tchat-et-fichiers-directs}
 

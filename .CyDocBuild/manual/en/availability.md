@@ -5,7 +5,7 @@ description: Understand the implemented scope and workflows requiring external t
 section: Start
 order: 6
 parent: overview
-revision: 3
+revision: 4
 ---
 
 # Availability and limits {#availability-and-limits}
@@ -24,6 +24,7 @@ remain managed by CyRevision; transport authorization does not grant group admis
 ## Network requirements {#network-requirements}
 
 WireGuard needs reachable UDP endpoints or a suitable network arrangement. No STUN/ICE, automatic NAT hole punching or WireGuard packet relay is implemented.
+Signed expiring endpoint discovery, private replay checkpoints, direct Syncthing LAN/IPv6 hints and opt-in background refresh are implemented. Live peer updates and project-scoped revocation pass isolated ownership/tool models; real kernel/driver and NAT-network acceptance tests remain necessary. PCP/NAT-PMP UDP clients pass protocol fixtures but router lease integration is pending. See [network setup](doc:network#automatic-endpoints).
 Syncthing discovery and relays may use infrastructure. Direct chat/files use an authenticated HTTP channel inside the VPN and a shared group secret.
 There is no offline store-and-forward delivery or read receipt. Do not expose that unencrypted application channel outside the tunnel.
 
@@ -32,7 +33,7 @@ There is no offline store-and-forward delivery or read receipt. Do not expose th
 Windows is the locally available runtime validation platform. Native Linux CI also passes desktop/server, package/SDK and real Syncthing peer tests.
 Native macOS core/SDK/package checks pass, including OpenGL 3 and OpenGL 2 software-renderer captures. CI and cross-compilation do not prove physical graphics, host service activation, tunnel permissions or power-loss behavior.
 The Unreal bridge provides asynchronous FIFO Blueprint requests. Windows Development Editor 5.7.4 and 5.8.3 build/automation passes; other Unreal versions/hosts and packaged games need their own validation. Close waits for active work and can block.
-Git, Git LFS tracking tools, Syncthing and WireGuard remain separately installed where required.
+Git, Git LFS tracking tools, Syncthing, WireGuard and OpenSSL remain separately installed where required.
 
 ## Preserve independent recovery copies {#preserve-independent-recovery-copies}
 

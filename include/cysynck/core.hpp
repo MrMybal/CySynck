@@ -149,6 +149,7 @@ class Core {
     Json git_action(const Json &project, const std::string &action, const Json &data);
     Json sync_action(Json &project, const std::string &action, const Json &data);
     Json network_action(const std::string &action, const Json &data);
+    void maintain_network();
     Json direct_inbox(const Json &project, const std::string &action, const Json &data);
     Json transfer_receive(const Json &data, const std::string &bytes);
     Json transfer_send(const Json &data);

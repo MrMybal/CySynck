@@ -280,4 +280,56 @@ Json vpn_tunnel_control(const std::string &action, const std::string &tool,
             "WireGuard activation failed; check administrator/root permissions and WireGuard logs");
     return {{"requested", action}, {"interface", actual_logical}, {"changed", true}};
 }
+Json vpn_set_peer(const std::string &tool, const std::string &activation_tool,
+                  const std::string &logical, const std::string &public_key,
+                  const fs::path &configuration, const std::string &peer_key,
+                  const std::string &address, const std::string &endpoint, bool remove,
+                  bool clear_endpoint, const fs::path &mapping_directory,
+                  const std::string &safe_configuration) {
+    logical_name(logical);
+    if (!std::regex_match(peer_key, std::regex("[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=")))
+        throw std::runtime_error("Invalid WireGuard peer key");
+    if (!remove) {
+        std::smatch match;
+        if (!std::regex_match(address, match, std::regex("10\\.77\\.([0-9]{1,3})\\.([0-9]{1,3})")) ||
+            std::stoi(match[1]) > 255 || std::stoi(match[2]) > 255 ||
+            address != "10.77." + std::to_string(std::stoi(match[1])) + "." + std::to_string(std::stoi(match[2])))
+            throw std::runtime_error("Invalid WireGuard peer host address");
+        if (!endpoint.empty() &&
+            (!std::regex_match(endpoint, match, std::regex("([a-zA-Z0-9.-]+|\\[[a-fA-F0-9:]+\\]):([0-9]{1,5})")) ||
+             std::stoi(match[2]) < 1 || std::stoi(match[2]) > 65535))
+            throw std::runtime_error("Invalid WireGuard peer endpoint");
+    }
+    auto current = inspect(tool, logical, public_key, interfaces(tool), mapping_directory);
+    auto configured_service = service(logical, configuration, activation_tool);
+    if ((current.at("present") == true && current.at("owned") != true) ||
+        (configured_service.at("exists") == true && configured_service.at("owned") != true))
+        throw std::runtime_error("Preserve the foreign WireGuard tunnel or service");
+    // Keep a service restart from restoring a revoked peer or expired endpoint.
+    // Only the owning caller's regenerated, key-checked configuration is accepted here.
+    if (!safe_configuration.empty()) {
+        if (safe_configuration.size() > 128 * 1024 || path_is_link(configuration))
+            throw std::runtime_error("Invalid owned WireGuard configuration update");
+        atomic_write(configuration, safe_configuration, true);
+    }
+    if (current.at("present") != true)
+        return {{"active", false}, {"changed", false}};
+    auto runtime = current.at("runtime_interface").get<std::string>();
+    // Removing then adding clears a previous configured/roamed endpoint on expiry.
+    // If addition fails, the peer stays disconnected and the caller retries safely.
+    if (remove || clear_endpoint) {
+        if (process({tool, "set", runtime, "peer", peer_key, "remove"}, {}, {}, 10).code)
+            throw std::runtime_error("Cannot remove the peer from the owned WireGuard tunnel");
+        if (remove) return {{"active", true}, {"changed", true}};
+    }
+    std::vector<std::string> args{tool, "set", runtime, "peer", peer_key, "allowed-ips", address + "/32",
+                                  "persistent-keepalive", endpoint.empty() ? "0" : "25"};
+    if (!endpoint.empty()) {
+        args.push_back("endpoint");
+        args.push_back(endpoint);
+    }
+    if (process(args, {}, {}, 10).code)
+        throw std::runtime_error("Cannot update the peer on the owned WireGuard tunnel");
+    return {{"active", true}, {"changed", true}};
+}
 } // namespace cysynck

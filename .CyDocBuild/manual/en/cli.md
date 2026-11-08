@@ -100,7 +100,8 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   vpn configure NAME 10.77.X.Y [--endpoint HOST:UDP_PORT] [--listen-port 51820] [--mesh-port 8485] [--device-id ID]
   vpn status|preview|write-config|up|down
   vpn publish|discover ID
-  vpn trust ID PEER_ID --key EXPECTED_PUBLIC_KEY
+  vpn refresh [ID] | vpn automatic true|false
+  vpn trust ID PEER_ID --key EXPECTED_PUBLIC_KEY [--fingerprint VERIFIED_SIGNER_SHA256]
   vpn revoke ID PEER_ID
   chat send ID PEER_ID TEXT | chat history ID | chat serve
   send-file ID PEER_ID RELATIVE_PATH [--legacy true]

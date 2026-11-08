@@ -5,7 +5,7 @@ description: Utilisation, commandes et limites : Installation Windows.
 section: Démarrer
 order: 2
 parent: overview
-sourceRevision: 1
+sourceRevision: 2
 ---
 
 # Installation Windows {#installation-windows}
@@ -15,7 +15,7 @@ cœur restent en C++20 ; PowerShell sert uniquement au déploiement. Cette versi
 un installateur par script, sans installeur EXE/MSI signé ni mise à jour téléchargée automatiquement.
 L'entrée dans la liste « Applications installées » de Windows reste à ajouter ; le menu Démarrer
 contient le raccourci de désinstallation.
-Syncthing, Git et WireGuard restent des programmes externes à installer séparément.
+Syncthing, Git, WireGuard et OpenSSL restent des programmes externes à installer séparément. OpenSSL fournit les signatures P-256 de CyRevision et des adresses VPN ; `CYSYNCK_OPENSSL` peut sélectionner son exécutable.
 
 ## Installer {#installer}
 

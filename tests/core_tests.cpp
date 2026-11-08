@@ -463,6 +463,23 @@ int main(int argc, char **argv) {
                             "{\"args\":[\"desktop\",\"startup\",\"enable\"]}", "application/json");
             check(response && response->status == 400,
                   "Remote CLI cannot register programs at login");
+            for (const auto &action : {"up", "down", "configure", "automatic", "refresh", "trust", "revoke", "write-config"}) {
+                response = client.Post(std::string("/api/network/") + action,
+                    {{"Authorization", "Bearer " + token}}, "{}", "application/json");
+                check(response && response->status == 403,
+                      "HTTP cannot arm or mutate privileged VPN operations");
+                for (auto args : {std::vector<std::string>{"--unused", "value", "vpn", action, "true"},
+                                  std::vector<std::string>{"vpn", "--unused", "value", action, "true"}}) {
+                    response = client.Post("/api/cli", {{"Authorization", "Bearer " + token}},
+                        Json{{"args", args}}.dump(), "application/json");
+                    check(response && response->status == 400 && response->body.find("require the local CLI") != std::string::npos,
+                          "CLI flag ordering bypassed the local VPN policy");
+                }
+            }
+            response = client.Post("/api/cli", {{"Authorization", "Bearer " + token}},
+                Json{{"args", {"--unused", "value", "engine", "connect", "http://127.0.0.1:8384"}}}.dump(), "application/json");
+            check(response && response->status == 400 && response->body.find("configured locally") != std::string::npos,
+                  "CLI flag ordering bypassed the local engine policy");
             server.stop();
             listener.join();
         } catch (...) {
