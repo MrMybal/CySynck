@@ -40,6 +40,7 @@ def main():
     tag = "csnat-" + uuid.uuid4().hex[:10]
     spaces, children, streams = [], [], []
     nat_rules = {}
+    foreign_probe_number = 0
     apparmor = None
     report = {"success": False, "kernel": os.uname().release, "checks": [],
               "topology": "two clients, two miniupnpd routers, three veth pairs, no host network changes"}
@@ -114,15 +115,41 @@ def main():
         nat_rules[side] = rules
         for line in rules.splitlines():
             words = shlex.split(line)
-            if "--dport" not in words or "--to-destination" not in words:
+            if "--dport" not in words or "-j" not in words or words[words.index("-j") + 1] != "DNAT":
                 continue
             port = words[words.index("--dport") + 1]
+            if port not in ("45000", "45000:45000"):
+                continue
+            if "--to-destination" not in words:
+                # New xtables can render legacy libiptc DNAT as an unsupported
+                # target revision. The independent payload probe below verifies
+                # its actual destination instead of trusting this text renderer.
+                if "[unsupported revision]" in line:
+                    report["legacy_dnat_renderer"] = "unsupported revision; independently payload-probed"
+                    return True
+                continue
             target = words[words.index("--to-destination") + 1]
-            if port in ("45000", "45000:45000") and target in (
+            if target in (
                     f"192.168.{61 if side == 'a' else 62}.2:60000",
                     f"192.168.{61 if side == 'a' else 62}.2:60000-60000"):
                 return True
         return False
+
+    def probe_foreign(side):
+        nonlocal foreign_probe_number
+        foreign_probe_number += 1
+        index = 1 if side == "a" else 2
+        other = "b" if side == "a" else "a"
+        # A new explicit source port prevents an old conntrack entry from hiding
+        # removal of the DNAT rule. Only the opposite isolated WAN sends traffic.
+        program = """import socket,sys
+s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.settimeout(3)
+s.bind((sys.argv[1],int(sys.argv[2])));s.connect((sys.argv[3],45000))
+p=b'CySynck-independent-foreign-UDP';s.send(p)
+assert s.recv(128)==p, 'independent foreign UDP payload did not reach its original listener'
+"""
+        run([sys.executable, "-c", program, f"198.18.50.{3 - index}", str(42000 + foreign_probe_number),
+             f"198.18.50.{index}"], space=tag + "-r" + other)
 
     def publication(side):
         path = work / side / "project/.cysynck-network/peers" / (profiles[side]["peer_id"] + ".endpoint.json")
@@ -210,11 +237,24 @@ print(json.dumps({'reserved':True}))
 """.replace("GATEWAY", repr(f"192.168.{subnet}.1"))
             run([sys.executable, "-c", reserve], space=client)
             require(foreign_rule(side), "Independent foreign UDP mapping was not installed in the kernel NAT table")
+            echo = """import socket,sys
+s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind((sys.argv[1],60000))
+while True:
+ p,a=s.recvfrom(128)
+ if p==b'CySynck-independent-foreign-UDP':s.sendto(p,a)
+"""
+            responder = start([sys.executable, "-c", echo, f"192.168.{subnet}.2"], client, side + "-foreign-udp.log")
+            deadline = time.monotonic() + 5
+            while ":60000" not in run(["ss", "-H", "-lun"], space=client).stdout:
+                require(responder.poll() is None and time.monotonic() < deadline, "Independent foreign UDP listener did not start")
+                time.sleep(0.05)
             app(side, "project", "add", "Router VPN test", str(folder / "project"),
                 "--id", "router-ci", "--mode", "backup", "--interval", "0")
             profiles[side] = app(side, "vpn", "configure", "NAT-" + side, f"10.77.231.{index}",
                                  "--listen-port", str(51820 + index))
             app(side, "vpn", "publish", "router-ci")
+        for side in ("a", "b"):
+            probe_foreign(side)
         for side, other in (("a", "b"), ("b", "a")):
             copy_publications(other, side)
             fingerprint = hashlib.sha256(base64.b64decode(profiles[other]["signing_key"], validate=True)).hexdigest()
@@ -244,6 +284,7 @@ print(json.dumps({'reserved':True}))
             report.setdefault("grants", {})[side] = {key: result[key] for key in
                 ("protocol", "internal_port", "external_port", "external_address", "expires_at")}
             require(foreign_rule(side), "Enabling CySynck deleted the foreign NAT mapping")
+            probe_foreign(side)
         report["checks"].append("independent-pcp-and-nat-pmp-grants-preserve-foreign-port")
         for side, other in (("a", "b"), ("b", "a")):
             copy_publications(other, side)
@@ -330,6 +371,7 @@ print(json.dumps({'reserved':True}))
             disabled = app(side, "vpn", "router", "disable")
             require(not disabled["enabled"] and disabled["phase"] == "disabled", "Owned actual router mapping cleanup failed")
             require(foreign_rule(side), "Cleanup deleted the independently reserved foreign port")
+            probe_foreign(side)
             publication = work / side / "project/.cysynck-network/peers" / (profiles[side]["peer_id"] + ".endpoint.json")
             require(not publication.exists(), "Disabled mapping left its local signed endpoint publication")
         report["checks"].append("owned-router-cleanup-preserves-foreign-mapping-and-withdraws-sidecar")
