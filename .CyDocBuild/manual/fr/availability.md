@@ -5,12 +5,19 @@ description: Comprendre les fonctions implémentées et les workflows nécessita
 section: Démarrer
 order: 6
 parent: overview
-sourceRevision: 10
+sourceRevision: 11
 ---
 
 # Disponibilité et limites {#availability-and-limits}
 
 ## Fonctions implémentées {#implemented-workflows}
+
+La [préversion Windows x64](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261119) contient l’intégration
+assistant/MCP actuelle à 130 opérations et le manuel hors ligne bilingue. Le
+[guide assistant](doc:assistant) présente ses fournisseurs, autorisations, actions
+natives, point d’accès du bureau ouvert et automatisation CLI. Les binaires
+Linux/macOS de cette mise à jour de l’assistant n’ont pas été validés ni publiés ;
+compiler les sources pour ces cibles.
 
 CySynck 0.41 comprend les modes par projet, Syncthing supervisé ou connecté, les sauvegardes entières/par blocs fixes/CDC,
 la restauration sélective, les différences bornées, la résolution contrôlée des conflits avec conservation des copies, l’échange Git/LFS explicite,
@@ -29,6 +36,9 @@ La découverte et les relais Syncthing peuvent utiliser une infrastructure. Le t
 Il n’existe pas de livraison différée hors ligne ni d’accusé de lecture. Ne pas exposer ce canal applicatif non chiffré hors du tunnel.
 
 ## Plateformes et intégrations {#platform-and-integration-scope}
+
+Les résultats Linux/macOS ci-dessous concernent la base antérieure à l’intégration
+actuelle de l’assistant. Ils ne constituent pas une validation native de cette mise à jour.
 
 Windows est la plateforme de validation d’exécution locale. La CI Linux native passe aussi les tests desktop/serveur, paquets/SDK et vrais pairs Syncthing.
 Les contrôles natifs macOS cœur/SDK/paquets passent, dont les captures OpenGL 3 et OpenGL 2 en rendu logiciel. CI et compilation croisée ne valident pas le matériel graphique, l’activation des services de l’hôte, les permissions des tunnels ou le comportement en cas de coupure.

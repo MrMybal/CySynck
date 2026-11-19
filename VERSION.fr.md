@@ -5,11 +5,32 @@
 **Version des sources du cœur, du CLI et de l’application native : 0.41.0**<br>
 **Version des sources du pont Unreal : 0.2.0**<br>
 **Statut : EN DÉVELOPPEMENT**<br>
-**Binaires de l’application publiés : aucun**
+**Binaire de l’application : [préversion Windows x64](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261119)**
 
-Ces notes décrivent les sources actuelles, pas une version binaire publiée. L’ABI C reste en version 1. La documentation fournie utilise le lecteur CyDoc 0.1.0 ; cette version de dépendance est distincte de celle de CySynck.
+Ces notes décrivent les sources 0.41.0 et la préversion Windows x64 `v0.41.0-preview.20261119`. L’ABI C reste en version 1. La documentation fournie utilise le lecteur CyDoc 0.1.0 ; cette version de dépendance est distincte de celle de CySynck.
 
 ## Changements de la version 0.41.0
+
+- Publication de la préversion Windows x64 avec 130 opérations de l’assistant et
+  le manuel hors ligne anglais/français régénéré de 92 pages. Les binaires Linux/macOS
+  de cette mise à jour de l’assistant ne sont pas publiés. La sortie JSON résiste aux
+  messages système localisés contenant des octets non UTF-8, et la supervision du
+  moteur continue après une erreur transitoire de maintenance.
+
+- Le registre de l’assistant passe à 130 opérations : moteur/VPN, confiance des pairs,
+  chat/fichiers, transactions CyRevision, plugins natifs et réglages/aide/démarrage
+  du bureau. Les actions graphiques passent par une file bornée sur le thread UI,
+  avec annulation et fermeture contrôlées. Le bureau peut exposer son point d’accès
+  MCP authentifié au CLI dès son lancement. Voir le
+  [rapport de validation](.CyDocBuild/internal/ASSISTANT-ACTIONS-VALIDATION.md).
+
+- Le développement courant ajoute l’assistant natif CyMCPSDK, le registre CLI/MCP commun,
+  l’accès authentifié à une instance, les historiques privés et les ressources bornées.
+  Le SDK 0.7.0 est compilé depuis ses sources (référence `791d4d7`), avec mise à jour
+  de CyUI/ImGui pour ChatUI. Voir le [guide assistant](.CyDocBuild/manual/fr/assistant.md)
+  et la [validation locale](.CyDocBuild/internal/ASSISTANT-VALIDATION.md).
+  Cette évolution dispose de sa propre validation Windows locale ; les précédents
+  rapports Linux/macOS/Unreal ne valident pas ce nouvel assistant sur ces plateformes.
 
 - Liaison des clients et récepteurs TCP directs à des interfaces WireGuard vérifiées sous Linux, Windows et macOS, avec refus des adaptateurs ordinaires et identités périmées. Les vrais tests noyau Linux passent pour interfaces ordinaires/usurpées, routes physiques superposées et hôte sans privilèges. Les essais officiels Windows WireGuardNT et macOS wg-quick/utun passent les contrôles d’appartenance, de liaison et de nettoyage sur des hôtes natifs jetables. Les tests TCP Windows locaux et d’héritage de liaison des sockets acceptés passent aussi.
 - Conservation des compteurs contre le rejeu après révocation/nouvel appairage. Entretien des baux PCP/NAT-PMP explicitement activés et publication signée des véritables adresses du routeur, avec tests Linux indépendants de deux routeurs et de préservation d’une autre redirection.
@@ -40,7 +61,7 @@ Aucune liste distincte de bogues confirmés ne concerne cette version des source
 
 ## Limites documentées
 
-- **Distribution et plateformes** : aucune version binaire de l’application n’est actuellement publiée. Compilation, paquet et exécution Windows x64 ont été validés localement. La CI Linux native valide desktop/serveur, SDK empaqueté et vrais pairs Syncthing. Les contrôles natifs macOS cœur/SDK/paquets passent, dont les captures desktop en rendu logiciel. Matériel graphique, permissions, services de l’hôte et activation des tunnels restent à valider sur leurs cibles.
+- **Distribution et plateformes** : une préversion Windows x64 est disponible, avec compilation, paquet et exécution validés localement. Les résultats antérieurs Linux desktop/serveur, SDK/pairs Syncthing et macOS cœur/SDK/paquets en rendu logiciel concernent la base avant l’intégration de l’assistant ; ils ne valident pas cette mise à jour de l’assistant. Matériel graphique, permissions, services de l’hôte et activation des tunnels restent à valider sur leurs cibles.
 - **Connectivité VPN** : WireGuard nécessite des endpoints UDP ou IPv6 joignables, une redirection manuelle ou une passerelle PCP/NAT-PMP compatible explicitement activée. STUN/ICE, le perçage NAT arbitraire et les relais de paquets WireGuard ne sont pas implémentés. La découverte et les relais Syncthing peuvent eux-mêmes utiliser une infrastructure ; la traversée CGNAT n’est pas garantie.
 - **Messages/fichiers directs** : le canal applicatif authentifié utilise HTTP à l’intérieur du VPN et un secret de groupe partagé. Conservez-le dans le tunnel. La livraison différée hors ligne et les accusés de lecture du tchat ne sont pas fournis.
 - **Récupération et accès concurrents** : les opérations multi-fichiers ne sont pas des transactions du système de fichiers. Les verrous applicatifs n’arrêtent pas les éditeurs ou clients Git externes. Gardez des sauvegardes indépendantes ; la restauration générale des ACL, attributs étendus et horodatages d’origine n’est pas garantie.

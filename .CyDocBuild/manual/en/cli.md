@@ -4,7 +4,7 @@ title: Command-line reference
 description: Canonical command syntax, profiles and remote API access.
 section: Reference
 order: 80
-revision: 2
+revision: 1
 ---
 
 # Command-line reference {#cli}
@@ -20,6 +20,8 @@ The launchers are not remote Core commands. The desktop Help button also opens t
 CySynck 0.41 (C++20)
 cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAND
   overview | modes | plugins | events | api-token
+  tools help | tools list | tools describe NAME | tools call NAME JSON [--allow-write]
+  mcp --stdio [--full] [--allow-write] | mcp --port PORT [--full] [--allow-write]
   docs [PAGE] [--language en|fr] [--section ID] [--print]  (local offline manual)
   project mode-options ID
   project mode-options-set ID OPTIONS.json --plan TOKEN
@@ -115,6 +117,7 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   received export ID TRANSFER_ID NEW_DIRECTORY
   serve [--host 127.0.0.1] [--port 8484]
 Desktop: cysynck-desktop [--state DIR] [--plugin LIBRARY] [--background|--foreground] [--no-tray]
+         [--mcp-port PORT] [--mcp-allow-write]
 Secrets: CYSYNCK_SYNCTHING_API_KEY, CYSYNCK_API_TOKEN, CYSYNCK_MESH_TOKEN.
 VPN up/down requires administrator/root. Router mapping requires explicit local consent and a compatible gateway.
 ```

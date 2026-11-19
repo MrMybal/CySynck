@@ -7,8 +7,9 @@ the macOS application also includes them in its Resources directory.
 
 | Component | CMake reference | License |
 | --- | --- | --- |
-| CyUI | `a228501d9418550ce68d2d67b70cebbb8fa3ee2a` | MIT |
-| Dear ImGui (docking) | `1ab953d75a760d5102eb2d5c4c6c4e65df6b29f3` | MIT |
+| CyUI | `6ef01cfcdb197f3a89d64618ce5ef8818c704728` | MIT |
+| Dear ImGui (docking) | `64944b4520b30772de8dbf0b37d0311746477a32` | MIT |
+| CyMCPSDK | `791d4d7d7680213b282ec8529d248a10f8494d77` (0.7.0 source reference; local revision reported by `tools info`) | MIT |
 | GLFW | `3.4` | zlib/libpng |
 | nlohmann/json | `v3.12.0` | MIT |
 | cpp-httplib | `5814e121dfb5049f72a5c3956c3c8961b40da78b` | MIT |

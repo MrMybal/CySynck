@@ -2,6 +2,13 @@
 
 [English manual](Documentation/Documentation.html#/en/overview) · [Manuel français](Documentation/Documentation.html#/fr/overview)
 
+This development preview includes the native Assistant and 130 shared CLI/MCP operations.
+Open **Assistant** to connect a provider. Application changes are disabled by default;
+allow them explicitly for the current instance. Keep agent/API credentials separate.
+The local guide is `Documentation/Documentation.html#/en/assistant`.
+On Windows start `bin/cysynck-desktop.exe`; `--mcp-port 0` exposes its authenticated
+loopback endpoint for the CLI. The package also contains `Install-CySynck.ps1`.
+
 Open `Documentation/Documentation.html` in a recent browser. Keep the whole `Documentation/`
 directory together, including `DocData/`. Reading needs no server, CDN, Node.js or Internet.
 

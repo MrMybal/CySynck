@@ -32,7 +32,7 @@ int cysynck_request(cysynck_handle handle, const char *method, const char *path,
             throw std::runtime_error("Invalid API argument");
         auto value = static_cast<cysynck::Core *>(handle)->request(
             method, path, body && *body ? cysynck::Json::parse(body) : cysynck::Json::object());
-        output(result, value.dump());
+        output(result, value.dump(-1, ' ', false, cysynck::Json::error_handler_t::replace));
         return *result ? 0 : 2;
     } catch (const std::exception &e) {
         output(result, cysynck::Json{{"error", e.what()}}.dump(

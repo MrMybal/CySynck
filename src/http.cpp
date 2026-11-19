@@ -223,7 +223,8 @@ struct HttpServer::Impl {
                         auto data = Json::parse(req.body);
                         result = help::context(data.value("context", "Overview"), data.value("language", "en"));
                         result["can_open"] = loopback && (req.remote_addr == "127.0.0.1" || req.remote_addr == "::1");
-                        res.set_content(result.dump(), "application/json; charset=utf-8");
+                        res.set_content(result.dump(-1, ' ', false, Json::error_handler_t::replace),
+                                "application/json; charset=utf-8");
                         return;
                     }
                     if (req.path == "/api/help/open" && req.method == "POST") {
@@ -236,7 +237,8 @@ struct HttpServer::Impl {
                         result = help::context(data.value("context", "Overview"), data.value("language", "en"));
                         help::open(result);
                         result["opened"] = true;
-                        res.set_content(result.dump(), "application/json; charset=utf-8");
+                        res.set_content(result.dump(-1, ' ', false, Json::error_handler_t::replace),
+                                "application/json; charset=utf-8");
                         return;
                     }
                     if (req.path == "/api/help/archive" && req.method == "GET") {
@@ -286,7 +288,8 @@ struct HttpServer::Impl {
                             core.request(req.method, req.path,
                                          req.body.empty() ? Json::object() : Json::parse(req.body));
                 }
-                res.set_content(result.dump(), "application/json; charset=utf-8");
+                res.set_content(result.dump(-1, ' ', false, Json::error_handler_t::replace),
+                                "application/json; charset=utf-8");
             } catch (const std::exception &e) {
                 res.status = 400;
                 res.set_content(

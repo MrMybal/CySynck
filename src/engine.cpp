@@ -1,5 +1,6 @@
 #include <cysynck/core.hpp>
 #include "engine_options.hpp"
+#include "error.hpp"
 #include <httplib.h>
 #include <tinyxml2.h>
 #include <regex>
@@ -139,7 +140,7 @@ Json Core::engine_action(const std::string &action, const Json &data) {
                 output["version"] = engine_request("GET", "system/version", Json::object(), 1)
                                         .value("version", std::string{});
             } catch (const std::exception &e) {
-                output["error"] = e.what();
+                output["error"] = error_text(e);
             }
         return output;
     };
@@ -351,7 +352,7 @@ void Core::maintain_engine() {
     try {
         engine_action("start", Json::object());
     } catch (const std::exception &error) {
-        engine_error_ = error.what();
+        engine_error_ = error_text(error);
         event("", "engine-error", engine_error_);
     }
 }

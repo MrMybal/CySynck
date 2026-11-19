@@ -1,5 +1,6 @@
 {
   "Overview": "overview",
+  "Assistant": "assistant",
   "Changes": "diffs#choisir-une-comparaison",
   "Conflicts": "resolutions#preparer-et-appliquer",
   "Recovery": "resolutions#interruption-et-export",

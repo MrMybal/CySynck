@@ -5,11 +5,31 @@
 **Core, CLI and desktop source version: 0.41.0**<br>
 **Unreal bridge source version: 0.2.0**<br>
 **Stage: IN DEVELOPMENT**<br>
-**Published application binaries: none**
+**Application binary: [Windows x64 development preview](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261119)**
 
-These notes describe the current source tree, not a published binary release. The C ABI remains at version 1. The bundled documentation uses CyDoc reader 0.1.0; that is a dependency version, separate from CySynck's version.
+These notes describe the 0.41.0 source tree and the Windows x64 development preview `v0.41.0-preview.20261119`. The C ABI remains at version 1. The bundled documentation uses CyDoc reader 0.1.0; that is a dependency version, separate from CySynck's version.
 
 ## Changes in 0.41.0
+
+- Publish the Windows x64 development preview with 130 assistant operations and
+  a regenerated 92-page English/French offline manual. Linux/macOS binaries for this
+  assistant update are not published. Preserve JSON output when localized native
+  error messages contain non-UTF-8 bytes, and keep engine supervision alive after
+  a transient maintenance failure.
+
+- Extend the shared assistant registry to 130 operations, including engine/VPN control,
+  peer trust, chat/files, CyRevision transactions, native plugin loading and live desktop
+  preferences/help/startup. A bounded UI-thread bridge preserves cancellation and shutdown
+  behavior. Desktop launch options expose its authenticated MCP endpoint to the CLI.
+  See [application-action validation](.CyDocBuild/internal/ASSISTANT-ACTIONS-VALIDATION.md).
+
+- Current development adds the native CyMCPSDK assistant, shared CLI/MCP operation registry,
+  authenticated instance access, private histories and bounded result resources. SDK 0.7.0
+  is built from source (reference `791d4d7`), with CyUI/ImGui upgraded for ChatUI.
+  See the [assistant guide](.CyDocBuild/manual/en/assistant.md) and the
+  [local integration validation](.CyDocBuild/internal/ASSISTANT-VALIDATION.md).
+  This addition has its own local Windows validation; prior Linux/macOS/Unreal
+  release records do not validate the new assistant on those platforms.
 
 - Bind direct TCP clients and listeners to verified WireGuard interfaces on Linux, Windows and macOS, refusing ordinary adapters and stale identities. Linux kernel tests pass for ordinary/spoofed interfaces, overlapping physical routes and an unprivileged data host. Actual official Windows WireGuardNT and macOS wg-quick/utun gates pass ownership, binding and cleanup checks on disposable native hosts. Windows loopback TCP and accepted-socket binding also pass locally.
 - Preserve endpoint replay floors after revoke/re-pair. Maintain explicitly enabled PCP/NAT-PMP leases and publish signed actual router endpoints, with independent two-router Linux forwarding and foreign-mapping preservation tests.
@@ -40,7 +60,7 @@ No separate itemized confirmed-bug list accompanies this source version. Consult
 
 ## Documented limitations
 
-- **Distribution and platforms:** no application binary release is currently published. Windows x64 has local build/package/runtime validation. Native Linux CI validates the desktop/server, packaged SDK and real Syncthing peers. Native macOS core/SDK/package checks pass, including software-rendered desktop captures. Physical graphics, permissions, host services and tunnel activation need target validation.
+- **Distribution and platforms:** a Windows x64 development preview is available with local build/package/runtime validation. Earlier Linux desktop/server, packaged SDK/Syncthing-peer and macOS software-rendered core/SDK/package CI results cover the base before the assistant integration; they do not validate the current assistant update. Physical graphics, permissions, host services and tunnel activation need target validation.
 - **VPN connectivity:** WireGuard needs reachable UDP endpoints, reachable IPv6, manual forwarding or an explicitly enabled compatible PCP/NAT-PMP gateway. STUN/ICE, arbitrary NAT hole punching and WireGuard packet relay are not implemented. Syncthing discovery/relays may themselves use infrastructure; CGNAT traversal is not guaranteed.
 - **Direct messaging/files:** the authenticated application channel uses HTTP inside the VPN and a shared group secret. Keep it inside the tunnel. Offline store-and-forward delivery and chat read receipts are not provided.
 - **Recovery and concurrency:** multi-file operations are not filesystem transactions. Application locks do not stop external editors or Git clients. Keep independent backups; general ACL, extended-attribute and original-time restoration are not guaranteed.

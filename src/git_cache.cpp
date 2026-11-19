@@ -3,6 +3,7 @@
 #include "file_time.hpp"
 #include "git_lfs.hpp"
 #include "git_review.hpp"
+#include "error.hpp"
 #include <algorithm>
 #include <map>
 #include <regex>
@@ -366,7 +367,7 @@ Json recover_git_lfs_cache(const fs::path &state, const Json &p, const Json &dat
         atomic_write(path, record.dump(2), true);
     } catch (const std::exception &e) {
         record.update({{"status", "incomplete"}, {"applied", false}, {"can_recover", false}});
-        record["error"] = e.what();
+        record["error"] = error_text(e);
         try {
             atomic_write(path, record.dump(2), true);
         } catch (const std::exception &) {

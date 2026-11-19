@@ -4,7 +4,7 @@ title: CySynck
 description: Synchroniser les projets, conserver des sauvegardes et examiner les changements.
 section: Démarrer
 order: 0
-sourceRevision: 1
+sourceRevision: 2
 ---
 
 # CySynck {#cysynck}
@@ -13,12 +13,19 @@ CySynck regroupe la synchronisation, les sauvegardes versionnées, les comparais
 Le cœur C++20 est commun à la ligne de commande, au desktop CyUI et à la console Web/API.
 Des builds desktop sont prévus pour Windows, macOS et Linux ; les serveurs Linux utilisent le CLI sans environnement graphique.
 
+L’[assistant natif](doc:assistant) partage 130 opérations avec le CLI JSON et le MCP
+local authentifié, pour les projets, le moteur, le réseau et les actions du bureau.
+La préversion actuelle fournit un binaire Windows x64 validé ; voir la
+[disponibilité](doc:availability) pour la portée des autres vérifications de plateforme.
+
 ## Pour commencer {#start-here}
 
 1. [Installer l’application](doc:install) et les outils externes nécessaires.
 2. Suivre le [tutoriel du premier projet](doc:quickstart).
 3. Choisir [le mode du projet](doc:projects) avant de partager son dossier.
 4. Consulter [les sauvegardes et restaurations](doc:backups), [la revue des fichiers](doc:diffs) ou [l’échange Git](doc:git-setup).
+
+5. Configurer [l’assistant et le MCP](doc:assistant) pour les actions conversationnelles ou l’automatisation CLI.
 
 ## Un cœur, plusieurs interfaces {#one-core-several-interfaces}
 

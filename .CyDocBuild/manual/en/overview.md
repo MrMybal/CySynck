@@ -4,14 +4,15 @@ title: CySynck
 description: Synchronize projects, preserve backups and review changes.
 section: Start
 order: 0
-revision: 1
+revision: 2
 ---
 
 # CySynck {#cysynck}
 
 CySynck groups synchronization, versioned backups, file comparisons and explicit Git exchanges by project.
 The C++20 core is shared by the command line, the CyUI desktop and the Web/API console.
-Windows, macOS and Linux desktop builds are provided; Linux servers can use the CLI without a graphical environment.
+The desktop targets Windows, macOS and Linux; Linux servers can use the CLI without a graphical environment. The current development preview supplies a validated Windows x64 binary; see [availability](doc:availability) for the scope of other platform checks.
+The [native assistant](doc:assistant) shares 130 operations with the JSON CLI and authenticated local MCP, including project, engine, network and desktop actions.
 
 ## Start here {#start-here}
 
@@ -19,6 +20,7 @@ Windows, macOS and Linux desktop builds are provided; Linux servers can use the 
 2. Follow the [first-project tutorial](doc:quickstart).
 3. Choose [a project mode](doc:projects) before sharing its folder.
 4. Learn [backup and restore](doc:backups), [file review](doc:diffs) or [Git exchange](doc:git-setup).
+5. Set up the [assistant and MCP](doc:assistant) when you want conversational or CLI automation.
 
 ## One core, several interfaces {#one-core-several-interfaces}
 

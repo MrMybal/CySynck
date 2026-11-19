@@ -5,12 +5,18 @@
 #include <thread>
 #include "startup.hpp"
 #include "help.hpp"
+#include "error.hpp"
+#include "assistant.hpp"
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
 #endif
 static volatile std::sig_atomic_t interrupted = 0;
 static void interrupt(int) { interrupted = 1; }
+// Results may carry localized system messages; never let output encoding abort a command.
+static std::string json_text(const cysynck::Json &value) {
+    return value.dump(2, ' ', false, cysynck::Json::error_handler_t::replace);
+}
 static int run(std::vector<std::string> args) {
     try {
         auto state = cysynck::default_state();
@@ -31,11 +37,11 @@ static int run(std::vector<std::string> args) {
                 commands.push_back(args[i]);
         }
         if (!commands.empty() && (commands[0] == "docs" || commands[0] == "documentation")) {
-            std::cout << cysynck::help::command(commands).dump(2) << '\n';
+            std::cout << json_text(cysynck::help::command(commands)) << '\n';
             return 0;
         }
         if (!server.empty()) {
-            std::cout << cysynck::remote_cli(server, commands).dump(2) << '\n';
+            std::cout << json_text(cysynck::remote_cli(server, commands)) << '\n';
             return 0;
         }
         cysynck::Core core(state);
@@ -47,22 +53,30 @@ static int run(std::vector<std::string> args) {
             cysynck::desktop::LoginStartup startup(std::move(launch),
                                                    cysynck::desktop::user_startup_directory(),
                                                    cysynck::desktop::native_startup_backend());
-            std::cout << cysynck::desktop::startup_command(startup, commands).dump(2) << '\n';
+            std::cout << json_text(cysynck::desktop::startup_command(startup, commands)) << '\n';
             return 0;
         }
         for (auto &path : plugins)
             core.load_plugin(std::filesystem::u8path(path));
+        if (cysynck::assistant::handles(commands))
+            return cysynck::assistant::run(core, commands);
         if (commands.size() == 2 && commands[0] == "engine" &&
             (commands[1] == "run" || commands[1] == "start")) {
             std::signal(SIGINT, interrupt);
             std::signal(SIGTERM, interrupt);
-            std::cout << core.request("POST", "/api/engine/start").dump(2)
+            std::cout << json_text(core.request("POST", "/api/engine/start"))
                       << "\nOwned engine running; press Ctrl+C to stop.\n";
             std::cout.flush();
             int ticks = 0;
             while (!interrupted) {
                 if (++ticks >= 15) {
-                    core.tick();
+                    // A busy profile lock or one failed save must not stop the supervisor
+                    // (and with it the owned Syncthing engine); retry on the next tick.
+                    try {
+                        core.tick();
+                    } catch (const std::exception &e) {
+                        std::cerr << cysynck::error_text(e) << '\n';
+                    }
                     ticks = 0;
                 }
                 std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -123,7 +137,7 @@ static int run(std::vector<std::string> args) {
             signalWatcher.request_stop();
             return 0;
         }
-        std::cout << cysynck::cli(core, commands).dump(2) << '\n';
+        std::cout << json_text(cysynck::cli(core, commands)) << '\n';
         return 0;
     } catch (const std::exception &e) {
         std::cerr << cysynck::Json{{"error", e.what()}}.dump(

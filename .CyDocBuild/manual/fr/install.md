@@ -5,10 +5,16 @@ description: Installer, mettre à jour ou retirer le paquet Windows ; utiliser l
 section: Démarrer
 order: 2
 parent: overview
-sourceRevision: 3
+sourceRevision: 4
 ---
 
 # Installation Windows {#installation-windows}
+
+Télécharger la préversion Windows x64 complète et son fichier SHA-256 depuis la
+[page de version](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261119). Vérifier l’empreinte avant extraction.
+Cette mise à jour de l’assistant n’a pas de binaire Linux/macOS publié ; les
+instructions portables ci-dessous s’appliquent aussi aux paquets compilés localement.
+
 
 Le paquet contient le CLI, le desktop, le SDK et `Install-CySynck.ps1`. L'application et son
 cœur restent en C++20 ; PowerShell sert uniquement au déploiement. Cette version fournit

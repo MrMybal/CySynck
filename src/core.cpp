@@ -4,6 +4,7 @@
 #include <cysynck/core.hpp>
 #include <cysynck/plugin.h>
 #include "plugin_metadata.hpp"
+#include "error.hpp"
 #include "help.hpp"
 #include <fstream>
 #include <iomanip>
@@ -331,7 +332,12 @@ void Core::load() {
     if (registry_.at("version") != 1)
         throw std::runtime_error("Unsupported state schema");
 }
-void Core::save() { atomic_write(state_ / "registry.json", registry_.dump(2), true); }
+void Core::save() {
+    // Replace invalid UTF-8 instead of throwing: one localized system message must not make
+    // every later state update fail.
+    atomic_write(state_ / "registry.json",
+                 registry_.dump(2, ' ', false, Json::error_handler_t::replace), true);
+}
 Json &Core::project(const std::string &value) {
     id(value);
     for (auto &p : registry_["projects"])
@@ -751,7 +757,7 @@ Json Core::request(const std::string &method, const std::string &path, const Jso
                     p["latest_snapshot"].erase("files");
             } catch (const std::exception &e) {
                 p["latest_snapshot"] = nullptr;
-                p["backup_error"] = e.what();
+                p["backup_error"] = error_text(e);
             }
         }
         return {{"version", version},
@@ -1130,7 +1136,7 @@ void Core::tick() {
             if (due)
                 backup(p, "scheduled");
         } catch (const std::exception &error) {
-            event(p.at("id"), "error", error.what());
+            event(p.at("id"), "error", error_text(error));
         }
     save();
 }

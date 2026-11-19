@@ -14,6 +14,7 @@
     <td width="300" align="right" valign="top">
       <p><sub>Licence de l’application</sub><br><a href="LICENSE"><strong>MIT</strong></a></p>
       <p><sub>Versions des sources</sub><br><a href="VERSION.fr.md"><strong>Application 0.41.0</strong><br>Pont Unreal 0.2.0</a><br><strong>EN DÉVELOPPEMENT</strong></p>
+      <p><a href="https://github.com/MrMybal/CySynck/releases/download/v0.41.0-preview.20261119/CySynck-0.41.0-win64.zip"><strong>Télécharger Windows x64</strong></a><br><sub>Préversion de développement</sub></p>
     </td>
   </tr>
 </table>
@@ -24,7 +25,7 @@ Synchronisez vos projets, conservez des sauvegardes versionnées et examinez les
 
 > **EN DÉVELOPPEMENT · 0.41.0**
 >
-> Il s’agit de la version actuelle des sources ; aucune version binaire téléchargeable n’est encore publiée. Les versions de développement nécessitent une validation de votre usage cible. Consulter les [notes de version et limites documentées](VERSION.fr.md).
+> Une [préversion Windows x64](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261119) réunit l’application, le CLI, le SDK et le manuel hors ligne. Valider votre usage cible ; cette mise à jour de l’assistant reste à tester nativement sous Linux/macOS. Consulter les [notes de version et limites documentées](VERSION.fr.md).
 
 [![Application CySynck 0.41.0 sous Windows, avec la vue d’ensemble sans projet, la navigation et le bouton d’aide contextuelle ; interface en anglais](assets/screenshots/desktop-0.41.0.png)](assets/screenshots/desktop-0.41.0.png)
 
@@ -36,6 +37,7 @@ L’application native, le CLI et la console Web/API partagent un même cœur. C
 
 ## Fonctionnalités
 
+- **Assistant et MCP :** chat natif CyMCPSDK avec streaming et 130 opérations communes au CLI JSON et au MCP local authentifié : projets, moteur, VPN, transferts, plugins et bureau. L’écriture exige une autorisation explicite ; historiques et résultats conservés restent privés. Voir [Assistant et MCP](#assistant-et-mcp).
 - **Modes de projet** : synchronisation bidirectionnelle, envoi seul ou réception seule, sauvegardes, échanges Git explicites et modes d’extensions natives.
 - **Sauvegardes** : planification, aperçu des exclusions, rétention, stockage par fichiers entiers/blocs fixes/blocs à découpage selon le contenu, vérification d’intégrité et restauration sélective.
 - **Revue de fichiers** : différences bornées côte à côte ou unifiées, patches compatibles Git et résolution explicite des conflits avec conservation de copies de récupération.
@@ -44,9 +46,35 @@ L’application native, le CLI et la console Web/API partagent un même cœur. C
 - **Application et exploitation** : icône de notification, démarrage à la connexion par profil, diagnostics et export de services systemd/LaunchAgent après revue.
 - **Intégration** : cœur C++20, ABI C v1 utilisant du JSON UTF-8, options d’extensions typées et exemples C/C++/extensions compilables. Le [pont Unreal](integrations/unreal/README.fr.md) fournit les requêtes Blueprint asynchrones en file et la préparation du SDK.
 
+## Assistant et MCP
+
+Ouvrir **Assistant** pour choisir un agent installé ou un service API/modèle compatible.
+L’assistant inspecte les projets, examine les différences et utilise les mêmes actions
+natives que le CLI, dont Git/CyRevision, les sauvegardes, le réseau et les réglages du
+bureau ouvert. La lecture seule est activée par défaut. **Autoriser les actions de
+l’application** permet les modifications pour cette instance ; plans, confirmation des
+clés des pairs et propriété des processus restent applicables. L’envoi de messages ou
+fichiers exige une demande explicite. Les identifiants API sont fournis séparément ;
+les clés privées du moteur sont référencées par des variables d’environnement.
+
+[![Assistant natif CySynck en français avec réglages du fournisseur et accès en lecture seule](assets/screenshots/assistant-0.41.0-fr.png)](assets/screenshots/assistant-0.41.0-fr.png)
+
+```sh
+cysynck tools list
+cysynck tools describe cysynck.ui.configure
+cysynck-desktop --state ./profile --mcp-port 0
+```
+
+La dernière commande affiche le point d’accès local authentifié du bureau et le chemin
+du fichier du jeton. Utiliser le même profil avec `tools ... --endpoint URL` pour piloter
+cette instance. L’écriture est autorisée localement ; `--mcp-allow-write` l’active
+explicitement au lancement. Le [manuel hors ligne](#manuel-hors-ligne) contient le sujet
+complet à `Documentation/Documentation.html#/fr/assistant` : fournisseurs, autorisations,
+MCP sans interface, outils externes sélectionnés et récupération des résultats conservés.
+
 ## Manuel hors ligne
 
-Le manuel **CyDoc** complet contient 45 sujets par langue, dont les tutoriels et références publiques C++/C/extensions. Recherche, favoris, notes et positions de lecture fonctionnent localement. La lecture ne nécessite ni serveur, ni CDN, ni Node.js, ni connexion Internet.
+Le manuel **CyDoc** complet contient 46 sujets par langue, dont les tutoriels et références publiques C++/C/extensions. Recherche, favoris, notes et positions de lecture fonctionnent localement. La lecture ne nécessite ni serveur, ni CDN, ni Node.js, ni connexion Internet.
 
 Après compilation des sources ou extraction d’un paquet complet de l’application, ouvrez la route du lecteur correspondant dans un navigateur :
 
@@ -67,14 +95,14 @@ Pour générer seulement le manuel, lancez `npm ci --prefix .CyDocBuild`, puis `
 
 ## Installation
 
-Il n’existe actuellement **aucun téléchargement binaire publié**. Compilez les sources selon les étapes ci-dessous. La [page des versions](https://github.com/MrMybal/CySynck/releases) accueillera les futures distributions de l’application.
+Télécharger la [préversion complète Windows x64](https://github.com/MrMybal/CySynck/releases/download/v0.41.0-preview.20261119/CySynck-0.41.0-win64.zip) et son empreinte SHA-256 depuis la [page de version](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261119). Elle contient le bureau natif, le CLI, le cœur/SDK et le manuel hors ligne dans les deux langues. Les versions Linux/macOS de cette mise à jour de l’assistant sont disponibles depuis les sources pour le moment.
 
 | Cible | Disponibilité | Lancement après installation dans `dist/` |
 | --- | --- | --- |
-| Windows x64 | Compilation depuis les sources ; application, CLI et paquet validés localement | `dist/bin/cysynck-desktop.exe` |
-| Linux avec interface | Contrôles natifs CI de compilation/paquet/exécution réussis ; matériel et services à vérifier | `dist/bin/cysynck-desktop` |
-| Serveur Linux | CI native et tests de vrais pairs Syncthing réussis ; services/tunnels sur l’hôte à vérifier | `dist/bin/cysynck serve` |
-| macOS | CI native cœur/SDK/paquets validée, dont les captures desktop en rendu logiciel | `open dist/CySynck.app` |
+| Windows x64 | ZIP de préversion ; application, CLI et paquet validés localement | `dist/bin/cysynck-desktop.exe` |
+| Linux avec interface | Compilation des sources ; ancienne base validée en CI, assistant actuel à vérifier nativement | `dist/bin/cysynck-desktop` |
+| Serveur Linux | Compilation sans interface ; ancienne base validée en CI, assistant actuel à vérifier nativement | `dist/bin/cysynck serve` |
+| macOS | Compilation des sources ; ancienne base validée en CI, assistant actuel à vérifier nativement | `open dist/CySynck.app` |
 
 Installez **Syncthing**, **Git**, **WireGuard** et **OpenSSL** séparément pour les fonctions qui en ont besoin ; OpenSSL fournit les signatures P-256 de CyRevision et des publications d’adresses VPN, et les outils de suivi Git LFS sont également externes. CySynck ne fournit pas ces programmes. WireGuard exige les privilèges adaptés et des points de terminaison UDP joignables ; la découverte des pairs ne suffit pas à traverser tous les NAT.
 
@@ -94,6 +122,8 @@ Mettez les chemins contenant des espaces entre guillemets et examinez le champ `
 ## Sources, compilation et bibliothèques nécessaires
 
 Prérequis : **CMake 3.24+**, **compilateur C++20**, Git, **Node.js 22+** et npm. Node.js sert à compiler le manuel ; il n’est pas nécessaire pour lancer l’application ou lire l’export. CMake récupère les dépendances natives épinglées. Une archive CyDoc épinglée est incluse dans le dépôt.
+
+L’assistant compile [CyMCPSDK](https://github.com/MrMybal/CyMCPSDK) 0.7.0 depuis ses sources, en donnant la priorité au dépôt voisin ou à `-DCYSYNCK_CYMCP_SOURCE_DIR=/sources/CyMCPSDK`. Linux/macOS nécessitent aussi libcurl de développement pour le transport HTTP du SDK. Les agents, identifiants API et services de modèles locaux sont fournis séparément.
 
 Windows utilise les outils C++ de Visual Studio 2022. macOS nécessite les Xcode Command Line Tools. Le desktop Linux exige OpenGL et les bibliothèques de développement X11/Wayland de GLFW ; `libayatana-appindicator3-dev` active l’icône de notification facultative. Le [workflow de compilation native](.github/workflows/build.yml) liste les paquets Linux utilisés en CI.
 
@@ -141,10 +171,11 @@ Le [test optionnel multi-Gio](.CyDocBuild/internal/LARGE-WORKLOAD.md) vérifie l
 | [cpp-httplib](https://github.com/yhirose/cpp-httplib) | [MIT](https://github.com/yhirose/cpp-httplib/blob/5814e121dfb5049f72a5c3956c3c8961b40da78b/LICENSE) | HTTP/API du cœur et réseau direct. |
 | [PicoSHA2](https://github.com/okdshin/PicoSHA2) | [MIT](https://github.com/okdshin/PicoSHA2/blob/161cb3fc4170fa7a3eca9e582cebd27cc4d1fe29/LICENSE) | Vérifications SHA-256 du cœur. |
 | [TinyXML2 10.0.0](https://github.com/leethomason/tinyxml2) | [zlib](https://github.com/leethomason/tinyxml2/blob/321ea883b7190d4e85cae5512a12e5eaa8f8731f/LICENSE.txt) | Configuration XML de Syncthing dans le cœur. |
-| [CyUI](https://github.com/MrMybal/CyUI) | [MIT](https://github.com/MrMybal/CyUI/blob/a228501d9418550ce68d2d67b70cebbb8fa3ee2a/LICENSE) | Application native ; modules Diff et Inspector, incluant Code. |
-| [Dear ImGui](https://github.com/ocornut/imgui) | [MIT](https://github.com/ocornut/imgui/blob/1ab953d75a760d5102eb2d5c4c6c4e65df6b29f3/LICENSE.txt) | Widgets et couches d’intégration de l’application native. |
+| [CyUI](https://github.com/MrMybal/CyUI) | [MIT](https://github.com/MrMybal/CyUI/blob/6ef01cfcdb197f3a89d64618ce5ef8818c704728/LICENSE) | Application native et vues de l’assistant ; modules Diff, Inspector et DocumentViews. |
+| [CyMCPSDK 0.7.0](https://github.com/MrMybal/CyMCPSDK) | [MIT](https://github.com/MrMybal/CyMCPSDK/blob/791d4d7d7680213b282ec8529d248a10f8494d77/LICENSE) | Assistant, fournisseurs, registre CLI/MCP et ChatUI natif compilés depuis les sources ; notices complètes fournies avec le paquet. |
+| [Dear ImGui](https://github.com/ocornut/imgui) | [MIT](https://github.com/ocornut/imgui/blob/64944b4520b30772de8dbf0b37d0311746477a32/LICENSE.txt) | Widgets et couches d’intégration de l’application native. |
 | [GLFW 3.4](https://github.com/glfw/glfw) | [zlib/libpng](https://github.com/glfw/glfw/blob/3.4/LICENSE.md) | Fenêtre et contexte OpenGL de l’application native. |
-| [Lexilla / Scintilla](https://github.com/MrMybal/CyUI/tree/a228501d9418550ce68d2d67b70cebbb8fa3ee2a/third_party) | [Conditions permissives Lexilla/Scintilla](https://github.com/MrMybal/CyUI/blob/a228501d9418550ce68d2d67b70cebbb8fa3ee2a/third_party/lexilla/License.txt) | Analyseurs lexicaux et interfaces utilisés par CyUI Code dans l’application native. |
+| [Lexilla / Scintilla](https://github.com/MrMybal/CyUI/tree/6ef01cfcdb197f3a89d64618ce5ef8818c704728/third_party) | [Conditions permissives Lexilla/Scintilla](https://github.com/MrMybal/CyUI/blob/6ef01cfcdb197f3a89d64618ce5ef8818c704728/third_party/lexilla/License.txt) | Analyseurs lexicaux et interfaces utilisés par CyUI Code dans l’application native. |
 | [CyDoc 0.1.0](https://github.com/MrMybal/CyDoc) | [MIT](https://github.com/MrMybal/CyDoc/blob/main/LICENSE) | Lecteur hors ligne distribué et compilateur documentaire ; archive épinglée et provenance dans [.CyDocBuild/vendor](.CyDocBuild/vendor). |
 | [marked 17.0.6](https://github.com/markedjs/marked) | [MIT ; conditions Markdown incluses](https://github.com/markedjs/marked/blob/v17.0.6/LICENSE.md) | Compilation Markdown par CyDoc pendant la construction. |
 | [PrismJS 1.30.0](https://github.com/PrismJS/prism) | [MIT](https://github.com/PrismJS/prism/blob/v1.30.0/LICENSE) | Coloration syntaxique à la compilation ; sa notice accompagne le manuel. |

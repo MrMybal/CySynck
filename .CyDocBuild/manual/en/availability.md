@@ -5,12 +5,18 @@ description: Understand the implemented scope and workflows requiring external t
 section: Start
 order: 6
 parent: overview
-revision: 10
+revision: 11
 ---
 
 # Availability and limits {#availability-and-limits}
 
 ## Implemented workflows {#implemented-workflows}
+
+The [Windows x64 development preview](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261119) contains the current
+130-operation assistant/MCP integration and the bilingual offline manual. The
+[assistant guide](doc:assistant) covers its providers, permissions, native actions,
+live desktop endpoint and CLI automation. Linux/macOS binaries for this assistant
+update have not been validated or published; build from source for those targets.
 
 CySynck 0.41 includes project modes, supervised or connected Syncthing, whole-file/fixed-block/CDC backups,
 selective restoration, bounded diffs, reviewed conflict resolution with preserved copies, explicit Git/LFS exchange,
@@ -30,8 +36,8 @@ There is no offline store-and-forward delivery or read receipt. Do not expose th
 
 ## Platform and integration scope {#platform-and-integration-scope}
 
-Windows is the locally available runtime validation platform. Native Linux CI also passes desktop/server, package/SDK and real Syncthing peer tests.
-Native macOS core/SDK/package checks pass, including OpenGL 3 and OpenGL 2 software-renderer captures. CI and cross-compilation do not prove physical graphics, host service activation, tunnel permissions or power-loss behavior.
+Windows is the locally available runtime validation platform. Prior base-version native Linux CI passed desktop/server, package/SDK and real Syncthing peer tests.
+Prior macOS core/SDK/package checks passed, including OpenGL 3 and OpenGL 2 software-renderer captures. Those results precede the current assistant integration. CI and cross-compilation do not prove physical graphics, host service activation, tunnel permissions or power-loss behavior.
 The Unreal bridge provides asynchronous FIFO Blueprint requests. Windows Development Editor 5.7.4 and 5.8.3 build/automation passes. A real 5.8.3 Win64 Development packaged game passes five tests with 34 runtime/license/manual files verified. NullRHI does not prove graphics; other Unreal versions/hosts and Shipping builds need their own validation. Close waits for active work and can block.
 Git, Git LFS tracking tools, Syncthing, WireGuard and OpenSSL remain separately installed where required.
 

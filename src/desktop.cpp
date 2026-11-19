@@ -1,4 +1,6 @@
 #include <cysynck/core.hpp>
+#include "assistant_ui.hpp"
+#include "assistant.hpp"
 #include <cyui/Core.h>
 #include <cyui/modules/Diff.h>
 #ifdef _WIN32
@@ -9,10 +11,12 @@
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <ctime>
+#include <exception>
 #include <fstream>
 #include <functional>
 #include <future>
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl2.h>
 #include <imgui_impl_opengl3.h>
@@ -26,6 +30,7 @@
 #include "desktop_support.hpp"
 #include "startup.hpp"
 #include "help.hpp"
+#include "error.hpp"
 using cysynck::Json;
 namespace fs = std::filesystem;
 namespace c = cyui;
@@ -965,6 +970,7 @@ static void localize() {
          {"Resume", "Reprendre"},
          {"No projects yet", "Aucun projet"},
          {"Select a project", "Sélectionnez un projet"},
+         {"This view could not be displayed", "Cette vue n’a pas pu être affichée"},
          {"Choose a directory to start.", "Choisissez un dossier pour commencer."},
          {"Choose a project in the sidebar.", "Choisissez un projet dans le panneau latéral."},
          {"No backup yet", "Aucune sauvegarde"},
@@ -1034,6 +1040,9 @@ static void localize() {
           "espaces entre guillemets."}});
 }
 class App {
+    std::shared_ptr<cysynck::assistant::DesktopBridge> assistant_bridge =
+        std::make_shared<cysynck::assistant::DesktopBridge>();
+    std::unique_ptr<cysynck::assistant::Panel> assistant_panel;
     cysynck::Core &core;
     cysynck::desktop::LoginStartup &startup;
     std::future<Json> pending;
@@ -1085,6 +1094,7 @@ class App {
                 compare_right, selected_conflict, merged_content, selected_resolution,
                 resolution_destination, selected_received, received_destination, received_verified,
                 command = "project list";
+    std::string view_failure;
     bool create = false, before = true, storage_inspected = false, conflicts_loaded = false;
     int comparison_source = 0, resolution_choice = 0;
     bool history_loaded = false;
@@ -1205,15 +1215,20 @@ class App {
         }
     }
     ~App() {
+        assistant_bridge->close();
+        assistant_panel.reset();
         if (pending.valid())
             pending.wait();
         if (receiver)
             receiver->stop();
         if (receiver_thread.joinable())
             receiver_thread.join();
+        // Leaving through an exception must not persist the view that raised it: the next
+        // launch would reopen that view and fail again.
+        bool unwinding = std::uncaught_exceptions() > 0;
         try {
             core.request("PUT", "/api/settings",
-                         {{"ui_view", view},
+                         {{"ui_view", unwinding ? std::string("Overview") : view},
                           {"ui_project", selected},
                           {"ui_theme", theme},
                           {"ui_language", language},
@@ -1223,6 +1238,62 @@ class App {
         }
     }
     bool busy() const { return pending.valid(); }
+    int start_assistant_mcp(int port, bool writes) {
+        if (!assistant_panel) assistant_panel = std::make_unique<cysynck::assistant::Panel>(core, assistant_bridge);
+        return assistant_panel->listen(port, writes);
+    }
+    Json assistant_action(const std::string &action, const Json &data) {
+        auto ui_status = [this] {
+            return Json{{"ui_view", view}, {"ui_project", selected}, {"ui_theme", theme},
+                        {"ui_language", language}, {"ui_close_to_tray", close_to_tray},
+                        {"ui_start_hidden", start_hidden}, {"live", true}};
+        };
+        if (action == "cysynck.ui.status") return ui_status();
+        if (action == "cysynck.ui.configure") {
+            // Validate the selection before applying any of the preferences.
+            if (data.contains("ui_project")) {
+                auto next = data.at("ui_project").get<std::string>();
+                overview = core.request("GET", "/api/overview");
+                if (next.empty() || std::none_of(overview.at("projects").begin(), overview.at("projects").end(),
+                        [&](const Json &p) { return p.at("id") == next; }))
+                    throw std::runtime_error("Select an existing project ID");
+            }
+            // Persist first so a failed disk write cannot leave only half of
+            // the UI configuration applied.
+            core.request("PUT", "/api/settings", data);
+            if (data.contains("ui_project")) select(data.at("ui_project"));
+            if (data.contains("ui_view")) set_view(data.at("ui_view"));
+            if (data.contains("ui_theme")) set_theme(data.at("ui_theme"));
+            if (data.contains("ui_language")) set_language(data.at("ui_language"));
+            if (data.contains("ui_close_to_tray")) close_to_tray = data.at("ui_close_to_tray");
+            if (data.contains("ui_start_hidden")) start_hidden = data.at("ui_start_hidden");
+            return ui_status();
+        }
+        if (action == "cysynck.ui.help") {
+            auto target = cysynck::help::location(data.at("page"), data.value("section", ""), data.value("language", language));
+            cysynck::help::open(target);
+            return target;
+        }
+        if (action == "cysynck.startup.status") return startup.status();
+        if (action == "cysynck.startup.enable") return startup_state = startup.enable();
+        if (action == "cysynck.startup.disable") return startup_state = startup.disable();
+        if (action == "cysynck.receiver.start" && !receiver) {
+            auto p = core.request("GET", "/api/network/status").at("profile");
+            if (p.is_null()) throw std::runtime_error("Configure WireGuard first");
+            auto next = std::make_unique<cysynck::HttpServer>(core, true);
+            next->bind(p.at("address"), p.at("mesh_port"));
+            receiver = std::move(next);
+            try { receiver_thread = std::thread([this] { receiver->listen(); }); }
+            catch (...) { receiver->stop(); receiver.reset(); throw; }
+        }
+        if (action == "cysynck.receiver.stop") {
+            if (receiver) receiver->stop();
+            if (receiver_thread.joinable()) receiver_thread.join();
+            receiver.reset();
+        }
+        if (action.starts_with("cysynck.receiver.")) return {{"running", bool(receiver)}, {"direct_only", true}};
+        throw std::runtime_error("Unknown desktop assistant action");
+    }
     Json project() {
         for (auto &p : overview["projects"])
             if (p["id"] == selected)
@@ -1259,6 +1330,7 @@ class App {
             [this, id](const Json &result) {
                 overview = result["overview"];
                 events = result["events"];
+                if (assistant_panel) assistant_panel->changed(events);
                 engine_state = result["engine"];
                 startup_state = result["startup"];
                 if (id == selected) {
@@ -1444,6 +1516,9 @@ class App {
             });
     }
     void poll() {
+        if (!busy()) assistant_bridge->drain([this](const std::string &name, const Json &data) {
+            return assistant_action(name, data);
+        });
         if (help_pending.valid() &&
             help_pending.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
             try {
@@ -1469,7 +1544,41 @@ class App {
                            std::chrono::seconds(view == "Engine" ? 2 : 10))
             refresh();
     }
+    // A failing view (an unexpected core result shape, for example) must not close the
+    // application. Unwind the ImGui stacks opened since `state`, report the error once and
+    // fall back to the overview.
+    void recover_view(const ImGuiErrorRecoveryState &state, const std::exception &failure) {
+        auto &io = ImGui::GetIO();
+        auto asserts = io.ConfigErrorRecoveryEnableAssert;
+        auto log = io.ConfigErrorRecoveryEnableDebugLog;
+        auto tooltip = io.ConfigErrorRecoveryEnableTooltip;
+        io.ConfigErrorRecoveryEnableAssert = false;
+        io.ConfigErrorRecoveryEnableDebugLog = false;
+        io.ConfigErrorRecoveryEnableTooltip = false;
+        ImGui::ErrorRecoveryTryToRecoverState(&state);
+        io.ConfigErrorRecoveryEnableAssert = asserts;
+        io.ConfigErrorRecoveryEnableDebugLog = log;
+        io.ConfigErrorRecoveryEnableTooltip = tooltip;
+        auto message = c::tr("This view could not be displayed") + " (" + c::tr(view.c_str()) +
+                       "): " + cysynck::error_text(failure);
+        view = "Overview";
+        error = message;
+        if (message != view_failure) {
+            view_failure = message;
+            c::notify(message.c_str(), c::Tone::error, 8);
+        }
+    }
     void draw() {
+        ImGuiErrorRecoveryState frame;
+        ImGui::ErrorRecoveryStoreState(&frame);
+        try {
+            draw_frame();
+        } catch (const std::exception &e) {
+            recover_view(frame, e);
+            c::renderNotifications();
+        }
+    }
+    void draw_frame() {
         auto vp = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(vp->WorkPos);
         ImGui::SetNextWindowSize(vp->WorkSize);
@@ -1484,6 +1593,8 @@ class App {
         c::space(12);
         if (c::sidebarItem("", c::trLabel("Overview").c_str(), view == "Overview"))
             view = "Overview";
+        if (c::sidebarItem("", c::trLabel("Assistant").c_str(), view == "Assistant"))
+            view = "Assistant";
         ImGui::SetNextItemWidth(-1);
         ImGui::InputText("##search", &query);
         c::sidebarGroup(c::tr("Projects").c_str());
@@ -1537,6 +1648,19 @@ class App {
         c::badge(c::tr(busy() ? "Working..." : "Ready").c_str(),
                  busy() ? c::Tone::info : c::Tone::success);
         c::space(8);
+        ImGuiErrorRecoveryState workspace;
+        ImGui::ErrorRecoveryStoreState(&workspace);
+        try {
+            draw_view(p);
+        } catch (const std::exception &e) {
+            recover_view(workspace, e);
+        }
+        ImGui::EndChild();
+        create_view();
+        ImGui::End();
+        c::renderNotifications();
+    }
+    void draw_view(const Json &p) {
         if (view == "Overview")
             overview_view();
         else if (view == "Engine")
@@ -1560,6 +1684,9 @@ class App {
                 ImGui::TextWrapped("%s", e["message"].get<std::string>().c_str());
                 c::space(6);
             }
+        } else if (view == "Assistant") {
+            if (!assistant_panel) assistant_panel = std::make_unique<cysynck::assistant::Panel>(core, assistant_bridge);
+            assistant_panel->draw(language == "fr");
         } else if (view == "Command line")
             cli_view();
         else if (p.is_null())
@@ -1585,10 +1712,6 @@ class App {
             git_view();
         else if (view == "Settings")
             settings_view(p);
-        ImGui::EndChild();
-        create_view();
-        ImGui::End();
-        c::renderNotifications();
     }
     std::string plugin_label(const Json &value, const char *key) const {
         auto french = std::string(key) + "_fr";
@@ -5211,10 +5334,15 @@ static int run(std::vector<std::string> args) {
         auto state = cysynck::default_state();
         std::vector<std::string> plugins;
         std::string screenshot, view, theme, language, renderer = "auto";
-        int frames = 0;
+        int frames = 0, mcp_port = -1;
+        bool mcp_writes = false;
         bool first = false, background = false, foreground = false, no_tray = false;
         for (size_t i = 0; i < args.size(); ++i) {
             auto flag = args[i];
+            if (flag == "--mcp-allow-write") {
+                mcp_writes = true;
+                continue;
+            }
             if (flag == "--first-project") {
                 first = true;
                 continue;
@@ -5238,6 +5366,10 @@ static int run(std::vector<std::string> args) {
                 screenshot = args[i];
             else if (flag == "--frames")
                 frames = std::stoi(args[i]);
+            else if (flag == "--mcp-port") {
+                mcp_port = std::stoi(args[i]);
+                if (mcp_port < 0 || mcp_port > 65535) throw std::runtime_error("Choose an MCP port between 0 and 65535");
+            }
             else if (flag == "--view")
                 view = args[i];
             else if (flag == "--theme")
@@ -5251,6 +5383,7 @@ static int run(std::vector<std::string> args) {
         }
         if (renderer != "auto" && renderer != "opengl2" && renderer != "opengl3")
             throw std::runtime_error("Renderer must be auto, opengl2 or opengl3");
+        if (mcp_writes && mcp_port < 0) throw std::runtime_error("--mcp-allow-write requires --mcp-port");
         std::unique_ptr<cysynck::desktop::Session> desktop_session;
         cysynck::Core core(state);
         cysynck::desktop::LaunchSpec launch{
@@ -5315,6 +5448,11 @@ static int run(std::vector<std::string> args) {
             throw std::runtime_error("Cannot initialize the desktop graphics backend");
         {
             App app(core, startup);
+            if (mcp_port >= 0) {
+                auto bound = app.start_assistant_mcp(mcp_port, mcp_writes);
+                std::cerr << "CySynck MCP: http://127.0.0.1:" << bound << "/mcp; token file: "
+                          << cysynck::path_string(core.state() / "api-token") << '\n';
+            }
             if (first)
                 app.first_project();
             if (!view.empty())
@@ -5466,10 +5604,15 @@ static int run(std::vector<std::string> args) {
         glfwTerminate();
         return 0;
     } catch (const std::exception &e) {
-        std::cerr << e.what() << '\n';
+        auto message = cysynck::error_text(e);
+        std::cerr << message << '\n';
         if (window)
             glfwDestroyWindow(window);
         glfwTerminate();
+#ifdef _WIN32
+        // The desktop runs in the GUI subsystem, where stderr is invisible.
+        MessageBoxW(nullptr, fs::u8path(message).c_str(), L"CySynck", MB_OK | MB_ICONERROR);
+#endif
         return 1;
     }
 }

@@ -5,6 +5,7 @@
 #include "git_paths.hpp"
 #include "git_review.hpp"
 #include "git_working.hpp"
+#include "error.hpp"
 #include <algorithm>
 #include <charconv>
 #include <cstdlib>
@@ -1329,7 +1330,7 @@ Json integrate_git_branch(const fs::path &state, const Json &project, const Json
         atomic_write(fs::u8path(receipt), record.dump(2), true);
     } catch (const std::exception &error) {
         record.update({{"status", "incomplete"}, {"applied", false}, {"can_integrate", false}});
-        record["error"] = error.what();
+        record["error"] = error_text(error);
         bool saved = true;
         try {
             atomic_write(fs::u8path(receipt), record.dump(2), true);

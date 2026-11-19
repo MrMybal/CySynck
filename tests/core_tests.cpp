@@ -1,5 +1,6 @@
 #include <cysynck/c_api.h>
 #include <cysynck/core.hpp>
+#include "error.hpp"
 #include <fstream>
 #include <functional>
 #include <httplib.h>
@@ -76,6 +77,17 @@ int main(int argc, char **argv) {
     auto run = fs::current_path() / "test-data" / random_id();
     fs::create_directories(run);
     try {
+        // A localized Windows system message ("Accès refusé." in the ANSI code page) is not
+        // UTF-8; strict JSON serialization of the raw text throws.
+        std::runtime_error ansi("Acc\xE8s refus\xE9.");
+        rejects([&] { (void)Json{{"error", ansi.what()}}.dump(); },
+                "raw legacy-encoded messages must be rejected by strict JSON serialization");
+        auto safe = error_text(ansi);
+        check(Json{{"error", safe}}.dump().find("Acc") != std::string::npos &&
+                  safe.find('\xE8') == std::string::npos,
+              "error_text produces serializable UTF-8 from legacy-encoded messages");
+        check(utf8_text("d\xC3\xA9j\xC3\xA0") == "d\xC3\xA9j\xC3\xA0",
+              "utf8_text keeps valid UTF-8 unchanged");
         check(sha256("abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
               "SHA-256 known vector");
         Core core(run / "state");

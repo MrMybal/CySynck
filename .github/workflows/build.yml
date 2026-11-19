@@ -1,5 +1,6 @@
 name: Native builds
-on: [push, pull_request, workflow_dispatch]
+# Run manually only; publishing must not consume GitHub Actions credits.
+on: [workflow_dispatch]
 permissions:
   contents: read
 jobs:

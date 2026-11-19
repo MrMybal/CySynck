@@ -3,6 +3,7 @@
 #include "git_lfs.hpp"
 #include "git_review.hpp"
 #include "git_paths.hpp"
+#include "error.hpp"
 #include <algorithm>
 #include <charconv>
 #include <cstdio>
@@ -248,7 +249,7 @@ Json extract_git_revision(const fs::path &state, const Json &projects, const Jso
     } catch (const std::exception &error) {
         record["status"] = "incomplete";
         record["applied"] = false;
-        record["error"] = error.what();
+        record["error"] = error_text(error);
         atomic_write(receipt, record.dump(2), true);
         throw std::runtime_error("Git extraction incomplete; partial files were preserved at " +
                                  path_string(target) + "; receipt " + id + ": " + error.what());

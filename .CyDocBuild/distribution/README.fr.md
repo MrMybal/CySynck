@@ -2,6 +2,14 @@
 
 [Manuel français](Documentation/Documentation.html#/fr/overview) · [English manual](Documentation/Documentation.html#/en/overview)
 
+Cette préversion comprend l’assistant natif et 130 opérations communes au CLI/MCP.
+Ouvrir **Assistant** pour connecter un fournisseur. Les modifications de l’application
+sont désactivées par défaut ; les autoriser explicitement pour l’instance courante.
+Fournir les identifiants des agents/API séparément. Le guide local est
+`Documentation/Documentation.html#/fr/assistant`. Sous Windows, lancer
+`bin/cysynck-desktop.exe` ; `--mcp-port 0` expose son point d’accès local authentifié
+au CLI. Le paquet comprend aussi `Install-CySynck.ps1`.
+
 Ouvrir `Documentation/Documentation.html` dans un navigateur récent. Garder le dossier
 `Documentation/` entier, avec `DocData/`. Aucun serveur, CDN, Node.js ou accès Internet n’est nécessaire à la lecture.
 

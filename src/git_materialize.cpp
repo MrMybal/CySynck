@@ -5,6 +5,7 @@
 #include "git_lfs.hpp"
 #include "git_paths.hpp"
 #include "git_review.hpp"
+#include "error.hpp"
 #include <charconv>
 #include <cstdio>
 #include <fstream>
@@ -639,7 +640,7 @@ Json materialize_git_lfs(const fs::path &state, const Json &project, const Json 
                        {"plan", nullptr}});
         if (dehydrate)
             record["can_dehydrate"] = false;
-        record["error"] = error.what();
+        record["error"] = error_text(error);
         try {
             atomic_write(receipt, record.dump(2), true);
         } catch (const std::exception &) {
@@ -1218,7 +1219,7 @@ Json resume_git_materialization(const fs::path &state, const Json &project, cons
                        {"plan", nullptr}});
         record["resume"]["status"] = "incomplete";
         record["resume"].erase("completed");
-        record["resume"]["error"] = std::string(error.what()).substr(0, 2048);
+        record["resume"]["error"] = utf8_text(std::string(error.what()).substr(0, 2048));
         try {
             atomic_write(receipt, record.dump(2), true);
         } catch (const std::exception &) {
@@ -1408,7 +1409,7 @@ Json export_git_materialization(const fs::path &state, const Json &project, cons
     } catch (const std::exception &error) {
         manifest["status"] = "incomplete";
         manifest["exported"] = false;
-        manifest["error"] = std::string(error.what()).substr(0, 2048);
+        manifest["error"] = utf8_text(std::string(error.what()).substr(0, 2048));
         atomic_write(project_child(target, "manifest.json"), manifest.dump(2), true);
         throw std::runtime_error("LFS export incomplete; inspect " + path_string(manifest_path) +
                                  ": " + error.what());
