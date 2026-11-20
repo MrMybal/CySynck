@@ -117,7 +117,8 @@ cysynck [--state DIR] [--plugin LIBRARY] [--server http://127.0.0.1:PORT] COMMAN
   received export ID TRANSFER_ID NEW_DIRECTORY
   serve [--host 127.0.0.1] [--port 8484]
 Desktop: cysynck-desktop [--state DIR] [--plugin LIBRARY] [--background|--foreground] [--no-tray]
-         [--mcp-port PORT] [--mcp-allow-write]
+         [--mcp-port PORT] [--mcp-access-profile free|local_controlled|token_only|protected] [--mcp-allow-write]
+MCP access defaults to Free: address only, all registered operations authorized; arguments remain validated.
 Secrets: CYSYNCK_SYNCTHING_API_KEY, CYSYNCK_API_TOKEN, CYSYNCK_MESH_TOKEN.
 VPN up/down requires administrator/root. Router mapping requires explicit local consent and a compatible gateway.
 ```

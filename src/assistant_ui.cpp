@@ -8,6 +8,9 @@
 
 namespace cysynck::assistant {
 namespace {
+constexpr cymcp::LocalAccessProfile access_profiles[] = {
+    cymcp::LocalAccessProfile::free, cymcp::LocalAccessProfile::local_controlled,
+    cymcp::LocalAccessProfile::token_only, cymcp::LocalAccessProfile::protected_access};
 bool application_provider(const std::string &id) {
     // These factories consume ProviderConfig::tools in the pinned SDK. Other
     // native agents can connect through our external MCP endpoint instead.
@@ -29,6 +32,7 @@ struct Panel::Impl {
     bool restore = false, history = true, writes = false, full = false;
     bool remote_pending = false;
     int port = 0, listening = 0;
+    int selected_access = 0;
     std::future<std::vector<cymcp::DiscoveredConnection>> discovery;
     std::vector<cymcp::DiscoveredConnection> discovered;
     std::future<void> remote;
@@ -51,7 +55,14 @@ struct Panel::Impl {
               };
               options.delete_message = [this](auto id) { controller.delete_turn(id); };
               return options;
-          }()) {}
+          }()) {
+        for (int n = 0; n < 4; ++n)
+            if (access_profiles[n] == host.options().access_profile)
+                selected_access = n;
+    }
+    bool profile_pending() const {
+        return access_profiles[selected_access] != host.options().access_profile;
+    }
     ~Impl() {
         controller.cancel();
         discovery_cancel.cancel();
@@ -97,17 +108,47 @@ struct Panel::Impl {
                                     ImGuiTreeNodeFlags_DefaultOpen)) {
             ImGui::BeginChild("assistant-connection-settings", ImVec2(0, 300),
                               ImGuiChildFlags_Borders);
-            if (ImGui::Checkbox(
-                    tr("Allow application actions", "Autoriser les actions de l’application"),
-                    &writes))
-                host.allow_writes(writes);
-            ImGui::TextWrapped(
-                "%s",
-                tr("Read-only by default. Enabling changes authorizes the chat and connected MCP "
-                   "clients. Existing preview tokens, backups and recovery rules still apply.",
-                   "Lecture seule par défaut. Cette autorisation s’applique au chat et aux clients "
-                   "MCP connectés. Les aperçus, sauvegardes et règles de récupération restent "
-                   "obligatoires."));
+            ImGui::BeginDisabled(listening != 0 || controller.state().connected ||
+                                 controller.state().busy || remote_pending ||
+                                 endpoint_stop.valid());
+            const char *profiles_en[] = {"Free", "Local controlled", "Token only", "Protected"};
+            const char *profiles_fr[] = {"Free", "Local contrôlé", "Jeton seul", "Protégé"};
+            auto previous_access = selected_access;
+            if (ImGui::Combo(tr("MCP access profile", "Profil d’accès MCP"), &selected_access,
+                             french ? profiles_fr : profiles_en, 4)) {
+                try {
+                    Options::save_access_profile(core.state(), access_profiles[selected_access]);
+                    error.clear();
+                } catch (const std::exception &e) {
+                    selected_access = previous_access;
+                    error = cymcp::redact_error_message(e.what());
+                }
+            }
+            ImGui::EndDisabled();
+            if (profile_pending())
+                ImGui::TextWrapped("%s",
+                                   tr("Restart the application to apply the selected profile.",
+                                      "Redémarrer l’application pour appliquer le profil choisi."));
+            if (host.access().control_operations) {
+                if (ImGui::Checkbox(
+                        tr("Allow application actions", "Autoriser les actions de l’application"),
+                        &writes))
+                    host.allow_writes(writes);
+                ImGui::TextWrapped(
+                    "%s",
+                    tr("Read-only by default. Enabling changes authorizes the chat and connected "
+                       "MCP "
+                       "clients. Existing preview tokens, backups and recovery rules still apply.",
+                       "Lecture seule par défaut. Cette autorisation s’applique au chat et aux "
+                       "clients "
+                       "MCP connectés. Les aperçus, sauvegardes et règles de récupération restent "
+                       "obligatoires."));
+            } else {
+                ImGui::TextWrapped("%s", tr("All registered operations are authorized. Argument "
+                                            "and native workflow validation still apply.",
+                                            "Toutes les opérations enregistrées sont autorisées. "
+                                            "Les arguments et règles métier restent validés."));
+            }
             ImGui::BeginDisabled(discovery.valid());
             if (ImGui::Button(tr("Detect providers", "Détecter les fournisseurs"))) {
                 discovery_cancel = {};
@@ -183,7 +224,7 @@ struct Panel::Impl {
             ImGui::InputText(tr("History ID", "Identifiant d’historique"), &history_id);
             ImGui::InputText(tr("Attachment path", "Chemin de pièce jointe"), &attachment);
             ImGui::Separator();
-            ImGui::BeginDisabled(listening != 0);
+            ImGui::BeginDisabled(listening != 0 || profile_pending());
             ImGui::InputInt(
                 tr("Local MCP port (0 = automatic)", "Port MCP local (0 = automatique)"), &port);
             ImGui::Checkbox(tr("Full MCP catalogue", "Catalogue MCP complet"), &full);
@@ -198,8 +239,13 @@ struct Panel::Impl {
             ImGui::EndDisabled();
             if (listening > 0) {
                 ImGui::Text("http://127.0.0.1:%d/mcp", listening);
-                ImGui::TextWrapped("%s: %s", tr("Bearer token file", "Fichier du jeton Bearer"),
-                                   path_string(core.state() / "api-token").c_str());
+                if (host.access().require_token)
+                    ImGui::TextWrapped("%s: %s", tr("Bearer token file", "Fichier du jeton Bearer"),
+                                       path_string(core.state() / "api-token").c_str());
+                else
+                    ImGui::TextWrapped(
+                        "%s", tr("Connect with this address only; no token required.",
+                                 "Connexion avec cette adresse seule ; aucun jeton requis."));
                 if (ImGui::Button(tr("Stop MCP", "Arrêter MCP"))) {
                     listening = -1;
                     endpoint_stop = std::async(std::launch::async, [this] { host.stop(); });
@@ -242,7 +288,7 @@ struct Panel::Impl {
                 ImGui::TreePop();
             }
             ImGui::EndChild();
-            ImGui::BeginDisabled(controller.state().busy);
+            ImGui::BeginDisabled(controller.state().busy || profile_pending());
             if (ImGui::Button(tr("Connect / new chat", "Connexion / nouvelle conversation"))) {
                 try {
                     cymcp::ChatConnection connection;
@@ -277,6 +323,11 @@ struct Panel::Impl {
                         "before requesting an "
                         "authorization change. Native shell/OS actions are not authorized by the "
                         "application.";
+                    if (!host.access().control_operations)
+                        connection.system_prompt +=
+                            " The selected access profile authorizes all registered application "
+                            "tools. Do not ask for an additional tool authorization; retain "
+                            "argument and native workflow validation.";
                     if (history) {
                         connection.history_directory = core.state() / "assistant-history";
                         connection.history_id = history_id;
@@ -318,4 +369,8 @@ int Panel::listen(int port, bool allow_write) {
     impl_->listening = impl_->host.listen(port, impl_->full);
     return impl_->listening;
 }
+std::string Panel::access_profile() const {
+    return access_profile_name(impl_->host.options().access_profile);
+}
+bool Panel::requires_token() const { return impl_->host.access().require_token; }
 } // namespace cysynck::assistant

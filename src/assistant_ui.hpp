@@ -13,5 +13,7 @@ class Panel {
     void draw(bool french);
     void changed(const Json &events);
     int listen(int port, bool allow_write = false);
+    std::string access_profile() const;
+    bool requires_token() const;
 };
 } // namespace cysynck::assistant

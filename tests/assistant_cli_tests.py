@@ -23,6 +23,8 @@ def check(value, message):
 with tempfile.TemporaryDirectory(prefix="cysynck-assistant-cli-", dir=exe.parent.parent) as temporary:
     root = Path(temporary).resolve()
     state = root / "profile"
+    state.mkdir()
+    (state / "assistant-options.json").write_text(json.dumps({"access_profile": "protected"}), encoding="utf-8")
     project = root / "project café % #"
     project.mkdir()
     (project / "hello.txt").write_text("real application fixture", encoding="utf-8")
@@ -47,7 +49,7 @@ with tempfile.TemporaryDirectory(prefix="cysynck-assistant-cli-", dir=exe.parent
     check(len(cli("tools", "list")) > 60, "CLI discovers the entire real operation catalogue")
     schema = cli("tools", "describe", "cysynck.project.create")
     check("parameters" in schema["inputSchema"]["required"], "CLI describes a validated operation schema")
-    check(cli("tools", "info")["sdk_version"] == "0.7.0", "CLI reports source-built SDK provenance")
+    check(cli("tools", "info")["sdk_version"] == "0.7.2", "CLI reports source-built SDK provenance")
     actions = cli("tools", "list")
     check(len(actions) >= 125, "CLI includes engine, VPN, transfer and desktop actions")
     cli("tools", "call", "cysynck.settings.set", '{"parameters":{"ui_language":"fr"}}', "--allow-write")

@@ -4,13 +4,13 @@ title: Assistant, automation and MCP
 description: Use the native assistant, script application operations and connect an external MCP client.
 section: Developers
 order: 72
-revision: 2
+revision: 3
 ---
 
 # Assistant and MCP {#assistant}
 
-CySynck builds CyMCPSDK 0.7.0 from source. The integration reference is revision
-`791d4d7d7680213b282ec8529d248a10f8494d77`; `cysynck tools info` reports the actual
+CySynck builds CyMCPSDK 0.7.2 from source. The integration reference is revision
+`e562c731a146d599e3404718ea8414bb5b96b66d`; `cysynck tools info` reports the actual
 checkout revision used by your build. A sibling `CyMCPSDK` checkout is preferred;
 set `CYSYNCK_CYMCP_SOURCE_DIR` to choose another source tree. Only when no local
 checkout exists does CMake fetch the pinned repository revision.
@@ -41,13 +41,29 @@ peer pairing/revocation, direct chat/files, transfer quotas/resume/cancel, CyRev
 identity/trust/transactions, service export, maintenance, native plugin loading and
 desktop preferences/navigation/help/startup. `tools list` is the authoritative inventory.
 
-The interface is read-only by default. Local `--allow-write`, or **Allow application
-actions** in the Assistant, authorizes mutations for that host, including processes
-and network actions. A remote caller cannot elevate it with a JSON field or CLI flag.
-Native preview plans, fingerprints, tunnel ownership checks, destination protections,
-quotas and durable recovery receipts still apply. Sending messages/files requires an
-explicit user request. Public keys/fingerprints must be confirmed independently by
-the user before pairing; discovery alone is insufficient confirmation.
+**Free is the default profile.** Enabling the local MCP listener is enough: a
+client connects with `http://127.0.0.1:PORT/mcp` alone, with no token or extra write
+confirmation. The registry uses `Policy::allow_all()`; argument schemas and native
+workflow checks (plans, fingerprints, ownership, destinations and quotas) remain active.
+
+| Profile | HTTP token | Operation authorization |
+| --- | --- | --- |
+| Free (`free`) | None | All registered operations |
+| Local controlled (`local_controlled`) | None | Reads/previews; writes require the local grant |
+| Token only (`token_only`) | Required | All registered operations |
+| Protected (`protected`) | Required | Reads/previews; writes require the local grant |
+
+`assistant-options.json` stores `access_profile`. Configurations without an explicit
+access choice migrate to Free; explicit profile choices and legacy access controls
+retain their meaning. Other settings are preserved. Unknown profiles are rejected.
+The native profile selector saves the next-launch setting; restart the application
+to apply it. `mcp --access-profile protected --port 8765` or desktop
+`--mcp-access-profile protected --mcp-port 8765` selects and saves an explicit profile
+at launch. **Allow application actions**, `--allow-write` and `--mcp-allow-write` apply
+to the controlled profiles; they do not restrict Free or Token only.
+
+Messages/files require an explicit user request. Pairing still needs the native
+public-key/fingerprint inputs; discovery alone is insufficient confirmation.
 
 | Operations | Execution requirements |
 | --- | --- |
@@ -79,9 +95,11 @@ selected external MCP tools rather than direct access to Unreal objects.
 
 Start a desktop endpoint without opening its settings manually:
 `cysynck-desktop --state /absolute/profile --mcp-port 0`.
-The loopback URL and token-file location are printed on stderr. Writes remain
-disabled unless you select **Allow application actions** or explicitly launch with
-`--mcp-allow-write`. Use the same profile with `tools ... --endpoint URL`.
+The loopback URL and active profile are printed on stderr. Free accepts that address
+alone; token profiles also print the token-file location. Use the same profile with
+`tools ... --endpoint URL`; the CLI also accepts the displayed `/mcp` URL. For token
+profiles, `CYSYNCK_API_TOKEN` supplies a credential, or the CLI can use the selected
+profile's token after an HTTP authentication challenge.
 For example, `tools call cysynck.ui.configure @ui.json --endpoint URL`, where
 `ui.json` contains `{"parameters":{"ui_language":"fr","ui_theme":"navy","ui_view":"Overview"}}`,
 changes the running window. Use `cysynck.ui.status` to inspect its current state.
@@ -142,8 +160,10 @@ For HTTP, use **Start local MCP** in the desktop or:
 cysynck --state /absolute/profile mcp --port 8765
 ```
 
-The SDK binds loopback only. MCP uses `http://127.0.0.1:8765/mcp`,
-`Authorization: Bearer TOKEN`, JSON requests and the SDK's session handshake.
+The SDK binds `127.0.0.1` only. Free and Local controlled connect to
+`http://127.0.0.1:8765/mcp` without credentials. Token only and Protected require
+`Authorization: Bearer TOKEN`. All profiles use JSON requests and the SDK session
+handshake, retaining its Host and Origin checks.
 Native SDK dispatch is at `/v1`. The current SDK supports tools, resources,
 bounded pagination, cancellation and optional change subscriptions. HTTP uses
 JSON responses, not a browser SSE endpoint; this integration does not promise
@@ -204,6 +224,7 @@ host after editing it. All fields are independent; these are the defaults:
 
 ```json
 {
+  "access_profile": "free",
   "compact_discovery": true,
   "notifications": true,
   "cache_ttl_ms": 30000,

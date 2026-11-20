@@ -1242,6 +1242,8 @@ class App {
         if (!assistant_panel) assistant_panel = std::make_unique<cysynck::assistant::Panel>(core, assistant_bridge);
         return assistant_panel->listen(port, writes);
     }
+    std::string assistant_access_profile() const { return assistant_panel->access_profile(); }
+    bool assistant_requires_token() const { return assistant_panel->requires_token(); }
     Json assistant_action(const std::string &action, const Json &data) {
         auto ui_status = [this] {
             return Json{{"ui_view", view}, {"ui_project", selected}, {"ui_theme", theme},
@@ -5333,7 +5335,7 @@ static int run(std::vector<std::string> args) {
     try {
         auto state = cysynck::default_state();
         std::vector<std::string> plugins;
-        std::string screenshot, view, theme, language, renderer = "auto";
+        std::string screenshot, view, theme, language, renderer = "auto", mcp_profile;
         int frames = 0, mcp_port = -1;
         bool mcp_writes = false;
         bool first = false, background = false, foreground = false, no_tray = false;
@@ -5370,6 +5372,8 @@ static int run(std::vector<std::string> args) {
                 mcp_port = std::stoi(args[i]);
                 if (mcp_port < 0 || mcp_port > 65535) throw std::runtime_error("Choose an MCP port between 0 and 65535");
             }
+            else if (flag == "--mcp-access-profile")
+                mcp_profile = args[i];
             else if (flag == "--view")
                 view = args[i];
             else if (flag == "--theme")
@@ -5386,6 +5390,7 @@ static int run(std::vector<std::string> args) {
         if (mcp_writes && mcp_port < 0) throw std::runtime_error("--mcp-allow-write requires --mcp-port");
         std::unique_ptr<cysynck::desktop::Session> desktop_session;
         cysynck::Core core(state);
+        if (!mcp_profile.empty()) cysynck::assistant::Options::save_access_profile(core.state(), cysynck::assistant::parse_access_profile(mcp_profile));
         cysynck::desktop::LaunchSpec launch{
             cysynck::desktop::current_executable(), core.state(), {}};
         for (const auto &plugin : plugins)
@@ -5450,8 +5455,9 @@ static int run(std::vector<std::string> args) {
             App app(core, startup);
             if (mcp_port >= 0) {
                 auto bound = app.start_assistant_mcp(mcp_port, mcp_writes);
-                std::cerr << "CySynck MCP: http://127.0.0.1:" << bound << "/mcp; token file: "
-                          << cysynck::path_string(core.state() / "api-token") << '\n';
+                std::cerr << "CySynck MCP: http://127.0.0.1:" << bound << "/mcp; access: " << app.assistant_access_profile();
+                if (app.assistant_requires_token()) std::cerr << "; token file: " << cysynck::path_string(core.state() / "api-token");
+                std::cerr << '\n';
             }
             if (first)
                 app.first_project();

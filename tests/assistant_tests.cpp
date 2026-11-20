@@ -215,11 +215,12 @@ int main() {
                 << "fixture content " << n;
         Core core(directory / "profile");
         assistant::Options options;
+        options.access_profile = cymcp::LocalAccessProfile::protected_access;
         options.disk_spool = true;
         options.metrics = true;
         options.retention_seconds = 1;
         Host host(core, options);
-        check(host.info().at("sdk_version") == "0.7.0", "Source-built SDK version is reported");
+        check(host.info().at("sdk_version") == "0.7.2", "Source-built SDK version is reported");
         check(host.registry()->size() > 60 && host.tools()->size() == 5,
               "Full registry and compact discovery share the same business operations");
         auto read = host.registry()->invoke("cysynck.overview", Json::object());
@@ -230,7 +231,7 @@ int main() {
                          {"root", path_string(directory / "project")},
                          {"mode", "backup"}}}};
         rejects([&] { host.registry()->invoke("cysynck.project.create", create); },
-                "Writes must be denied by default");
+                "Protected profile denies writes without its explicit grant");
         check(core.request("GET", "/api/overview").at("projects").empty(),
               "Denied mutation leaves the application unchanged");
         check(host.registry()
@@ -446,6 +447,33 @@ int main() {
         api_chat.cancel();
         idle(api_chat);
         check(!api_chat.state().busy, "Actual API streaming is cancellable");
+        fs::create_directory(directory / "free-chat-project");
+        Json free_create = {{"parameters",
+                             {{"name", "free-chat-created"},
+                              {"root", path_string(directory / "free-chat-project")},
+                              {"mode", "backup"},
+                              {"backup_interval_minutes", 0}}}};
+        Host free_host(core);
+        ApiFixture free_api(free_create, forwarded);
+        cymcp::ChatController free_chat;
+        auto free_connection = api_connection;
+        free_connection.provider.settings["base_url"] = free_api.url;
+        free_connection.provider.tools = free_host.tools();
+        free_connection.history_id = "free";
+        free_connection.context.max_bytes = 32768;
+        free_chat.open(free_connection);
+        idle(free_chat);
+        free_chat.send("create-api");
+        idle(free_chat);
+        bool free_created = false;
+        auto free_overview = core.request("GET", "/api/overview");
+        for (const auto &p : free_overview.at("projects"))
+            if (p.at("name") == "free-chat-created")
+                free_created = true;
+        check(free_host.writes_allowed() && free_created && free_chat.state().error_code.empty(),
+              "Free chat executes a real tool mutation without an additional write grant");
+        check(free_api.requests == 2,
+              "Free chat performs one mutation without confirmation or automatic retry");
 #endif
         auto measurements =
             read_file(directory / "profile/assistant-metrics.jsonl", 2 * 1024 * 1024);

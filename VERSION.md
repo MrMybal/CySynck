@@ -11,6 +11,19 @@ These notes describe the 0.41.0 source tree and the Windows x64 development prev
 
 ## Changes in 0.41.0
 
+### Unreleased source update — MCP access profiles
+
+- Build CyMCPSDK 0.7.2 directly from the local source revision
+  `e562c731a146d599e3404718ea8414bb5b96b66d`. Default local MCP access is Free:
+  loopback address only and all registered operations authorized, with argument
+  validation retained. Preserve explicit profiles and migrate unselected settings.
+- Keep Local controlled, Token only and Protected available in configuration, CLI
+  and desktop settings. Protected still requires a token. Local verification uses
+  the real CLI/desktop and deterministic SDK chat fixtures, without GitHub Actions.
+
+
+### Published development preview — November 19, 2026
+
 - Publish the Windows x64 development preview with 130 assistant operations and
   a regenerated 92-page English/French offline manual. Linux/macOS binaries for this
   assistant update are not published. Preserve JSON output when localized native

@@ -4,13 +4,13 @@ title: Assistant, automatisation et MCP
 description: Utiliser l’assistant natif, automatiser les fonctions métier et connecter un client MCP externe.
 section: Développement
 order: 72
-sourceRevision: 2
+sourceRevision: 3
 ---
 
 # Assistant et MCP {#assistant}
 
-CySynck compile CyMCPSDK 0.7.0 depuis ses sources. La révision de référence est
-`791d4d7d7680213b282ec8529d248a10f8494d77` ; `cysynck tools info` indique la révision
+CySynck compile CyMCPSDK 0.7.2 depuis ses sources. La révision de référence est
+`e562c731a146d599e3404718ea8414bb5b96b66d` ; `cysynck tools info` indique la révision
 réellement compilée. Le dépôt voisin `CyMCPSDK` est prioritaire ; définir
 `CYSYNCK_CYMCP_SOURCE_DIR` pour choisir un autre dossier. CMake récupère la révision
 épinglée du dépôt uniquement lorsqu’aucune source locale n’est disponible.
@@ -42,14 +42,30 @@ les identités et transactions CyRevision, l’export de services, la maintenanc
 le chargement de plugins et les réglages/navigation/aide/démarrage du bureau.
 `tools list` reste l’inventaire de référence.
 
-L’accès est en lecture seule par défaut. `--allow-write` en local ou **Autoriser les
-actions de l’application** autorise les mutations de cet hôte, y compris les actions
-sur les processus et le réseau. Un client distant ne peut pas augmenter ses droits
-avec un argument JSON ou CLI. Les plans, empreintes, contrôles de propriété du tunnel,
-protections des destinations, quotas et reçus durables natifs restent applicables.
-L’envoi de messages/fichiers exige une demande explicite de l’utilisateur. Les clés
-et empreintes doivent être confirmées indépendamment par l’utilisateur avant
-l’appairage ; leur découverte seule ne constitue pas une confirmation.
+**Free est le profil par défaut.** Activer le MCP local suffit : un client se
+connecte avec `http://127.0.0.1:PORT/mcp` seul, sans jeton ni confirmation d’écriture
+supplémentaire. Le registre utilise `Policy::allow_all()` ; les schémas d’arguments
+et règles métier (plans, empreintes, propriété, destinations, quotas) restent validés.
+
+| Profil | Jeton HTTP | Autorisation des opérations |
+| --- | --- | --- |
+| Free (`free`) | Aucun | Toutes les opérations enregistrées |
+| Local contrôlé (`local_controlled`) | Aucun | Lecture/aperçus ; écriture avec autorisation locale |
+| Jeton seul (`token_only`) | Requis | Toutes les opérations enregistrées |
+| Protégé (`protected`) | Requis | Lecture/aperçus ; écriture avec autorisation locale |
+
+`assistant-options.json` contient `access_profile`. Sans choix d’accès explicite,
+les configurations migrent vers Free ; les profils explicites et anciens contrôles
+d’accès conservent leur sens. Les autres paramètres sont préservés. Les profils
+inconnus sont refusés. Le sélecteur natif sauvegarde le choix pour le prochain
+lancement ; redémarrer l’application pour l’appliquer. `mcp --access-profile protected
+--port 8765` ou `--mcp-access-profile protected --mcp-port 8765` pour le bureau
+sélectionne et sauvegarde un profil explicite au lancement. **Autoriser les actions
+de l’application**, `--allow-write` et `--mcp-allow-write` concernent les profils
+contrôlés ; ils ne restreignent ni Free ni Jeton seul.
+
+L’envoi de messages/fichiers exige une demande explicite. L’appairage conserve ses
+arguments natifs de clé/empreinte ; leur découverte seule ne vaut pas confirmation.
 
 | Opérations | Conditions d’exécution |
 | --- | --- |
@@ -82,9 +98,11 @@ sans accès direct aux objets Unreal.
 
 Pour ouvrir le point d’accès du bureau sans passer par ses réglages :
 `cysynck-desktop --state /chemin/absolu/profil --mcp-port 0`.
-L’URL locale et le chemin du fichier du jeton sont affichés sur stderr. L’écriture
-reste désactivée sans **Autoriser les actions de l’application**, ou sans l’option
-explicite `--mcp-allow-write`. Utiliser le même profil avec `tools ... --endpoint URL`.
+L’URL locale et le profil actif sont affichés sur stderr. Free accepte cette adresse
+seule ; les profils avec jeton affichent aussi le chemin du fichier du jeton.
+Employer le même profil avec `tools ... --endpoint URL` ; le CLI accepte aussi l’URL
+`/mcp` affichée. Pour les profils avec jeton, `CYSYNCK_API_TOKEN` fournit le credential,
+ou le CLI utilise celui du profil choisi après un refus HTTP d’authentification.
 Exemple : `tools call cysynck.ui.configure @ui.json --endpoint URL`, avec
 `{"parameters":{"ui_language":"fr","ui_theme":"navy","ui_view":"Overview"}}` dans `ui.json`,
 modifie la fenêtre ouverte. `cysynck.ui.status` indique son état réel.
@@ -146,9 +164,10 @@ n’est demandé en stdio. Pour HTTP, utiliser **Démarrer le MCP local** ou :
 cysynck --state /chemin/absolu/profil mcp --port 8765
 ```
 
-Le SDK écoute uniquement sur la boucle locale. Adresse MCP :
-`http://127.0.0.1:8765/mcp`, en-tête `Authorization: Bearer JETON`, requêtes JSON et
-négociation de session du SDK. Le dispatch natif du SDK est accessible sur `/v1`.
+Le SDK écoute uniquement sur `127.0.0.1`. Free et Local contrôlé se connectent à
+`http://127.0.0.1:8765/mcp` sans credential. Jeton seul et Protégé exigent
+`Authorization: Bearer JETON`. Tous les profils utilisent les requêtes JSON et la
+négociation de session du SDK, avec conservation des contrôles Host et Origin. Le dispatch natif du SDK est accessible sur `/v1`.
 Cette révision prend en charge outils, ressources, pagination bornée, annulation
 et abonnements optionnels aux changements. HTTP utilise des réponses JSON ;
 l’intégration ne promet pas un flux SSE navigateur reprenable. Les anciens clients
@@ -213,6 +232,7 @@ les valeurs par défaut :
 
 ```json
 {
+  "access_profile": "free",
   "compact_discovery": true,
   "notifications": true,
   "cache_ttl_ms": 30000,

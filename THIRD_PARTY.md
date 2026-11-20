@@ -9,7 +9,7 @@ the macOS application also includes them in its Resources directory.
 | --- | --- | --- |
 | CyUI | `6ef01cfcdb197f3a89d64618ce5ef8818c704728` | MIT |
 | Dear ImGui (docking) | `64944b4520b30772de8dbf0b37d0311746477a32` | MIT |
-| CyMCPSDK | `791d4d7d7680213b282ec8529d248a10f8494d77` (0.7.0 source reference; local revision reported by `tools info`) | MIT |
+| CyMCPSDK | `e562c731a146d599e3404718ea8414bb5b96b66d` (0.7.0 source reference; local revision reported by `tools info`) | MIT |
 | GLFW | `3.4` | zlib/libpng |
 | nlohmann/json | `v3.12.0` | MIT |
 | cpp-httplib | `5814e121dfb5049f72a5c3956c3c8961b40da78b` | MIT |

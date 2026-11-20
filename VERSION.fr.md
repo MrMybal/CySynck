@@ -11,6 +11,19 @@ Ces notes décrivent les sources 0.41.0 et la préversion Windows x64 `v0.41.0-p
 
 ## Changements de la version 0.41.0
 
+### Mise à jour des sources non publiée — profils d’accès MCP
+
+- Compilation directe de CyMCPSDK 0.7.2 depuis les sources locales à la révision
+  `e562c731a146d599e3404718ea8414bb5b96b66d`. Le MCP local utilise Free par défaut :
+  adresse locale seule et toutes les opérations autorisées, avec validation des
+  arguments. Les profils explicites sont préservés ; les réglages sans choix migrent.
+- Local contrôlé, Jeton seul et Protégé restent disponibles dans la configuration,
+  le CLI et les réglages du bureau. Protégé exige toujours un jeton. Les tests
+  utilisent les vrais exécutables et des fixtures de chat, sans GitHub Actions.
+
+
+### Préversion publiée — 19 novembre 2026
+
 - Publication de la préversion Windows x64 avec 130 opérations de l’assistant et
   le manuel hors ligne anglais/français régénéré de 92 pages. Les binaires Linux/macOS
   de cette mise à jour de l’assistant ne sont pas publiés. La sortie JSON résiste aux

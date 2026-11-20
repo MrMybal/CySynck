@@ -102,7 +102,9 @@ int main(int argc, char **argv) {
     try {
         fs::create_directories(directory / "project");
         Core core(directory / "profile");
-        Host host(core);
+        Options controlled;
+        controlled.access_profile = cymcp::LocalAccessProfile::protected_access;
+        Host host(core, controlled);
         auto call = [&](const std::string &name, Json data = nullptr) {
             if (data.is_null())
                 data = Json::object();

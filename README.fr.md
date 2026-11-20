@@ -37,7 +37,7 @@ L’application native, le CLI et la console Web/API partagent un même cœur. C
 
 ## Fonctionnalités
 
-- **Assistant et MCP :** chat natif CyMCPSDK avec streaming et 130 opérations communes au CLI JSON et au MCP local authentifié : projets, moteur, VPN, transferts, plugins et bureau. L’écriture exige une autorisation explicite ; historiques et résultats conservés restent privés. Voir [Assistant et MCP](#assistant-et-mcp).
+- **Assistant et MCP :** chat natif CyMCPSDK avec streaming et 130 opérations communes au CLI JSON et au MCP local authentifié : projets, moteur, VPN, transferts, plugins et bureau. Les sources actuelles utilisent Free par défaut ; les profils contrôlés gardent leur autorisation d’écriture, et les historiques/résultats restent privés. Voir [Assistant et MCP](#assistant-et-mcp).
 - **Modes de projet** : synchronisation bidirectionnelle, envoi seul ou réception seule, sauvegardes, échanges Git explicites et modes d’extensions natives.
 - **Sauvegardes** : planification, aperçu des exclusions, rétention, stockage par fichiers entiers/blocs fixes/blocs à découpage selon le contenu, vérification d’intégrité et restauration sélective.
 - **Revue de fichiers** : différences bornées côte à côte ou unifiées, patches compatibles Git et résolution explicite des conflits avec conservation de copies de récupération.
@@ -51,9 +51,13 @@ L’application native, le CLI et la console Web/API partagent un même cœur. C
 Ouvrir **Assistant** pour choisir un agent installé ou un service API/modèle compatible.
 L’assistant inspecte les projets, examine les différences et utilise les mêmes actions
 natives que le CLI, dont Git/CyRevision, les sauvegardes, le réseau et les réglages du
-bureau ouvert. La lecture seule est activée par défaut. **Autoriser les actions de
-l’application** permet les modifications pour cette instance ; plans, confirmation des
-clés des pairs et propriété des processus restent applicables. L’envoi de messages ou
+bureau ouvert. La mise à jour actuelle des sources utilise CyMCPSDK 0.7.2 (`e562c73`) et **Free**
+par défaut : lorsque le MCP est activé, son adresse locale seule autorise toutes les
+opérations enregistrées sans jeton ni confirmation supplémentaire. Local contrôlé,
+Jeton seul et Protégé restent disponibles. Les arguments, plans natifs, clés des pairs
+et règles de propriété des processus restent validés. Compiler les sources actuelles
+pour cette mise à jour des profils ; la préversion téléchargeable du 19 novembre
+correspond à l’intégration précédente. L’envoi de messages ou
 fichiers exige une demande explicite. Les identifiants API sont fournis séparément ;
 les clés privées du moteur sont référencées par des variables d’environnement.
 
@@ -67,8 +71,8 @@ cysynck-desktop --state ./profile --mcp-port 0
 
 La dernière commande affiche le point d’accès local authentifié du bureau et le chemin
 du fichier du jeton. Utiliser le même profil avec `tools ... --endpoint URL` pour piloter
-cette instance. L’écriture est autorisée localement ; `--mcp-allow-write` l’active
-explicitement au lancement. Le [manuel hors ligne](#manuel-hors-ligne) contient le sujet
+cette instance. `--mcp-access-profile protected` sélectionne une instance contrôlée avec jeton ;
+`--mcp-allow-write` autorise les mutations uniquement pour les profils contrôlés. Le [manuel hors ligne](#manuel-hors-ligne) contient le sujet
 complet à `Documentation/Documentation.html#/fr/assistant` : fournisseurs, autorisations,
 MCP sans interface, outils externes sélectionnés et récupération des résultats conservés.
 
@@ -172,7 +176,7 @@ Le [test optionnel multi-Gio](.CyDocBuild/internal/LARGE-WORKLOAD.md) vérifie l
 | [PicoSHA2](https://github.com/okdshin/PicoSHA2) | [MIT](https://github.com/okdshin/PicoSHA2/blob/161cb3fc4170fa7a3eca9e582cebd27cc4d1fe29/LICENSE) | Vérifications SHA-256 du cœur. |
 | [TinyXML2 10.0.0](https://github.com/leethomason/tinyxml2) | [zlib](https://github.com/leethomason/tinyxml2/blob/321ea883b7190d4e85cae5512a12e5eaa8f8731f/LICENSE.txt) | Configuration XML de Syncthing dans le cœur. |
 | [CyUI](https://github.com/MrMybal/CyUI) | [MIT](https://github.com/MrMybal/CyUI/blob/6ef01cfcdb197f3a89d64618ce5ef8818c704728/LICENSE) | Application native et vues de l’assistant ; modules Diff, Inspector et DocumentViews. |
-| [CyMCPSDK 0.7.0](https://github.com/MrMybal/CyMCPSDK) | [MIT](https://github.com/MrMybal/CyMCPSDK/blob/791d4d7d7680213b282ec8529d248a10f8494d77/LICENSE) | Assistant, fournisseurs, registre CLI/MCP et ChatUI natif compilés depuis les sources ; notices complètes fournies avec le paquet. |
+| [CyMCPSDK 0.7.2](https://github.com/MrMybal/CyMCPSDK) | [MIT](https://github.com/MrMybal/CyMCPSDK/blob/e562c731a146d599e3404718ea8414bb5b96b66d/LICENSE) | Assistant, fournisseurs, registre CLI/MCP et ChatUI natif compilés depuis les sources ; notices complètes fournies avec le paquet. |
 | [Dear ImGui](https://github.com/ocornut/imgui) | [MIT](https://github.com/ocornut/imgui/blob/64944b4520b30772de8dbf0b37d0311746477a32/LICENSE.txt) | Widgets et couches d’intégration de l’application native. |
 | [GLFW 3.4](https://github.com/glfw/glfw) | [zlib/libpng](https://github.com/glfw/glfw/blob/3.4/LICENSE.md) | Fenêtre et contexte OpenGL de l’application native. |
 | [Lexilla / Scintilla](https://github.com/MrMybal/CyUI/tree/6ef01cfcdb197f3a89d64618ce5ef8818c704728/third_party) | [Conditions permissives Lexilla/Scintilla](https://github.com/MrMybal/CyUI/blob/6ef01cfcdb197f3a89d64618ce5ef8818c704728/third_party/lexilla/License.txt) | Analyseurs lexicaux et interfaces utilisés par CyUI Code dans l’application native. |

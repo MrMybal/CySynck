@@ -60,12 +60,65 @@ int result_exit_code(const Json &value) {
 
 Json Host::sanitize_result(Json result) { return {{"result", redact(std::move(result))}}; }
 
+const char *access_profile_name(cymcp::LocalAccessProfile profile) {
+    switch (profile) {
+    case cymcp::LocalAccessProfile::free:
+        return "free";
+    case cymcp::LocalAccessProfile::local_controlled:
+        return "local_controlled";
+    case cymcp::LocalAccessProfile::token_only:
+        return "token_only";
+    case cymcp::LocalAccessProfile::protected_access:
+        return "protected";
+    }
+    throw cymcp::Error("InvalidOptions", "Unknown local MCP access profile");
+}
+cymcp::LocalAccessProfile parse_access_profile(const std::string &name) {
+    if (name == "free")
+        return cymcp::LocalAccessProfile::free;
+    if (name == "local_controlled")
+        return cymcp::LocalAccessProfile::local_controlled;
+    if (name == "token_only")
+        return cymcp::LocalAccessProfile::token_only;
+    if (name == "protected" || name == "protected_access")
+        return cymcp::LocalAccessProfile::protected_access;
+    throw cymcp::Error("InvalidOptions", "Choose free, local_controlled, token_only or protected");
+}
+void Options::save_access_profile(const fs::path &state, cymcp::LocalAccessProfile profile) {
+    auto file = state / "assistant-options.json";
+    auto data = fs::exists(file) ? cymcp::parse_json(read_file(file, 16384)) : Json::object();
+    if (!data.is_object())
+        throw cymcp::Error("InvalidOptions", "Assistant options must be an object");
+    data["access_profile"] = access_profile_name(profile);
+    atomic_write(file, data.dump(2), true);
+}
 Options Options::load(const fs::path &state) {
     Options result;
     auto file = state / "assistant-options.json";
-    if (!fs::exists(file))
-        return result;
-    auto j = cymcp::parse_json(read_file(file, 16384));
+    auto j = fs::exists(file) ? cymcp::parse_json(read_file(file, 16384)) : Json::object();
+    if (!j.is_object())
+        throw cymcp::Error("InvalidOptions", "Assistant options must be an object");
+    bool migrate = !j.contains("access_profile") || j.at("access_profile").is_null() ||
+                   (j.at("access_profile").is_string() && j.at("access_profile") == "");
+    if (!migrate) {
+        if (!j.at("access_profile").is_string())
+            throw cymcp::Error("InvalidOptions", "Invalid local MCP access profile");
+        result.access_profile = parse_access_profile(j.at("access_profile"));
+    } else if (j.contains("require_token") || j.contains("control_operations") ||
+               j.contains("mcp_without_token") || j.contains("allow_changes")) {
+        // Explicit legacy access choices retain their meaning. An options file
+        // containing only performance/provider settings has no access choice.
+        for (auto field :
+             {"require_token", "control_operations", "mcp_without_token", "allow_changes"})
+            if (j.contains(field) && !j.at(field).is_boolean())
+                throw cymcp::Error("InvalidOptions", "Legacy access settings must be boolean");
+        bool token = j.value("require_token", !j.value("mcp_without_token", false));
+        bool control = j.value("control_operations", !j.value("allow_changes", false));
+        result.access_profile = token ? (control ? cymcp::LocalAccessProfile::protected_access
+                                                 : cymcp::LocalAccessProfile::token_only)
+                                      : (control ? cymcp::LocalAccessProfile::local_controlled
+                                                 : cymcp::LocalAccessProfile::free);
+    }
     result.compact = j.value("compact_discovery", true);
     result.notifications = j.value("notifications", true);
     result.disk_spool = j.value("disk_spool", false);
@@ -82,21 +135,26 @@ Options Options::load(const fs::path &state) {
         result.retention_seconds > 86400)
         throw cymcp::Error("InvalidOptions",
                            "Invalid assistant resource, retention, cache or context limit");
+    if (migrate)
+        save_access_profile(state, result.access_profile);
     return result;
 }
 
+Host::Host(Core &core) : Host(core, Options::load(core.state())) {}
 Host::Host(Core &core, Options options, bool persistent, std::shared_ptr<DesktopBridge> desktop)
     : core_(core), options_(options), persistent_(persistent), desktop_(std::move(desktop)) {
-    auto policy = cymcp::Policy(
-        [this](const cymcp::CallContext &context, const std::string &name, const Json &arguments) {
-            if (context.principal != "local")
-                return cymcp::Decision::deny;
-            auto description = registry_->describe(name);
-            return description.at("annotations").value("readOnlyHint", false) ||
-                           schemas::preview(name, arguments) || writes_.load()
-                       ? cymcp::Decision::allow
-                       : cymcp::Decision::deny;
-        });
+    auto policy = !access().control_operations
+                      ? cymcp::Policy::allow_all()
+                      : cymcp::Policy([this](const cymcp::CallContext &context,
+                                             const std::string &name, const Json &arguments) {
+                            if (context.principal != "local")
+                                return cymcp::Decision::deny;
+                            auto description = registry_->describe(name);
+                            return description.at("annotations").value("readOnlyHint", false) ||
+                                           schemas::preview(name, arguments) || writes_.load()
+                                       ? cymcp::Decision::allow
+                                       : cymcp::Decision::deny;
+                        });
     registry_ = std::make_shared<cymcp::Registry>(policy);
     if (options.notifications) {
         changes_ = std::make_shared<cymcp::ChangeFeed>();
@@ -241,7 +299,10 @@ Json Host::info() const {
     return {{"sdk_version", cymcp::version},
             {"sdk_revision", CYSYNCK_CYMCP_REVISION},
             {"operations", registry_->size()},
-            {"writes_allowed", writes_.load()},
+            {"writes_allowed", writes_allowed()},
+            {"access_profile", access_profile_name(options_.access_profile)},
+            {"require_token", access().require_token},
+            {"control_operations", access().control_operations},
             {"persistent_instance", persistent_.load()},
             {"desktop_actions", bool(desktop_)},
             {"compact_discovery", options_.compact},
@@ -252,7 +313,9 @@ Json Host::info() const {
             {"cache_ttl_ms", options_.cache_ttl_ms},
             {"metrics", options_.metrics},
             {"context_bytes", options_.context_bytes},
-            {"transports", {"stdio", "authenticated-loopback-http-json"}}};
+            {"transports",
+             {"stdio",
+              access().require_token ? "authenticated-loopback-http-json" : "loopback-http-json"}}};
 }
 void Host::changed() {
     // Optional observation must not turn a committed mutation into a failure.
@@ -510,10 +573,14 @@ Json Host::command(const std::vector<std::string> &args) {
              "| info\ncysynck [--state DIR] tools call NAME JSON --allow-write\ncysynck [--state "
              "DIR] tools list|describe|call ... --endpoint http://127.0.0.1:PORT\ncysynck [--state "
              "DIR] mcp --stdio [--full] [--allow-write]\ncysynck [--state DIR] mcp --port PORT "
-             "[--full] [--allow-write]\ncysynck tools read-resource URI --endpoint "
-             "http://127.0.0.1:PORT\nHTTP: bearer token from CYSYNCK_API_TOKEN or the selected "
-             "profile api-token; /mcp JSON-RPC or /v1 native dispatch. Read-only by "
-             "default.\nOptions: profile/assistant-options.json. Existing CLI commands remain "
+             "[--full] [--allow-write] [--access-profile "
+             "free|local_controlled|token_only|protected]\n"
+             "cysynck tools read-resource URI --endpoint "
+             "http://127.0.0.1:PORT\nFree is the default: address-only loopback access and all "
+             "registered operations authorized. Arguments remain validated. Controlled profiles "
+             "require --allow-write for mutations; token profiles require a bearer credential.\n"
+             "--access-profile persists an explicit local choice; it cannot change a remote host.\n"
+             "Options: profile/assistant-options.json. Existing CLI commands remain "
              "available."}};
     if (args[0] == "list" && args.size() == 1)
         return registry_->describe();
@@ -550,20 +617,24 @@ int Host::listen(int port, bool full) {
     options.performance = performance_;
     options.cache_ttl = std::chrono::milliseconds(options_.cache_ttl_ms);
     server_ = std::make_unique<cymcp::McpServer>(*tools(full), "CySynck", options);
-    http_ = std::make_unique<cymcp::LocalHttpServer>(
-        core_.api_token(), [this](const Json &request, const cymcp::CallContext &context) {
-            // The transport has already authenticated the profile bearer token.
-            // All three entry points represent this same local application account;
-            // no caller-provided JSON can choose a principal or elevate its rights.
-            auto application_context = context;
-            application_context.principal = "local";
-            if (!request.contains("jsonrpc") &&
-                request.value("method", std::string()) == "read-resource")
-                return resources_->read(request.at("uri"), application_context);
-            return request.contains("jsonrpc")
-                       ? server_->handle(request, application_context)
-                       : cymcp::dispatch_app(*registry_, request, application_context);
-        });
+    auto endpoint = [this](const Json &request, const cymcp::CallContext &context) {
+        // The selected SDK transport checks loopback/Host/Origin and, for
+        // token profiles, authentication. Its accepted local callers share
+        // the app identity; JSON cannot choose a principal.
+        auto application_context = context;
+        application_context.principal = "local";
+        if (!request.contains("jsonrpc") &&
+            request.value("method", std::string()) == "read-resource")
+            return resources_->read(request.at("uri"), application_context);
+        return request.contains("jsonrpc")
+                   ? server_->handle(request, application_context)
+                   : cymcp::dispatch_app(*registry_, request, application_context);
+    };
+    if (access().require_token)
+        http_ = std::make_unique<cymcp::LocalHttpServer>(core_.api_token(), endpoint);
+    else
+        http_ = std::make_unique<cymcp::LocalHttpServer>(
+            cymcp::LocalHttpServer::UnauthenticatedLoopback{}, endpoint);
     try {
         auto bound = http_->start(port);
         watch_activity();
@@ -722,6 +793,7 @@ int run(Core &core, const std::vector<std::string> &arguments) {
         auto args = arguments;
         bool writes = false, full = false;
         std::string endpoint;
+        std::optional<cymcp::LocalAccessProfile> selected_profile;
         for (std::size_t i = 0; i < args.size(); ++i)
             if (args[i] == "--endpoint") {
                 if (i + 1 == args.size() || !endpoint.empty())
@@ -730,6 +802,16 @@ int run(Core &core, const std::vector<std::string> &arguments) {
                 args.erase(args.begin() + i, args.begin() + i + 2);
                 break;
             }
+        for (std::size_t i = 0; i < args.size();) {
+            if (args[i] != "--access-profile") {
+                ++i;
+                continue;
+            }
+            if (i + 1 == args.size() || selected_profile)
+                throw cymcp::Error("InvalidArguments", "Supply one --access-profile value");
+            selected_profile = parse_access_profile(args[i + 1]);
+            args.erase(args.begin() + i, args.begin() + i + 2);
+        }
         args.erase(std::remove_if(args.begin(), args.end(),
                                   [&](const std::string &arg) {
                                       if (arg == "--allow-write") {
@@ -744,11 +826,15 @@ int run(Core &core, const std::vector<std::string> &arguments) {
                                   }),
                    args.end());
         if (!endpoint.empty()) {
+            while (endpoint.ends_with('/'))
+                endpoint.pop_back();
             auto url = cymcp::parse_url(endpoint);
-            if (args[0] != "tools" || !url.loopback || url.target != "/")
+            if (args[0] != "tools" || !url.loopback || (url.target != "/" && url.target != "/mcp"))
                 throw cymcp::Error("InvalidArguments",
-                                   "--endpoint selects a loopback CySynck MCP origin URL");
-            if (writes)
+                                   "--endpoint selects a loopback CySynck MCP URL");
+            if (url.target == "/mcp")
+                endpoint.resize(endpoint.size() - 4);
+            if (writes || selected_profile)
                 throw cymcp::Error("InvalidArguments",
                                    "Authorize writes in the running instance; --allow-write cannot "
                                    "elevate a remote call");
@@ -770,17 +856,23 @@ int run(Core &core, const std::vector<std::string> &arguments) {
                 throw cymcp::Error("InvalidArguments",
                                    "Remote tools support list, describe NAME and call NAME JSON");
             auto token = env("CYSYNCK_API_TOKEN");
-            if (token.empty())
-                token = core.api_token();
             while (endpoint.ends_with('/'))
                 endpoint.pop_back();
             cymcp::HttpRequest http;
             http.method = "POST";
             http.url = endpoint + "/v1";
             http.body = request.dump();
-            http.headers = {{"Authorization", "Bearer " + token},
-                            {"Content-Type", "application/json"}};
+            http.headers = {{"Content-Type", "application/json"}};
+            if (!token.empty())
+                http.headers["Authorization"] = "Bearer " + token;
             auto response = cymcp::HttpClient{}.perform(http);
+            if (response.status == 401 && token.empty()) {
+                // Authentication rejected the first request before dispatch. A
+                // legacy protected host can use the selected profile's token;
+                // Free never reads or sends it. Do not replay business errors.
+                http.headers["Authorization"] = "Bearer " + core.api_token();
+                response = cymcp::HttpClient{}.perform(http);
+            }
             if (response.status == 401 || response.status == 403)
                 throw cymcp::Error(
                     "AccessDenied",
@@ -807,6 +899,8 @@ int run(Core &core, const std::vector<std::string> &arguments) {
             std::cout << result.dump(2) << '\n';
             return result_exit_code(result);
         }
+        if (selected_profile)
+            Options::save_access_profile(core.state(), *selected_profile);
         Host host(core, Options::load(core.state()));
         host.allow_writes(writes);
         if (args[0] == "tools") {
@@ -827,7 +921,10 @@ int run(Core &core, const std::vector<std::string> &arguments) {
         if (args.size() == 3 && args[1] == "--port") {
             auto port = host.listen(std::stoi(args[2]), full);
             std::cerr << "CySynck MCP: http://127.0.0.1:" << port
-                      << "/mcp; token file: " << path_string(core.state() / "api-token") << '\n';
+                      << "/mcp; access: " << access_profile_name(host.options().access_profile);
+            if (host.access().require_token)
+                std::cerr << "; token file: " << path_string(core.state() / "api-token");
+            std::cerr << '\n';
             std::signal(SIGINT, interrupt);
             std::signal(SIGTERM, interrupt);
             while (!interrupted)

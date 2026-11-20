@@ -37,7 +37,7 @@ The desktop, CLI and Web/API console share one core. The core can also be embedd
 
 ## Features
 
-- **Assistant and MCP:** native streamed CyMCPSDK chat and 130 operations shared by JSON CLI and authenticated local MCP, covering projects, engine, VPN, transfers, plugins and the desktop. Writes require an explicit grant; histories and retained results stay private. See [Assistant and MCP](#assistant-and-mcp).
+- **Assistant and MCP:** native streamed CyMCPSDK chat and 130 operations shared by JSON CLI and authenticated local MCP, covering projects, engine, VPN, transfers, plugins and the desktop. Current sources default to Free access; controlled profiles retain write grants, and histories/results stay private. See [Assistant and MCP](#assistant-and-mcp).
 - **Project modes:** two-way, send-only and receive-only synchronization, backups, explicit Git exchange and native plugin modes.
 - **Backups:** scheduling, exclusion previews, retention, whole-file/fixed-block/content-defined storage, integrity verification and selective restoration.
 - **File review:** bounded side-by-side or unified differences, Git-compatible patches and explicit conflict resolution with preserved recovery copies.
@@ -51,8 +51,12 @@ The desktop, CLI and Web/API console share one core. The core can also be embedd
 Open **Assistant** to choose an installed agent or a compatible API/model service.
 The assistant can inspect projects, review changes and invoke the same native actions
 as the CLI, including Git/CyRevision, backups, networking and live desktop settings.
-Read-only access is the default. **Allow application actions** grants changes for
-that instance; preview plans, peer-key confirmation and process ownership still apply.
+The current source update uses CyMCPSDK 0.7.2 (`e562c73`) and defaults to **Free**:
+when MCP is enabled, its loopback address authorizes all registered operations without
+a token or extra confirmation. Local controlled, Token only and Protected remain available.
+Argument validation, native plans, peer-key inputs and process ownership still apply.
+Build the current sources for this access-profile update; the downloadable November 19
+preview records the preceding integration.
 Messages/files require an explicit request. API credentials are supplied separately;
 private engine keys are referenced through environment variables.
 
@@ -66,8 +70,8 @@ cysynck-desktop --state ./profile --mcp-port 0
 
 The last command prints the desktop's authenticated loopback endpoint and token-file
 location. Use the same profile with `tools ... --endpoint URL` to control that open
-instance. Its write grant is managed locally; `--mcp-allow-write` explicitly enables
-it at launch. The [offline manual](#offline-manual) contains the full assistant topic
+instance. Use `--mcp-access-profile protected` to select a token-protected controlled
+instance. `--mcp-allow-write` enables mutations only for controlled profiles. The [offline manual](#offline-manual) contains the full assistant topic
 at `Documentation/Documentation.html#/en/assistant`, including providers, permissions,
 headless MCP, external tool allowlists and retained-result handling.
 
@@ -171,7 +175,7 @@ The opt-in [multi-GiB workload test](.CyDocBuild/internal/LARGE-WORKLOAD.md) exe
 | [PicoSHA2](https://github.com/okdshin/PicoSHA2) | [MIT](https://github.com/okdshin/PicoSHA2/blob/161cb3fc4170fa7a3eca9e582cebd27cc4d1fe29/LICENSE) | Core SHA-256 checks. |
 | [TinyXML2 10.0.0](https://github.com/leethomason/tinyxml2) | [zlib](https://github.com/leethomason/tinyxml2/blob/321ea883b7190d4e85cae5512a12e5eaa8f8731f/LICENSE.txt) | Core Syncthing XML configuration. |
 | [CyUI](https://github.com/MrMybal/CyUI) | [MIT](https://github.com/MrMybal/CyUI/blob/6ef01cfcdb197f3a89d64618ce5ef8818c704728/LICENSE) | Native desktop and assistant views; Diff, Inspector and DocumentViews modules. |
-| [CyMCPSDK 0.7.0](https://github.com/MrMybal/CyMCPSDK) | [MIT](https://github.com/MrMybal/CyMCPSDK/blob/791d4d7d7680213b282ec8529d248a10f8494d77/LICENSE) | Source-built assistant, providers, CLI/MCP registry and native ChatUI; full bundled notices accompany the package. |
+| [CyMCPSDK 0.7.2](https://github.com/MrMybal/CyMCPSDK) | [MIT](https://github.com/MrMybal/CyMCPSDK/blob/e562c731a146d599e3404718ea8414bb5b96b66d/LICENSE) | Source-built assistant, providers, CLI/MCP registry and native ChatUI; full bundled notices accompany the package. |
 | [Dear ImGui](https://github.com/ocornut/imgui) | [MIT](https://github.com/ocornut/imgui/blob/64944b4520b30772de8dbf0b37d0311746477a32/LICENSE.txt) | Native desktop widgets and backends. |
 | [GLFW 3.4](https://github.com/glfw/glfw) | [zlib/libpng](https://github.com/glfw/glfw/blob/3.4/LICENSE.md) | Native desktop window and OpenGL context. |
 | [Lexilla / Scintilla](https://github.com/MrMybal/CyUI/tree/6ef01cfcdb197f3a89d64618ce5ef8818c704728/third_party) | [Lexilla/Scintilla permissive terms](https://github.com/MrMybal/CyUI/blob/6ef01cfcdb197f3a89d64618ce5ef8818c704728/third_party/lexilla/License.txt) | Lexers and interfaces used by CyUI Code in the desktop. |

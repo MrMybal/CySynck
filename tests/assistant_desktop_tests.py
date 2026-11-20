@@ -1,4 +1,4 @@
-"""Drive the real hidden native window through its authenticated MCP endpoint."""
+"""Drive the real hidden window through Free and Protected MCP profiles."""
 import json
 import os
 from pathlib import Path
@@ -9,6 +9,8 @@ import subprocess
 import sys
 import tempfile
 import threading
+import urllib.error
+import urllib.request
 
 desktop, cli = map(lambda p: Path(p).resolve(), sys.argv[1:3])
 checks = 0
@@ -36,9 +38,9 @@ with tempfile.TemporaryDirectory(prefix="assistant-desktop-fixture-", dir=deskto
 
     project_id = command("tools", "call", "cysynck.project.create", json.dumps({"parameters": {
         "name": "Native UI fixture", "root": str(project), "mode": "backup", "backup_interval_minutes": 0
-    }}), "--allow-write")["result"]["id"]
+    }}))["result"]["id"]
     process = subprocess.Popen([str(desktop), "--state", str(state), "--no-tray", "--mcp-port", "0",
-                                "--mcp-allow-write", "--view", "Assistant", "--language", "en",
+                                "--view", "Assistant", "--language", "en",
                                 "--frames", "600", "--capture", str(capture)],
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
     lines = queue.Queue()
@@ -46,12 +48,18 @@ with tempfile.TemporaryDirectory(prefix="assistant-desktop-fixture-", dir=deskto
     try:
         line = lines.get(timeout=20)
         match = re.search(r"127\.0\.0\.1:(\d+)/mcp", line)
-        check(bool(match), "Native desktop publishes its authenticated endpoint: " + line)
+        check(bool(match) and "access: free" in line, "Native desktop defaults to Free: " + line)
         endpoint = "http://127.0.0.1:" + match.group(1)
 
         def call(name, parameters=None):
-            return command("tools", "call", name, json.dumps({"parameters": parameters or {}}),
-                           "--endpoint", endpoint)["result"]
+            # No Authorization header, token file, write flag or UI grant.
+            request = urllib.request.Request(endpoint + "/v1", data=json.dumps({
+                "method": "invoke", "name": name, "arguments": {"parameters": parameters or {}}
+            }).encode(), headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(request, timeout=20) as response:
+                result = json.load(response)
+            check("error" not in result, "Free native action succeeds without confirmation")
+            return result["result"]
 
         initial = call("cysynck.ui.status")
         check(initial["ui_language"] == "en" and initial["ui_view"] == "Assistant" and initial["live"],
@@ -79,4 +87,48 @@ with tempfile.TemporaryDirectory(prefix="assistant-desktop-fixture-", dir=deskto
             process.terminate()
             process.wait(timeout=10)
 
-print(f"PASS {checks} live native desktop/MCP checks; fixture removed")
+    protected = subprocess.Popen([str(desktop), "--state", str(state), "--no-tray", "--mcp-port", "0",
+                                 "--mcp-access-profile", "protected", "--view", "Assistant",
+                                 "--frames", "500", "--capture", str(root / "protected.bmp")],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
+    lines = queue.Queue()
+    threading.Thread(target=lambda: lines.put(protected.stderr.readline()), daemon=True).start()
+    try:
+        line = lines.get(timeout=20)
+        match = re.search(r"127\.0\.0\.1:(\d+)/mcp", line)
+        check(bool(match) and "access: protected" in line, "Explicit Protected selection survives native startup")
+        endpoint = "http://127.0.0.1:" + match.group(1)
+
+        def protected_call(name, parameters=None, token=None):
+            headers = {"Content-Type": "application/json"}
+            if token:
+                headers["Authorization"] = "Bearer " + token
+            request = urllib.request.Request(endpoint + "/v1", data=json.dumps({
+                "method": "invoke", "name": name, "arguments": {"parameters": parameters or {}}
+            }).encode(), headers=headers)
+            try:
+                with urllib.request.urlopen(request, timeout=20) as response:
+                    return response.status, json.load(response)
+            except urllib.error.HTTPError as error:
+                return error.code, None
+
+        check(protected_call("cysynck.ui.status")[0] == 401, "Real Protected desktop rejects address-only reads")
+        check(protected_call("cysynck.ui.configure", {"ui_theme": "navy"})[0] == 401,
+              "Real Protected desktop rejects address-only writes")
+        check(protected_call("cysynck.ui.status", token="incorrect-token")[0] == 401,
+              "Protected desktop rejects incorrect tokens")
+        token = (state / "api-token").read_text(encoding="utf-8").strip()
+        status, current = protected_call("cysynck.ui.status", token=token)
+        check(status == 200 and current["result"]["ui_theme"] == "violet", "Valid Protected token reads the unchanged live UI")
+        status, denied = protected_call("cysynck.ui.configure", {"ui_theme": "navy"}, token=token)
+        check(status == 403, "Protected retains its operation policy after authentication")
+        check(json.loads((state / "assistant-options.json").read_text(encoding="utf-8"))["access_profile"] == "protected",
+              "Explicit native profile choice is persisted")
+        protected.wait(timeout=35)
+        check(protected.returncode == 0, "Protected native window closes cleanly")
+    finally:
+        if protected.poll() is None:
+            protected.terminate()
+            protected.wait(timeout=10)
+
+print(f"PASS {checks} live Free/Protected native desktop/MCP checks; fixture removed")

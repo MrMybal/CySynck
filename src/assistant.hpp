@@ -1,11 +1,13 @@
 #pragma once
 #include <cysynck/core.hpp>
 #include <cymcp/ai.hpp>
+#include <cymcp/http.hpp>
 #include <cymcp/mcp.hpp>
 #include <cymcp/performance.hpp>
 #include <cymcp/changes.hpp>
 #include <deque>
 #include <future>
+#include <optional>
 
 namespace cysynck::assistant {
 // Workers submit application UI actions; only the application's UI thread drains
@@ -23,11 +25,15 @@ class DesktopBridge {
     void close();
 };
 struct Options {
+    cymcp::LocalAccessProfile access_profile = cymcp::LocalAccessProfile::free;
     bool compact = true, notifications = true, disk_spool = false, metrics = false;
     std::size_t inline_bytes = 16384, spool_quota_mib = 128, context_bytes = 0;
     int cache_ttl_ms = 30000, retention_seconds = 300;
     static Options load(const fs::path &);
+    static void save_access_profile(const fs::path &, cymcp::LocalAccessProfile);
 };
+const char *access_profile_name(cymcp::LocalAccessProfile);
+cymcp::LocalAccessProfile parse_access_profile(const std::string &);
 // Core serializes its business requests and locks the on-disk profile. No handler
 // manipulates ImGui, Unreal objects or the process-wide graphical state.
 class Host {
@@ -63,11 +69,15 @@ class Host {
              bool project = false);
 
   public:
-    explicit Host(Core &, Options = {}, bool persistent = false,
+    explicit Host(Core &);
+    explicit Host(Core &, Options, bool persistent = false,
                   std::shared_ptr<DesktopBridge> desktop = {});
     ~Host();
     void allow_writes(bool value) { writes_.store(value); }
-    bool writes_allowed() const { return writes_.load(); }
+    bool writes_allowed() const { return !access().control_operations || writes_.load(); }
+    cymcp::LocalAccessSettings access() const {
+        return cymcp::local_access_settings(options_.access_profile);
+    }
     std::shared_ptr<const cymcp::Registry> registry() const { return registry_; }
     std::shared_ptr<const cymcp::Registry> tools(bool full = false) const;
     std::shared_ptr<cymcp::ResourceRegistry> resources() const { return resources_; }
