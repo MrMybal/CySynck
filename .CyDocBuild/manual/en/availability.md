@@ -5,15 +5,17 @@ description: Understand the implemented scope and workflows requiring external t
 section: Start
 order: 6
 parent: overview
-revision: 11
+revision: 12
 ---
 
 # Availability and limits {#availability-and-limits}
 
 ## Implemented workflows {#implemented-workflows}
 
-The [Windows x64 development preview](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261119) contains the current
-130-operation assistant/MCP integration and the bilingual offline manual. The
+The [Windows x64 development preview](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261120) contains the current
+130-operation assistant/MCP integration with CyMCPSDK 0.7.2 and the bilingual offline manual.
+The local listener defaults to Free: its address alone authorizes registered operations;
+argument validation remains active. Explicit access choices are preserved. The
 [assistant guide](doc:assistant) covers its providers, permissions, native actions,
 live desktop endpoint and CLI automation. Linux/macOS binaries for this assistant
 update have not been validated or published; build from source for those targets.

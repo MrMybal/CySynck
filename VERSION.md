@@ -5,13 +5,13 @@
 **Core, CLI and desktop source version: 0.41.0**<br>
 **Unreal bridge source version: 0.2.0**<br>
 **Stage: IN DEVELOPMENT**<br>
-**Application binary: [Windows x64 development preview](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261119)**
+**Application binary: [Windows x64 development preview](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261120)**
 
-These notes describe the 0.41.0 source tree and the Windows x64 development preview `v0.41.0-preview.20261119`. The C ABI remains at version 1. The bundled documentation uses CyDoc reader 0.1.0; that is a dependency version, separate from CySynck's version.
+These notes describe the 0.41.0 source tree and the Windows x64 development preview `v0.41.0-preview.20261120`. The C ABI remains at version 1. The bundled documentation uses CyDoc reader 0.1.0; that is a dependency version, separate from CySynck's version.
 
 ## Changes in 0.41.0
 
-### Unreleased source update — MCP access profiles
+### Published development preview — November 20, 2026
 
 - Build CyMCPSDK 0.7.2 directly from the local source revision
   `e562c731a146d599e3404718ea8414bb5b96b66d`. Default local MCP access is Free:
@@ -20,6 +20,9 @@ These notes describe the 0.41.0 source tree and the Windows x64 development prev
 - Keep Local controlled, Token only and Protected available in configuration, CLI
   and desktop settings. Protected still requires a token. Local verification uses
   the real CLI/desktop and deterministic SDK chat fixtures, without GitHub Actions.
+- Refresh the Windows x64 archive, standalone offline manual and SHA-256 files.
+  The SDK/profile suites pass in desktop and headless Windows builds; Linux/macOS
+  native validation for this update remains outstanding.
 
 
 ### Published development preview — November 19, 2026

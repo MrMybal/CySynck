@@ -5,15 +5,17 @@ description: Comprendre les fonctions implémentées et les workflows nécessita
 section: Démarrer
 order: 6
 parent: overview
-sourceRevision: 11
+sourceRevision: 12
 ---
 
 # Disponibilité et limites {#availability-and-limits}
 
 ## Fonctions implémentées {#implemented-workflows}
 
-La [préversion Windows x64](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261119) contient l’intégration
-assistant/MCP actuelle à 130 opérations et le manuel hors ligne bilingue. Le
+La [préversion Windows x64](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261120) contient l’intégration
+assistant/MCP actuelle à 130 opérations avec CyMCPSDK 0.7.2 et le manuel hors ligne bilingue.
+Le MCP local utilise Free par défaut : son adresse seule autorise les opérations
+enregistrées ; les arguments restent validés. Les choix d’accès explicites sont conservés. Le
 [guide assistant](doc:assistant) présente ses fournisseurs, autorisations, actions
 natives, point d’accès du bureau ouvert et automatisation CLI. Les binaires
 Linux/macOS de cette mise à jour de l’assistant n’ont pas été validés ni publiés ;

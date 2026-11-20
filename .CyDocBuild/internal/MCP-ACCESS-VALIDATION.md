@@ -2,6 +2,10 @@
 
 Date: 2026-11-20. Local Windows x64 Release validation; no GitHub workflow was launched.
 
+This report records the integration validation before its later publication. The
+[November 20 Windows preview](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261120)
+contains this SDK/profile update; local-only statements below describe the original validation stage.
+
 ## Integrated dependency
 
 - Requested minimum: `34d4bcae126bc83d1a2925b5047dac36e3d09d92`.

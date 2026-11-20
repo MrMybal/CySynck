@@ -3,10 +3,12 @@
 [English manual](Documentation/Documentation.html#/en/overview) · [Manuel français](Documentation/Documentation.html#/fr/overview)
 
 This development preview includes the native Assistant and 130 shared CLI/MCP operations.
-Open **Assistant** to connect a provider. Application changes are disabled by default;
-allow them explicitly for the current instance. Keep agent/API credentials separate.
+Open **Assistant** to connect a provider. CyMCPSDK 0.7.2 defaults to **Free** local MCP
+access: when the listener is enabled, its address alone authorizes registered operations.
+Arguments remain validated; explicit profile choices are preserved. Local controlled,
+Token only and Protected remain available. Keep agent/API credentials separate.
 The local guide is `Documentation/Documentation.html#/en/assistant`.
-On Windows start `bin/cysynck-desktop.exe`; `--mcp-port 0` exposes its authenticated
+On Windows start `bin/cysynck-desktop.exe`; `--mcp-port 0` exposes its
 loopback endpoint for the CLI. The package also contains `Install-CySynck.ps1`.
 
 Open `Documentation/Documentation.html` in a recent browser. Keep the whole `Documentation/`

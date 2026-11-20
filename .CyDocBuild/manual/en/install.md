@@ -5,13 +5,16 @@ description: Install, update or remove the Windows package; run portable Linux a
 section: Start
 order: 2
 parent: overview
-revision: 4
+revision: 5
 ---
 
 # Windows installation {#installation-windows}
 
 Download the complete Windows x64 development preview and its SHA-256 file from the
-[release page](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261119). Verify the archive checksum before extracting it.
+[release page](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261120). Verify the archive checksum before extracting it.
+This preview uses the Free local MCP profile by default. Enabling MCP allows address-only
+access to registered operations. Existing explicit access profiles are retained;
+choose Protected for token authentication and controlled operation grants.
 The current assistant update has no published Linux/macOS binary; the portable
 instructions below also apply to locally built packages.
 

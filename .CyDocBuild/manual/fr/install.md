@@ -5,13 +5,16 @@ description: Installer, mettre à jour ou retirer le paquet Windows ; utiliser l
 section: Démarrer
 order: 2
 parent: overview
-sourceRevision: 4
+sourceRevision: 5
 ---
 
 # Installation Windows {#installation-windows}
 
 Télécharger la préversion Windows x64 complète et son fichier SHA-256 depuis la
-[page de version](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261119). Vérifier l’empreinte avant extraction.
+[page de version](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261120). Vérifier l’empreinte avant extraction.
+Cette préversion utilise Free par défaut pour le MCP local. Son activation permet
+l’accès aux opérations enregistrées avec l’adresse seule. Les profils explicites
+existants sont conservés ; choisir Protégé pour un jeton et des autorisations contrôlées.
 Cette mise à jour de l’assistant n’a pas de binaire Linux/macOS publié ; les
 instructions portables ci-dessous s’appliquent aussi aux paquets compilés localement.
 

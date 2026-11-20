@@ -14,7 +14,7 @@
     <td width="300" align="right" valign="top">
       <p><sub>Application license</sub><br><a href="LICENSE"><strong>MIT</strong></a></p>
       <p><sub>Source versions</sub><br><a href="VERSION.md"><strong>Application 0.41.0</strong><br>Unreal bridge 0.2.0</a><br><strong>IN DEVELOPMENT</strong></p>
-      <p><a href="https://github.com/MrMybal/CySynck/releases/download/v0.41.0-preview.20261119/CySynck-0.41.0-win64.zip"><strong>Download Windows x64</strong></a><br><sub>Development preview</sub></p>
+      <p><a href="https://github.com/MrMybal/CySynck/releases/download/v0.41.0-preview.20261120/CySynck-0.41.0-win64.zip"><strong>Download Windows x64</strong></a><br><sub>Development preview</sub></p>
     </td>
   </tr>
 </table>
@@ -25,7 +25,7 @@ Synchronize projects, keep versioned backups and review file changes from one ap
 
 > **IN DEVELOPMENT · 0.41.0**
 >
-> A [Windows x64 development preview](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261119) includes the desktop, CLI, SDK and offline manual. Validate it for your target workflow; the current assistant update has not yet been tested natively on Linux/macOS. Read the [version notes and documented limitations](VERSION.md).
+> A [Windows x64 development preview](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261120) includes the desktop, CLI, SDK and offline manual. Validate it for your target workflow; the current assistant update has not yet been tested natively on Linux/macOS. Read the [version notes and documented limitations](VERSION.md).
 
 [![CySynck 0.41.0 desktop on Windows, showing the empty project overview, navigation and contextual Help button](assets/screenshots/desktop-0.41.0.png)](assets/screenshots/desktop-0.41.0.png)
 
@@ -37,7 +37,7 @@ The desktop, CLI and Web/API console share one core. The core can also be embedd
 
 ## Features
 
-- **Assistant and MCP:** native streamed CyMCPSDK chat and 130 operations shared by JSON CLI and authenticated local MCP, covering projects, engine, VPN, transfers, plugins and the desktop. Current sources default to Free access; controlled profiles retain write grants, and histories/results stay private. See [Assistant and MCP](#assistant-and-mcp).
+- **Assistant and MCP:** native streamed CyMCPSDK chat and 130 operations shared by JSON CLI and local MCP, covering projects, engine, VPN, transfers, plugins and the desktop. Free is the default access profile; controlled profiles retain write grants, and histories/results stay private. See [Assistant and MCP](#assistant-and-mcp).
 - **Project modes:** two-way, send-only and receive-only synchronization, backups, explicit Git exchange and native plugin modes.
 - **Backups:** scheduling, exclusion previews, retention, whole-file/fixed-block/content-defined storage, integrity verification and selective restoration.
 - **File review:** bounded side-by-side or unified differences, Git-compatible patches and explicit conflict resolution with preserved recovery copies.
@@ -51,16 +51,16 @@ The desktop, CLI and Web/API console share one core. The core can also be embedd
 Open **Assistant** to choose an installed agent or a compatible API/model service.
 The assistant can inspect projects, review changes and invoke the same native actions
 as the CLI, including Git/CyRevision, backups, networking and live desktop settings.
-The current source update uses CyMCPSDK 0.7.2 (`e562c73`) and defaults to **Free**:
+The November 20 preview uses CyMCPSDK 0.7.2 (`e562c73`) and defaults to **Free**:
 when MCP is enabled, its loopback address authorizes all registered operations without
 a token or extra confirmation. Local controlled, Token only and Protected remain available.
 Argument validation, native plans, peer-key inputs and process ownership still apply.
-Build the current sources for this access-profile update; the downloadable November 19
-preview records the preceding integration.
+Existing explicit profile choices are preserved; settings without an access choice
+migrate to Free. The local MCP listener starts only when you enable it.
 Messages/files require an explicit request. API credentials are supplied separately;
 private engine keys are referenced through environment variables.
 
-[![CySynck native Assistant in English, showing provider settings and read-only access](assets/screenshots/assistant-0.41.0.png)](assets/screenshots/assistant-0.41.0.png)
+[![CySynck native Assistant in English, showing provider settings and the default Free access profile](assets/screenshots/assistant-0.41.0.png)](assets/screenshots/assistant-0.41.0.png)
 
 ```sh
 cysynck tools list
@@ -98,7 +98,7 @@ To generate just the manual, run `npm ci --prefix .CyDocBuild` followed by `npm 
 
 ## Installation
 
-Download the complete [Windows x64 development preview](https://github.com/MrMybal/CySynck/releases/download/v0.41.0-preview.20261119/CySynck-0.41.0-win64.zip) and its SHA-256 checksum from the [release page](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261119). It includes the native desktop, CLI, shared core/SDK and both offline manual languages. Linux/macOS builds for this assistant update are source-only for now.
+Download the complete [Windows x64 development preview](https://github.com/MrMybal/CySynck/releases/download/v0.41.0-preview.20261120/CySynck-0.41.0-win64.zip) and its SHA-256 checksum from the [release page](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261120). It includes the native desktop, CLI, shared core/SDK and both offline manual languages. Linux/macOS builds for this assistant update are source-only for now.
 
 | Target | Availability | Start after installing into `dist/` |
 | --- | --- | --- |
@@ -126,7 +126,7 @@ Quote paths containing spaces and inspect the verification report's `ok` field. 
 
 Requirements: **CMake 3.24+**, a **C++20 compiler**, Git, **Node.js 22+** and npm. Node.js is used to build the manual; it is not needed to run the application or read the export. CMake fetches the pinned native dependencies. A pinned CyDoc package is included in the repository.
 
-The assistant builds [CyMCPSDK](https://github.com/MrMybal/CyMCPSDK) 0.7.0 from source, preferring a sibling checkout or `-DCYSYNCK_CYMCP_SOURCE_DIR=/sources/CyMCPSDK`. Linux/macOS also need libcurl development files for the SDK HTTP transport. Agent executables, API credentials and local model services are supplied separately.
+The assistant builds [CyMCPSDK](https://github.com/MrMybal/CyMCPSDK) 0.7.2 from source, preferring a sibling checkout or `-DCYSYNCK_CYMCP_SOURCE_DIR=/sources/CyMCPSDK`. Linux/macOS also need libcurl development files for the SDK HTTP transport. Agent executables, API credentials and local model services are supplied separately.
 
 Windows builds use the Visual Studio 2022 C++ tools. macOS needs Xcode Command Line Tools. Linux desktop builds need OpenGL and GLFW's X11/Wayland development libraries; `libayatana-appindicator3-dev` enables the optional tray. The [native build workflow](.github/workflows/build.yml) lists the Linux packages used by CI.
 

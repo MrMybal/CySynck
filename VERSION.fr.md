@@ -5,13 +5,13 @@
 **Version des sources du cœur, du CLI et de l’application native : 0.41.0**<br>
 **Version des sources du pont Unreal : 0.2.0**<br>
 **Statut : EN DÉVELOPPEMENT**<br>
-**Binaire de l’application : [préversion Windows x64](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261119)**
+**Binaire de l’application : [préversion Windows x64](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261120)**
 
-Ces notes décrivent les sources 0.41.0 et la préversion Windows x64 `v0.41.0-preview.20261119`. L’ABI C reste en version 1. La documentation fournie utilise le lecteur CyDoc 0.1.0 ; cette version de dépendance est distincte de celle de CySynck.
+Ces notes décrivent les sources 0.41.0 et la préversion Windows x64 `v0.41.0-preview.20261120`. L’ABI C reste en version 1. La documentation fournie utilise le lecteur CyDoc 0.1.0 ; cette version de dépendance est distincte de celle de CySynck.
 
 ## Changements de la version 0.41.0
 
-### Mise à jour des sources non publiée — profils d’accès MCP
+### Préversion publiée — 20 novembre 2026
 
 - Compilation directe de CyMCPSDK 0.7.2 depuis les sources locales à la révision
   `e562c731a146d599e3404718ea8414bb5b96b66d`. Le MCP local utilise Free par défaut :
@@ -20,6 +20,9 @@ Ces notes décrivent les sources 0.41.0 et la préversion Windows x64 `v0.41.0-p
 - Local contrôlé, Jeton seul et Protégé restent disponibles dans la configuration,
   le CLI et les réglages du bureau. Protégé exige toujours un jeton. Les tests
   utilisent les vrais exécutables et des fixtures de chat, sans GitHub Actions.
+- Actualisation de l’archive Windows x64, du manuel hors ligne et des fichiers SHA-256.
+  Les suites SDK/profils passent avec et sans interface sous Windows ; la validation
+  native Linux/macOS de cette mise à jour reste à effectuer.
 
 
 ### Préversion publiée — 19 novembre 2026

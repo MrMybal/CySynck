@@ -14,7 +14,7 @@
     <td width="300" align="right" valign="top">
       <p><sub>Licence de l’application</sub><br><a href="LICENSE"><strong>MIT</strong></a></p>
       <p><sub>Versions des sources</sub><br><a href="VERSION.fr.md"><strong>Application 0.41.0</strong><br>Pont Unreal 0.2.0</a><br><strong>EN DÉVELOPPEMENT</strong></p>
-      <p><a href="https://github.com/MrMybal/CySynck/releases/download/v0.41.0-preview.20261119/CySynck-0.41.0-win64.zip"><strong>Télécharger Windows x64</strong></a><br><sub>Préversion de développement</sub></p>
+      <p><a href="https://github.com/MrMybal/CySynck/releases/download/v0.41.0-preview.20261120/CySynck-0.41.0-win64.zip"><strong>Télécharger Windows x64</strong></a><br><sub>Préversion de développement</sub></p>
     </td>
   </tr>
 </table>
@@ -25,7 +25,7 @@ Synchronisez vos projets, conservez des sauvegardes versionnées et examinez les
 
 > **EN DÉVELOPPEMENT · 0.41.0**
 >
-> Une [préversion Windows x64](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261119) réunit l’application, le CLI, le SDK et le manuel hors ligne. Valider votre usage cible ; cette mise à jour de l’assistant reste à tester nativement sous Linux/macOS. Consulter les [notes de version et limites documentées](VERSION.fr.md).
+> Une [préversion Windows x64](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261120) réunit l’application, le CLI, le SDK et le manuel hors ligne. Valider votre usage cible ; cette mise à jour de l’assistant reste à tester nativement sous Linux/macOS. Consulter les [notes de version et limites documentées](VERSION.fr.md).
 
 [![Application CySynck 0.41.0 sous Windows, avec la vue d’ensemble sans projet, la navigation et le bouton d’aide contextuelle ; interface en anglais](assets/screenshots/desktop-0.41.0.png)](assets/screenshots/desktop-0.41.0.png)
 
@@ -37,7 +37,7 @@ L’application native, le CLI et la console Web/API partagent un même cœur. C
 
 ## Fonctionnalités
 
-- **Assistant et MCP :** chat natif CyMCPSDK avec streaming et 130 opérations communes au CLI JSON et au MCP local authentifié : projets, moteur, VPN, transferts, plugins et bureau. Les sources actuelles utilisent Free par défaut ; les profils contrôlés gardent leur autorisation d’écriture, et les historiques/résultats restent privés. Voir [Assistant et MCP](#assistant-et-mcp).
+- **Assistant et MCP :** chat natif CyMCPSDK avec streaming et 130 opérations communes au CLI JSON et au MCP local : projets, moteur, VPN, transferts, plugins et bureau. Free est le profil d’accès par défaut ; les profils contrôlés gardent leur autorisation d’écriture, et les historiques/résultats restent privés. Voir [Assistant et MCP](#assistant-et-mcp).
 - **Modes de projet** : synchronisation bidirectionnelle, envoi seul ou réception seule, sauvegardes, échanges Git explicites et modes d’extensions natives.
 - **Sauvegardes** : planification, aperçu des exclusions, rétention, stockage par fichiers entiers/blocs fixes/blocs à découpage selon le contenu, vérification d’intégrité et restauration sélective.
 - **Revue de fichiers** : différences bornées côte à côte ou unifiées, patches compatibles Git et résolution explicite des conflits avec conservation de copies de récupération.
@@ -51,17 +51,17 @@ L’application native, le CLI et la console Web/API partagent un même cœur. C
 Ouvrir **Assistant** pour choisir un agent installé ou un service API/modèle compatible.
 L’assistant inspecte les projets, examine les différences et utilise les mêmes actions
 natives que le CLI, dont Git/CyRevision, les sauvegardes, le réseau et les réglages du
-bureau ouvert. La mise à jour actuelle des sources utilise CyMCPSDK 0.7.2 (`e562c73`) et **Free**
+bureau ouvert. La préversion du 20 novembre utilise CyMCPSDK 0.7.2 (`e562c73`) et **Free**
 par défaut : lorsque le MCP est activé, son adresse locale seule autorise toutes les
 opérations enregistrées sans jeton ni confirmation supplémentaire. Local contrôlé,
 Jeton seul et Protégé restent disponibles. Les arguments, plans natifs, clés des pairs
-et règles de propriété des processus restent validés. Compiler les sources actuelles
-pour cette mise à jour des profils ; la préversion téléchargeable du 19 novembre
-correspond à l’intégration précédente. L’envoi de messages ou
+et règles de propriété des processus restent validés. Les profils
+explicitement choisis sont conservés ; sans choix d’accès, les réglages migrent vers
+Free. Le MCP local démarre uniquement lorsque vous l’activez. L’envoi de messages ou
 fichiers exige une demande explicite. Les identifiants API sont fournis séparément ;
 les clés privées du moteur sont référencées par des variables d’environnement.
 
-[![Assistant natif CySynck en français avec réglages du fournisseur et accès en lecture seule](assets/screenshots/assistant-0.41.0-fr.png)](assets/screenshots/assistant-0.41.0-fr.png)
+[![Assistant natif CySynck en français avec réglages du fournisseur et profil Free par défaut](assets/screenshots/assistant-0.41.0-fr.png)](assets/screenshots/assistant-0.41.0-fr.png)
 
 ```sh
 cysynck tools list
@@ -99,7 +99,7 @@ Pour générer seulement le manuel, lancez `npm ci --prefix .CyDocBuild`, puis `
 
 ## Installation
 
-Télécharger la [préversion complète Windows x64](https://github.com/MrMybal/CySynck/releases/download/v0.41.0-preview.20261119/CySynck-0.41.0-win64.zip) et son empreinte SHA-256 depuis la [page de version](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261119). Elle contient le bureau natif, le CLI, le cœur/SDK et le manuel hors ligne dans les deux langues. Les versions Linux/macOS de cette mise à jour de l’assistant sont disponibles depuis les sources pour le moment.
+Télécharger la [préversion complète Windows x64](https://github.com/MrMybal/CySynck/releases/download/v0.41.0-preview.20261120/CySynck-0.41.0-win64.zip) et son empreinte SHA-256 depuis la [page de version](https://github.com/MrMybal/CySynck/releases/tag/v0.41.0-preview.20261120). Elle contient le bureau natif, le CLI, le cœur/SDK et le manuel hors ligne dans les deux langues. Les versions Linux/macOS de cette mise à jour de l’assistant sont disponibles depuis les sources pour le moment.
 
 | Cible | Disponibilité | Lancement après installation dans `dist/` |
 | --- | --- | --- |
@@ -127,7 +127,7 @@ Mettez les chemins contenant des espaces entre guillemets et examinez le champ `
 
 Prérequis : **CMake 3.24+**, **compilateur C++20**, Git, **Node.js 22+** et npm. Node.js sert à compiler le manuel ; il n’est pas nécessaire pour lancer l’application ou lire l’export. CMake récupère les dépendances natives épinglées. Une archive CyDoc épinglée est incluse dans le dépôt.
 
-L’assistant compile [CyMCPSDK](https://github.com/MrMybal/CyMCPSDK) 0.7.0 depuis ses sources, en donnant la priorité au dépôt voisin ou à `-DCYSYNCK_CYMCP_SOURCE_DIR=/sources/CyMCPSDK`. Linux/macOS nécessitent aussi libcurl de développement pour le transport HTTP du SDK. Les agents, identifiants API et services de modèles locaux sont fournis séparément.
+L’assistant compile [CyMCPSDK](https://github.com/MrMybal/CyMCPSDK) 0.7.2 depuis ses sources, en donnant la priorité au dépôt voisin ou à `-DCYSYNCK_CYMCP_SOURCE_DIR=/sources/CyMCPSDK`. Linux/macOS nécessitent aussi libcurl de développement pour le transport HTTP du SDK. Les agents, identifiants API et services de modèles locaux sont fournis séparément.
 
 Windows utilise les outils C++ de Visual Studio 2022. macOS nécessite les Xcode Command Line Tools. Le desktop Linux exige OpenGL et les bibliothèques de développement X11/Wayland de GLFW ; `libayatana-appindicator3-dev` active l’icône de notification facultative. Le [workflow de compilation native](.github/workflows/build.yml) liste les paquets Linux utilisés en CI.
 

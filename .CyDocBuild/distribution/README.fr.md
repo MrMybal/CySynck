@@ -3,11 +3,13 @@
 [Manuel français](Documentation/Documentation.html#/fr/overview) · [English manual](Documentation/Documentation.html#/en/overview)
 
 Cette préversion comprend l’assistant natif et 130 opérations communes au CLI/MCP.
-Ouvrir **Assistant** pour connecter un fournisseur. Les modifications de l’application
-sont désactivées par défaut ; les autoriser explicitement pour l’instance courante.
+Ouvrir **Assistant** pour connecter un fournisseur. CyMCPSDK 0.7.2 utilise **Free**
+par défaut : lorsque le MCP local est activé, son adresse seule autorise les opérations
+enregistrées. Les arguments restent validés et les profils explicites sont conservés.
+Local contrôlé, Jeton seul et Protégé restent disponibles.
 Fournir les identifiants des agents/API séparément. Le guide local est
 `Documentation/Documentation.html#/fr/assistant`. Sous Windows, lancer
-`bin/cysynck-desktop.exe` ; `--mcp-port 0` expose son point d’accès local authentifié
+`bin/cysynck-desktop.exe` ; `--mcp-port 0` expose son point d’accès local
 au CLI. Le paquet comprend aussi `Install-CySynck.ps1`.
 
 Ouvrir `Documentation/Documentation.html` dans un navigateur récent. Garder le dossier
